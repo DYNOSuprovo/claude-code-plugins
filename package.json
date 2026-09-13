@@ -11,14 +11,14 @@
     "lint:sh": "bun ./scripts/lint-shell.ts"
   },
   "dependencies": {
-    "yaml": "^2.8.0"
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@oxlint/plugins": "^1.79.0",
-    "@types/bun": "^1.4.0",
+    "@oxlint/plugins": "^1.82.0",
+    "@types/bun": "^1.4.2",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "oxfmt": "^0.64.0",
-    "oxlint": "^1.79.0",
+    "oxfmt": "^0.67.0",
+    "oxlint": "^1.82.0",
     "typescript": "^7.0.2"
   }
 }
