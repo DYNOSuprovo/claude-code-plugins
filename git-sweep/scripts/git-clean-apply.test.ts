@@ -13,6 +13,7 @@ function makeTmpDir(prefix: string): string {
   const safe = prefix.replaceAll(/[^a-zA-Z0-9-]/gu, "-");
   const dir = mkdtempSync(join(tmpdir(), `git-clean-apply-test-${safe}-`));
   tmpDirs.push(dir);
+
   return dir;
 }
 
@@ -22,6 +23,7 @@ afterEach(() => {
       rmSync(dir, { recursive: true, force: true });
     } catch {}
   }
+
   tmpDirs = [];
 });
 
@@ -36,12 +38,15 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
     stderr: "pipe",
     env: { ...process.env, ...GIT_ISOLATION },
   });
+
   const stdout = await new Response(proc.stdout).text();
   const exitCode = await proc.exited;
+
   if (exitCode !== 0) {
     const stderr = await new Response(proc.stderr).text();
     throw new Error(`git ${args.join(" ")} failed (${exitCode}): ${stderr}`);
   }
+
   return stdout.trim();
 }
 
@@ -55,8 +60,10 @@ async function runApply(
     stderr: "pipe",
     env: { ...process.env, ...GIT_ISOLATION },
   });
+
   const stdout = await new Response(proc.stdout).text();
   const exitCode = await proc.exited;
+
   try {
     return { exitCode, result: JSON.parse(stdout.trim()) };
   } catch {
@@ -72,6 +79,7 @@ async function makeRepo(prefix: string): Promise<string> {
   writeFileSync(join(repo, "init.txt"), "init");
   await git(repo, "add", ".");
   await git(repo, "commit", "-m", "initial commit");
+
   return repo;
 }
 
@@ -81,6 +89,7 @@ async function makeRepoWithOrigin(prefix: string): Promise<{ origin: string; rep
   const repo = await makeRepo(prefix);
   await git(repo, "remote", "add", "origin", origin);
   await git(repo, "push", "-u", "origin", "main");
+
   return { origin, repo };
 }
 
@@ -117,6 +126,7 @@ function writeManifest(repo: string, parts: ManifestParts, name = "manifest.json
       kept: [{ name: "main", reason: "base", detail: null }],
     }),
   );
+
   return path;
 }
 
@@ -138,6 +148,7 @@ describe("git-clean-apply", () => {
     await git(repo, "merge", "feature/done");
 
     const oid = await git(repo, "rev-parse", "feature/done");
+
     const manifestFile = writeManifest(repo, {
       branches: [{ name: "feature/done", force: false, oid }],
     });
@@ -182,6 +193,7 @@ describe("git-clean-apply", () => {
     await git(repo, "checkout", "main");
 
     const oid = await git(repo, "rev-parse", "worktree-agent-abc");
+
     const manifestFile = writeManifest(repo, {
       branches: [{ name: "worktree-agent-abc", force: true, oid }],
     });
@@ -274,6 +286,7 @@ describe("git-clean-apply", () => {
 
     await git(repo, "checkout", "-b", "side");
     const oid = await git(repo, "rev-parse", "main");
+
     const manifestFile = writeManifest(repo, {
       branches: [{ name: "main", force: true, oid }],
     });
@@ -355,6 +368,7 @@ describe("git-clean-apply", () => {
     const manifestFile = writeManifest(repo, {
       remote_branches: [{ remote: "origin", ref: "feature/remote-gone", oid }],
     });
+
     const { result } = await runApply(repo, "--manifest-file", manifestFile);
 
     expect(result.ok).toBe(true);
@@ -380,9 +394,11 @@ describe("git-clean-apply", () => {
     await git(clone, "push", "origin", "feature/busy");
 
     await git(repo, "checkout", "main");
+
     const manifestFile = writeManifest(repo, {
       remote_branches: [{ remote: "origin", ref: "feature/busy", oid: audited }],
     });
+
     const { exitCode, result } = await runApply(repo, "--manifest-file", manifestFile);
 
     expect(exitCode).toBe(1);

@@ -2,7 +2,7 @@
 
 Oxlint plugin copied from [dmmulroy/anti-slop](https://github.com/dmmulroy/anti-slop), MIT.
 
-- Upstream commit: `6d538555cb151d4121ed51a27db81890eacf8ae9` (2026-08-18)
+- Upstream commit: `c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b` (2026-09-10)
 - Source path: `skills/install-anti-slop/assets/anti-slop/`
 - Copied with: `node <clone>/skills/install-anti-slop/scripts/install.mjs`
 

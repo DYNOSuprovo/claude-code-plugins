@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
 const script = join(import.meta.dir, "plugin-cache-sync");
+
 const tempDirectories: string[] = [];
 
 async function createFixture(): Promise<{
@@ -53,8 +54,10 @@ async function createFixture(): Promise<{
       stderr: "pipe",
       stdout: "pipe",
     });
+
     expect(await process.exited).toBe(0);
   };
+
   await git("init", "--quiet");
   await git("config", "user.email", "test@example.com");
   await git("config", "user.name", "Test");
@@ -70,8 +73,10 @@ async function status(home: string, repository: string): Promise<string> {
     stderr: "pipe",
     stdout: "pipe",
   });
+
   const output = await new Response(child.stdout).text();
   expect(await child.exited).toBe(0);
+
   return output;
 }
 
@@ -81,6 +86,7 @@ async function sync(home: string, repository: string): Promise<void> {
     stderr: "pipe",
     stdout: "pipe",
   });
+
   expect(await child.exited).toBe(0);
 }
 

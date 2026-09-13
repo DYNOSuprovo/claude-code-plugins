@@ -30,6 +30,7 @@ export function validateNameMatch(
   if (mpName === pluginName) {
     return { passed: true, message: "Name matches" };
   }
+
   return {
     passed: false,
     message: `Name mismatch: marketplace=${mpName}, plugin=${pluginName}`,
@@ -46,12 +47,15 @@ export function validateVersionSync(
   if (!mpVersion) {
     return { passed: false, message: "Version missing in marketplace.json" };
   }
+
   if (!pluginVersion) {
     return { passed: false, message: "Version missing in plugin.json" };
   }
+
   if (mpVersion === pluginVersion) {
     return { passed: true, message: `Version synced (${mpVersion})` };
   }
+
   return {
     passed: false,
     message: `Version mismatch: marketplace=${mpVersion}, plugin=${pluginVersion}`,
@@ -65,15 +69,21 @@ export function validateRequiredFields(mp: PluginEntry, pluginJson: PluginJson):
   const missingFields: string[] = [];
 
   if (!mp.name) missingFields.push("marketplace:name");
+
   if (!mp.version) missingFields.push("marketplace:version");
+
   if (!mp.description) missingFields.push("marketplace:description");
+
   if (!pluginJson.name) missingFields.push("plugin:name");
+
   if (!pluginJson.version) missingFields.push("plugin:version");
+
   if (!pluginJson.description) missingFields.push("plugin:description");
 
   if (missingFields.length === 0) {
     return { passed: true, message: "Required fields present" };
   }
+
   return {
     passed: false,
     message: `Missing fields: ${missingFields.join(", ")}`,
@@ -86,9 +96,11 @@ export function validateRequiredFields(mp: PluginEntry, pluginJson: PluginJson):
  */
 export function validatePluginDirContents(entries: ReadonlyArray<string>): ValidationResult {
   const extras = entries.filter((entry) => entry !== "plugin.json").toSorted();
+
   if (extras.length === 0) {
     return { passed: true, message: "Only plugin.json in .claude-plugin/" };
   }
+
   return {
     passed: false,
     message: `Extra files in .claude-plugin/: ${extras.join(", ")}`,
@@ -109,11 +121,13 @@ const HARDCODED_HOME_RE = /(?:\/home\/|\/Users\/)[a-zA-Z]+/u;
  */
 export function findHardcodedPaths(content: string): ReadonlyArray<HardcodedPath> {
   const found: HardcodedPath[] = [];
+
   for (const [index, text] of content.split("\n").entries()) {
     if (HARDCODED_HOME_RE.test(text)) {
       found.push({ line: index + 1, text: text.trim() });
     }
   }
+
   return found;
 }
 
@@ -126,6 +140,7 @@ export function extractVersionFromReadme(content: string, pluginName: string): s
   const escapedName = pluginName.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const pattern = new RegExp(`\\[${escapedName}\\][^|]+\\|\\s*([0-9]+\\.[0-9]+\\.[0-9]+)`, "u");
   const match = content.match(pattern);
+
   return match?.[1] ?? null;
 }
 
@@ -138,6 +153,7 @@ export function extractVersionFromReadme(content: string, pluginName: string): s
 export function setVersionInReadme(content: string, pluginName: string, version: string): string {
   const escapedName = pluginName.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const pattern = new RegExp(`(\\[${escapedName}\\][^|]+\\|\\s*)[0-9]+\\.[0-9]+\\.[0-9]+`, "u");
+
   return content.replace(pattern, `$1${version}`);
 }
 
@@ -152,6 +168,7 @@ export function validateReadmeVersion(
   if (readmeVersion === expectedVersion) {
     return { passed: true, message: "Versions match marketplace.json" };
   }
+
   return {
     passed: false,
     message: `README version mismatch: ${pluginName} (${readmeVersion} != ${expectedVersion})`,

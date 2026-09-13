@@ -45,6 +45,7 @@ export function extractCodeBlocks(content: string): CodeBlock[] {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
+
     if (line.trimStart().startsWith("```")) {
       if (inBlock && current !== null) {
         blocks.push(current);
@@ -58,6 +59,7 @@ export function extractCodeBlocks(content: string): CodeBlock[] {
       current.lines.push(line);
     }
   }
+
   return blocks;
 }
 
@@ -69,6 +71,7 @@ export function findBoxes(lines: string[]): Box[] {
   for (let row = 0; row < lines.length; row++) {
     const line = lines[row]!;
     let col = 0;
+
     while (col < line.length) {
       if (line[col] !== "┌") {
         col++;
@@ -77,6 +80,7 @@ export function findBoxes(lines: string[]): Box[] {
 
       // Find matching ┐ on same line (nearest)
       const rightIdx = line.indexOf("┐", col + 1);
+
       if (rightIdx === -1) {
         col++;
         continue;
@@ -84,13 +88,16 @@ export function findBoxes(lines: string[]): Box[] {
 
       // Verify horizontal line between them
       let validTop = true;
+
       for (let c = col + 1; c < rightIdx; c++) {
         const ch = line[c]!;
+
         if (ch !== "─" && ch !== "┬" && ch !== "┴" && ch !== "┼") {
           validTop = false;
           break;
         }
       }
+
       if (!validTop) {
         col++;
         continue;
@@ -99,8 +106,11 @@ export function findBoxes(lines: string[]): Box[] {
       // Find matching └ below at same left column
       for (let brow = row + 1; brow < lines.length; brow++) {
         const bline = lines[brow]!;
+
         if (col >= bline.length) continue;
+
         if (bline[col] === "│" || bline[col] === "├") continue;
+
         if (bline[col] === "└") {
           const brightIdx = bline.indexOf("┘", col + 1);
           boxes.push({
@@ -112,11 +122,14 @@ export function findBoxes(lines: string[]): Box[] {
           });
           break;
         }
+
         break; // Something else at this column — not a box continuation
       }
+
       col = rightIdx + 1;
     }
   }
+
   return boxes;
 }
 
@@ -156,6 +169,7 @@ function validateBlock(block: CodeBlock, file: string): Issue[] {
 
     // Width consistency
     const bwidth = bottomRight - left;
+
     if (bwidth !== width) {
       emit(
         bottomRow + 1,
@@ -173,6 +187,7 @@ function validateBlock(block: CodeBlock, file: string): Issue[] {
       // Left edge
       if (left < line.length) {
         const lch = line[left];
+
         if (lch !== "│" && lch !== "├") {
           emit(row + 1, left, `expected │ at col ${left} (left edge), got '${lch}'`);
         }
@@ -183,6 +198,7 @@ function validateBlock(block: CodeBlock, file: string): Issue[] {
       // Right edge
       if (right < line.length) {
         const rch = line[right];
+
         if (rch !== "│" && rch !== "┤") {
           emit(row + 1, right, `expected │ at col ${right} (right edge), got '${rch}'`);
         }
@@ -211,10 +227,12 @@ export function validateVerticalRuns(block: CodeBlock, file: string): Issue[] {
   // Collect columns of box corners so we can skip them
   const boxes = findBoxes(lines);
   const boxCorners = new Set<string>();
+
   for (const box of boxes) {
     boxCorners.add(`${box.topRow},${box.left}`); // ┌
     boxCorners.add(`${box.topRow},${box.topRight}`); // ┐
     boxCorners.add(`${box.bottomRow},${box.left}`); // └
+
     if (box.bottomRight !== -1) {
       boxCorners.add(`${box.bottomRow},${box.bottomRight}`); // ┘
     }
@@ -233,11 +251,13 @@ export function validateVerticalRuns(block: CodeBlock, file: string): Issue[] {
   // Check 2: Orphaned ┘ — must have vertical neighbor above
   for (let row = 0; row < lines.length; row++) {
     const line = lines[row]!;
+
     for (let col = 0; col < line.length; col++) {
       const ch = line[col]!;
 
       if (ch === "┐" && !boxCorners.has(`${row},${col}`)) {
         const below = row + 1 < lines.length ? lines[row + 1]![col] : undefined;
+
         if (!below || !VERTICAL_NEIGHBOR.has(below)) {
           emit(row + 1, col, `┐ at col ${col} has no vertical connector below`);
         }
@@ -245,6 +265,7 @@ export function validateVerticalRuns(block: CodeBlock, file: string): Issue[] {
 
       if (ch === "┘" && !boxCorners.has(`${row},${col}`)) {
         const above = row > 0 ? lines[row - 1]![col] : undefined;
+
         if (!above || !VERTICAL_NEIGHBOR.has(above)) {
           emit(row + 1, col, `┘ at col ${col} has no vertical connector above`);
         }
@@ -256,28 +277,35 @@ export function validateVerticalRuns(block: CodeBlock, file: string): Issue[] {
   // For each column, find runs of vertical chars. If a column has vertical
   // chars on lines above and below a gap, the gap line is missing a connector.
   const maxCol = Math.max(...lines.map((l) => l.length), 0);
+
   for (let col = 0; col < maxCol; col++) {
     // Collect all rows that have a vertical character at this column
     const rows: number[] = [];
+
     for (let row = 0; row < lines.length; row++) {
       const ch = lines[row]![col];
+
       if (ch !== undefined && VERTICAL_NEIGHBOR.has(ch)) {
         rows.push(row);
       }
     }
+
     if (rows.length < 3) continue;
 
     // Find consecutive pairs with a gap of exactly 1 line between them
     for (let i = 0; i < rows.length - 1; i++) {
       const above = rows[i]!;
       const below = rows[i + 1]!;
+
       if (below - above === 2) {
         // Skip gaps between box closing (└/┘) and box opening (┌/┐).
         // A blank line between vertically stacked boxes is normal layout.
         const aboveCh = lines[above]![col]!;
         const belowCh = lines[below]![col]!;
+
         const isBoxTransition =
           (aboveCh === "└" || aboveCh === "┘") && (belowCh === "┌" || belowCh === "┐");
+
         if (isBoxTransition) continue;
 
         // Only flag when the gap char is a space or missing (line too short).
@@ -285,6 +313,7 @@ export function validateVerticalRuns(block: CodeBlock, file: string): Issue[] {
         // column are intentional — not misalignment.
         const gapRow = above + 1;
         const gapCh = lines[gapRow]![col];
+
         if (gapCh === undefined || gapCh === " ") {
           emit(
             gapRow + 1,
@@ -307,6 +336,7 @@ function hasBoxDrawing(lines: string[]): boolean {
 
 if (import.meta.main) {
   let files = process.argv.slice(2);
+
   if (files.length === 0) {
     const dir = resolve(import.meta.dir, "../docs/architecture");
     files = readdirSync(dir)
@@ -329,11 +359,13 @@ if (import.meta.main) {
 
     if (fileIssues.length > 0) {
       console.log(`\n${basename(file)}:`);
+
       for (const iss of fileIssues) {
         console.log(
           `  L${iss.blockLine} (block line ${iss.localLine}), col ${iss.col}: ${iss.message}`,
         );
       }
+
       total += fileIssues.length;
     }
   }

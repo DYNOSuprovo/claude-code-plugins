@@ -18,14 +18,17 @@ afterEach(() => {
       rmSync(dir, { recursive: true, force: true });
     } catch {}
   }
+
   tmpDirs = [];
 });
 
 async function git(cwd: string, ...args: string[]): Promise<string> {
   const { stdout, stderr, exitCode } = await $`git ${args}`.cwd(cwd).quiet().nothrow();
+
   if (exitCode !== 0) {
     throw new Error(`git ${args.join(" ")} failed (${exitCode}): ${stderr.toString().trim()}`);
   }
+
   return stdout.toString().trim();
 }
 
@@ -35,6 +38,7 @@ async function run(
 ): Promise<{ exitCode: number; result: Record<string, unknown> }> {
   const { stdout, exitCode } = await $`bun run ${SCRIPT} ${args}`.cwd(cwd).quiet().nothrow();
   const out = stdout.toString().trim();
+
   try {
     return { exitCode, result: JSON.parse(out) };
   } catch {
@@ -69,6 +73,7 @@ async function makeRepo(): Promise<string> {
   await mkdir(join(repo, ".gh", "handoffs"), { recursive: true });
   await Bun.write(join(repo, ".gh", "handoffs", "layer-2.md"), "# Handoff layer-2\n");
   await Bun.write(join(repo, ".gh", "README.md"), "- [ ] layer-2\n");
+
   return repo;
 }
 
@@ -91,6 +96,7 @@ describe("parseArgs", () => {
       "--install",
       "",
     ]);
+
     expect(parsed).toEqual({
       ok: true,
       options: {
@@ -108,6 +114,7 @@ describe("parseArgs", () => {
   test("install defaults to detection and keeps an explicit command", () => {
     const detect = parseArgs(["layer-2", "--base", "x"]);
     expect(detect.ok && detect.options.install).toEqual({ kind: "detect" });
+
     const command = parseArgs([
       "layer-2",
       "--base",
@@ -115,6 +122,7 @@ describe("parseArgs", () => {
       "--install",
       "bun install --frozen-lockfile",
     ]);
+
     expect(command.ok && command.options.install).toEqual({
       kind: "command",
       command: "bun install --frozen-lockfile",
@@ -139,6 +147,7 @@ describe("detectInstall", () => {
 describe("worktree-handoff.ts", () => {
   test("creates the worktree on the base, links the orchestration folder, excludes it", async () => {
     const repo = await makeRepo();
+
     const { exitCode, result } = await run(repo, [
       "layer-2",
       "--base",
@@ -148,6 +157,7 @@ describe("worktree-handoff.ts", () => {
       "--link",
       ".env.local",
     ]);
+
     expect(result.ok).toBe(true);
     expect(exitCode).toBe(0);
     const worktree = result.worktree as string;
@@ -192,6 +202,7 @@ describe("worktree-handoff.ts", () => {
     const first = await run(repo, ["layer-2", "--base", "origin/layer-1", "--install", ""]);
     const worktree = first.result.worktree as string;
     await Bun.write(join(repo, ".gh", "handoffs", "layer-3.md"), "# Handoff layer-3\n");
+
     const { result } = await run(worktree, [
       "layer-3",
       "--base",
@@ -199,11 +210,13 @@ describe("worktree-handoff.ts", () => {
       "--install",
       "",
     ]);
+
     expect(result.error).toBe("inside-a-worktree");
   });
 
   test("runs the install command through the shell, in the worktree", async () => {
     const repo = await makeRepo();
+
     const ok = await run(repo, [
       "layer-2",
       "--base",
@@ -211,6 +224,7 @@ describe("worktree-handoff.ts", () => {
       "--install",
       "touch installed.txt",
     ]);
+
     expect(ok.result.install).toBe("touch installed.txt");
     expect(await Bun.file(join(ok.result.worktree as string, "installed.txt")).exists()).toBe(true);
 

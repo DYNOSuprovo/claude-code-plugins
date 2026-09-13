@@ -114,20 +114,26 @@ function parseRaw(argv: readonly string[]) {
 
 export function parseArgs(argv: readonly string[]): ParsedArgs {
   let raw: RawArgs;
+
   try {
     raw = parseRaw(argv);
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
+
   const { values, positionals } = raw;
   const [branch, ...extra] = positionals;
+
   if (branch === undefined) return { ok: false, error: "missing branch" };
+
   if (extra.length > 0) {
     return { ok: false, error: `branch given twice: ${branch}, ${extra.join(", ")}` };
   }
+
   if (values.base === undefined) {
     return { ok: false, error: "--base is required: pass the top of the stack" };
   }
+
   return {
     ok: true,
     options: {
@@ -144,7 +150,9 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 
 function parseInstall(value: string | undefined): Install {
   if (value === undefined) return { kind: "detect" };
+
   if (value === "") return { kind: "skip" };
+
   return { kind: "command", command: value };
 }
 
@@ -152,6 +160,7 @@ export function detectInstall(present: ReadonlySet<string>): string | null {
   for (const [lockfile, command] of LOCKFILES) {
     if (present.has(lockfile)) return command;
   }
+
   return null;
 }
 
@@ -178,12 +187,15 @@ type GitResult = { stdout: string; stderr: string; exitCode: number };
 
 async function git(...args: string[]): Promise<GitResult> {
   const { stdout, stderr, exitCode } = await $`git ${args}`.quiet().nothrow();
+
   return { stdout: stdout.toString().trim(), stderr: stderr.toString().trim(), exitCode };
 }
 
 async function gitOk(...args: string[]): Promise<string> {
   const result = await git(...args);
+
   if (result.exitCode !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+
   return result.stdout;
 }
 
@@ -208,12 +220,14 @@ async function linkInto(source: string, target: string): Promise<boolean> {
   if (existsSync(target) || isSymlink(target)) return false;
   await mkdir(dirname(target), { recursive: true });
   await symlink(source, target);
+
   return true;
 }
 
 async function excludeLocally(dir: string): Promise<void> {
   const exclude = await gitOk("rev-parse", "--git-path", "info/exclude");
   const lines = existsSync(exclude) ? (await readFile(exclude, "utf8")).split("\n") : [];
+
   if (lines.includes(`${dir}/`)) return;
   await mkdir(dirname(exclude), { recursive: true });
   await appendFile(
@@ -228,25 +242,32 @@ async function excludeLocally(dir: string): Promise<void> {
 
 async function run(options: Options): Promise<Result> {
   const gitDir = await git("rev-parse", "--git-dir");
+
   if (gitDir.exitCode !== 0) return fail("not-a-git-repo", gitDir.stderr);
+
   if (gitDir.stdout.includes("/worktrees/")) {
     return fail("inside-a-worktree", "run this script from the main checkout");
   }
+
   const root = await gitOk("rev-parse", "--show-toplevel");
   process.chdir(root);
 
   const { branch, base, dir } = options;
   const handoff = options.handoff ?? join(dir, "handoffs", `${branch}.md`);
+
   const worktree = resolve(
     options.path ?? join("..", `${basename(root)}-${branch.replaceAll("/", "-")}`),
   );
 
   if (!existsSync(dir)) return fail("orchestration-dir-missing", `${dir} (option --dir)`);
+
   if (!existsSync(handoff)) {
     const handoffs = join(dir, "handoffs");
+
     const available = existsSync(handoffs)
       ? (await readdir(handoffs)).filter((name) => name.endsWith(".md"))
       : [];
+
     return fail(
       "handoff-missing",
       `${handoff}\n\nAvailable: ${available.length === 0 ? "(none)" : available.join(", ")}`,
@@ -254,9 +275,11 @@ async function run(options: Options): Promise<Result> {
   }
 
   const fetch = await git("fetch", "origin", "--quiet");
+
   if (fetch.exitCode !== 0) return fail("fetch-failed", fetch.stderr);
 
   const baseRef = await git("rev-parse", "--verify", "--quiet", `${base}^{commit}`);
+
   if (baseRef.exitCode !== 0) {
     const recent = await gitOk(
       "for-each-ref",
@@ -265,6 +288,7 @@ async function run(options: Options): Promise<Result> {
       "--format=%(refname:short)",
       "refs/remotes/origin",
     );
+
     return fail("base-not-found", `${base}\n\nRecent remote branches:\n${recent}`);
   }
 
@@ -274,15 +298,18 @@ async function run(options: Options): Promise<Result> {
   ) {
     return fail("branch-exists", `${branch}: reuse its worktree or pick another name`);
   }
+
   if (existsSync(worktree)) return fail("worktree-path-exists", worktree);
 
   const install = resolveInstall(options.install, new Set(await readdir(root)));
 
   const added = await git("worktree", "add", "-b", branch, worktree, base);
+
   if (added.exitCode !== 0) return fail("worktree-add-failed", added.stderr);
 
   // Files already present came from git and are never overwritten.
   let linked = 0;
+
   for await (const file of new Glob("**/*").scan({ cwd: join(root, dir), dot: true })) {
     if (await linkInto(join(root, dir, file), join(worktree, dir, file))) linked += 1;
   }
@@ -293,14 +320,17 @@ async function run(options: Options): Promise<Result> {
   await excludeLocally(dir);
 
   const linksMissing: string[] = [];
+
   for (const link of options.links) {
     const source = join(root, link);
+
     if (existsSync(source)) await linkInto(source, join(worktree, link));
     else linksMissing.push(link);
   }
 
   if (install !== null) {
     const { exitCode } = await $`${{ raw: install }}`.cwd(worktree).nothrow();
+
     if (exitCode !== 0) return fail("install-failed", `${install} exited with ${exitCode}`);
   }
 
@@ -326,18 +356,23 @@ function main(argv: readonly string[]): Promise<Result> | Result {
   if (argv.length === 0 || argv.includes("-h") || argv.includes("--help")) {
     return fail("usage", USAGE);
   }
+
   const parsed = parseArgs(argv);
+
   if (parsed.ok) return run(parsed.options);
+
   return fail("invalid-arguments", `${parsed.error}\n\n${USAGE}`);
 }
 
 if (import.meta.main) {
   let result: Result;
+
   try {
     result = await main(Bun.argv.slice(2));
   } catch (error) {
     result = fail("unexpected-failure", error instanceof Error ? error.message : String(error));
   }
+
   console.log(JSON.stringify(result));
   process.exit(result.ok ? 0 : 1);
 }

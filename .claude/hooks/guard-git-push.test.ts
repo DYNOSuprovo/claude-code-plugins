@@ -23,7 +23,9 @@ describe("parsePush ignores non-push commands", () => {
 
 function targetsOf(cmd: string): ReadonlyArray<{ ref: string; forced: boolean }> {
   const parsed = parsePush(cmd);
+
   if (parsed.kind !== "push") throw new Error(`expected a push: ${cmd}`);
+
   return parsed.targets;
 }
 
@@ -146,6 +148,7 @@ describe("decide denies pushes to main", () => {
     test(`denies: ${cmd}`, () => {
       const verdict = decide(pushOf(cmd), null);
       expect(verdict.kind).toBe("deny");
+
       if (verdict.kind === "deny") expect(verdict.reason).toContain("release");
     });
   }
@@ -164,6 +167,7 @@ describe("decide denies force pushes to dev", () => {
     test(`denies: ${cmd}`, () => {
       const verdict = decide(pushOf(cmd), null);
       expect(verdict.kind).toBe("deny");
+
       if (verdict.kind === "deny") expect(verdict.reason).toContain("force");
     });
   }
@@ -211,13 +215,16 @@ describe("subprocess integration", () => {
 
   async function runHook(command: string, env?: Record<string, string>) {
     const input = JSON.stringify({ tool_input: { command } });
+
     const proc = Bun.spawn(["bun", hookPath], {
       stdin: new Blob([input]),
       stdout: "pipe",
       stderr: "pipe",
       env: { ...process.env, ...env },
     });
+
     const [stderr, exitCode] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+
     return { exitCode, stderr };
   }
 
@@ -255,6 +262,7 @@ describe("subprocess integration", () => {
       stdout: "pipe",
       stderr: "pipe",
     });
+
     expect(await proc.exited).toBe(HOOK_EXIT.ALLOW);
   });
 
@@ -280,6 +288,7 @@ describe("subprocess integration", () => {
       ],
       { stdout: "pipe", stderr: "pipe" },
     );
+
     if (init.exitCode !== 0) {
       throw new Error(`Failed to create test repo: ${init.stderr.toString()}`);
     }
@@ -291,9 +300,11 @@ describe("subprocess integration", () => {
 
   test("allows a main push in another repo reached via cd", async () => {
     const projectDir = `${import.meta.dir}/../..`;
+
     const { exitCode } = await runHook(`cd ${tmpDir} && git push origin dev:main`, {
       CLAUDE_PROJECT_DIR: projectDir,
     });
+
     expect(exitCode).toBe(HOOK_EXIT.ALLOW);
   });
 });

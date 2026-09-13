@@ -4,9 +4,13 @@ import { findOffences, isCandidate } from "./check-lint-disables.ts";
 
 // Split so this file never carries a literal directive its own gate would flag.
 const OX = "ox";
+
 const ES = "es";
+
 const BARE = `// ${OX}lint-disable-next-line no-console`;
+
 const JUSTIFIED = `${BARE} -- the reason`;
+
 const BARE_ESLINT = `// ${ES}lint-disable no-console`;
 
 describe("isCandidate", () => {

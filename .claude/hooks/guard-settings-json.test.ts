@@ -17,6 +17,7 @@ describe("parseHookInput", () => {
       tool_name: "Edit",
       tool_input: { file_path: "/repo/.claude/settings.json" },
     });
+
     expect(parseHookInput(raw)?.tool_input?.file_path).toBe("/repo/.claude/settings.json");
   });
 

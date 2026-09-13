@@ -6,6 +6,7 @@ import { validateVerticalRuns, type CodeBlock } from "../validate-ascii-diagrams
 function verticalIssues(diagram: string): string[] {
   const lines = diagram.split("\n");
   const block: CodeBlock = { startLine: 1, lines };
+
   return validateVerticalRuns(block, "test.md").map((i) => i.message);
 }
 
@@ -92,6 +93,7 @@ describe("vertical run gaps", () => {
       atCol(50, "│"),
       atCol(50, "│"),
     ].join("\n");
+
     const issues = verticalIssues(diagram);
     expect(issues.some((m) => m.includes("gap"))).toBe(true);
   });
@@ -113,6 +115,7 @@ describe("vertical run gaps", () => {
       " ".repeat(13) + "allowed", // col 16 = 'o' (text)
       atCol(16, "│"),
     ].join("\n");
+
     const issues = verticalIssues(diagram);
     const gapIssues = issues.filter((m) => m.includes("gap"));
     expect(gapIssues).toEqual([]);
@@ -138,6 +141,7 @@ describe("vertical run gaps", () => {
       "│ │ content          │ │",
       "│ └──────────────────┘ │",
     ].join("\n");
+
     const issues = verticalIssues(diagram);
     const gapIssues = issues.filter((m) => m.includes("gap"));
     expect(gapIssues).toEqual([]);
@@ -151,6 +155,7 @@ describe("vertical run gaps", () => {
       atCol(50, "│"),
       atCol(50, "│"),
     ].join("\n");
+
     const issues = verticalIssues(diagram);
     expect(issues.some((m) => m.includes("gap"))).toBe(true);
   });
@@ -171,6 +176,7 @@ describe("box corners are not orphaned", () => {
       "│ hi │" + " ".repeat(14) + " ", // no │ at col 20
       "└────┘",
     ].join("\n");
+
     const issues = verticalIssues(diagram);
     expect(issues.some((m) => m.includes("┐") && m.includes("col 20"))).toBe(true);
   });
@@ -195,6 +201,7 @@ describe("real-world: agentic-loop diagram", () => {
       "        PermissionRequest ──auto-deny──► (Claude adjusts)", // missing │
       "                │                                       │",
     ].join("\n");
+
     const issues = verticalIssues(broken);
     // Should detect: ┐ at col 54 has no vertical below (│ is at 56)
     expect(issues.length).toBeGreaterThan(0);
@@ -220,6 +227,7 @@ describe("real-world: agentic-loop diagram", () => {
       "                │                    │                    │",
       "                └──failure──► PostToolUseFailure ───────►─┘",
     ].join("\n");
+
     const issues = verticalIssues(fixed);
     expect(issues).toEqual([]);
   });

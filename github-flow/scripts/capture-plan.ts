@@ -24,12 +24,15 @@ import {
 if (import.meta.main) {
   try {
     const payload = parsePayload(await Bun.stdin.text());
+
     if (payload === null) process.exit(0);
     const plan = planText(payload);
+
     if (plan === null) process.exit(0);
 
     const cwd = payload.cwd ?? process.cwd();
     const key = await planKeyFor(cwd);
+
     if (key === null) process.exit(0);
 
     const file = planPath(homedir(), key);
@@ -38,9 +41,11 @@ if (import.meta.main) {
     await Bun.write(file, content);
 
     const pr = await openPrNumber(cwd);
+
     if (pr !== null) await upsertPlanComment(cwd, pr, content);
   } catch (error) {
     console.error(`capture-plan: ${error instanceof Error ? error.message : String(error)}`);
   }
+
   process.exit(0);
 }

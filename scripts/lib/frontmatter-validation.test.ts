@@ -43,6 +43,7 @@ describe("checkKeys — agent", () => {
       description: "d",
       "allowed-tools": ["Read"],
     });
+
     expect(result.unknown).toHaveLength(1);
     expect(result.unknown[0]?.key).toBe("allowed-tools");
     expect(result.unknown[0]?.suggestion).toContain("tools:");
@@ -54,6 +55,7 @@ describe("checkKeys — agent", () => {
       description: "d",
       "subagent-type": "general-purpose",
     });
+
     expect(result.unknown).toHaveLength(1);
     expect(result.unknown[0]?.key).toBe("subagent-type");
   });
@@ -64,6 +66,7 @@ describe("checkKeys — agent", () => {
       description: "d",
       "disallowed-tools": "WebSearch",
     });
+
     expect(result.unknown[0]?.suggestion).toContain("disallowedTools");
   });
 
@@ -89,6 +92,7 @@ describe("checkKeys — agent", () => {
       observerMessage: "m",
       observeSubagents: false,
     });
+
     expect(result.unknown).toHaveLength(0);
     expect(result.missing).toHaveLength(0);
   });
@@ -108,6 +112,7 @@ describe("checkKeys — skill and command (shared schema)", () => {
       "argument-hint": "[x]",
       metadata: { tags: ["git"] },
     });
+
     expect(result.unknown).toHaveLength(0);
   });
 
@@ -117,6 +122,7 @@ describe("checkKeys — skill and command (shared schema)", () => {
       description: "d",
       tools: "Read",
     });
+
     expect(result.unknown[0]?.key).toBe("tools");
     expect(result.unknown[0]?.suggestion).toContain("allowed-tools");
   });
@@ -126,6 +132,7 @@ describe("checkKeys — skill and command (shared schema)", () => {
       description: "d",
       tags: ["git"],
     });
+
     expect(result.unknown[0]?.key).toBe("tags");
   });
 

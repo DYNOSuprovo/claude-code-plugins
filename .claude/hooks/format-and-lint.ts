@@ -27,6 +27,7 @@ export function parseFilePath(raw: string): string | null {
     // SAFETY: `file_path` is optional and read through `?.`, so a payload of
     // another shape returns null and the hook allows the edit.
     const parsed = JSON.parse(raw) as HookInput;
+
     return parsed.tool_input?.file_path ?? null;
   } catch {
     return null;
@@ -37,21 +38,25 @@ export function parseFilePath(raw: string): string | null {
 export function toRepoRelative(filePath: string, repoRoot: string): string | null {
   if (!filePath.startsWith("/")) return filePath;
   const prefix = repoRoot.endsWith("/") ? repoRoot : `${repoRoot}/`;
+
   return filePath.startsWith(prefix) ? filePath.slice(prefix.length) : null;
 }
 
 export function isLintable(relativePath: string): boolean {
   if (!LINTABLE_EXTENSIONS.some((ext) => relativePath.endsWith(ext))) return false;
+
   return !SKIPPED_PREFIXES.some((prefix) => relativePath.startsWith(prefix));
 }
 
 async function runInRepo(repoRoot: string, args: string[]): Promise<{ ok: boolean; out: string }> {
   const proc = Bun.spawn(args, { cwd: repoRoot, stdout: "pipe", stderr: "pipe" });
+
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
   ]);
+
   return { ok: exitCode === 0, out: `${stdout}${stderr}`.trim() };
 }
 
@@ -63,6 +68,7 @@ if (import.meta.main) {
   if (relative === null || !isLintable(relative)) {
     process.exit(HOOK_EXIT.ALLOW);
   }
+
   if (!(await Bun.file(join(repoRoot, relative)).exists())) {
     process.exit(HOOK_EXIT.ALLOW);
   }

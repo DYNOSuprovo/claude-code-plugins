@@ -22,6 +22,7 @@ describe("parsePayload", () => {
         tool_response: { plan: "# Approved" },
       }),
     );
+
     expect(payload?.cwd).toBe("/repo");
     expect(payload?.session_id).toBe("abc123");
     expect(payload?.tool_input?.command).toBe("gh pr create");

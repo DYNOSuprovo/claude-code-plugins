@@ -118,6 +118,7 @@ async function git(
   ...args: string[]
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const { stdout, stderr, exitCode } = await $`git ${args}`.quiet().nothrow();
+
   return { stdout: stdout.toString().trim(), stderr: stderr.toString().trim(), exitCode };
 }
 
@@ -127,9 +128,11 @@ const MIN_GIT = [2, 38] as const;
 async function gitVersionAtLeast(): Promise<{ ok: boolean; found: string }> {
   const raw = (await git("--version")).stdout;
   const match = raw.match(/(\d+)\.(\d+)/u);
+
   if (!match) return { ok: false, found: raw || "unknown" };
   const [major, minor] = [parseInt(match[1]!, 10), parseInt(match[2]!, 10)];
   const ok = major > MIN_GIT[0] || (major === MIN_GIT[0] && minor >= MIN_GIT[1]);
+
   return { ok, found: `${major}.${minor}` };
 }
 
@@ -191,16 +194,21 @@ async function isAncestor(ref: string, of: string): Promise<boolean> {
 // landed, never that base still holds it).
 async function hasNoMergeDelta(branch: string, base: string): Promise<boolean> {
   const merged = await git("merge-tree", "--write-tree", base, branch);
+
   // A conflict exits non-zero and still prints a tree — both checks are needed.
   if (merged.exitCode !== 0) return false;
   const baseTree = await git("rev-parse", `${base}^{tree}`);
+
   if (baseTree.exitCode !== 0) return false;
+
   return merged.stdout.split("\n")[0]?.trim() === baseTree.stdout;
 }
 
 async function proveContained(branch: string, base: string): Promise<ProofKind> {
   if (await isAncestor(branch, base)) return "ancestry";
+
   if (await hasNoMergeDelta(branch, base)) return "no-merge-delta";
+
   return "unproven";
 }
 
@@ -215,8 +223,10 @@ async function predictDashDRefusal(branch: string): Promise<string | null> {
     "--symbolic-full-name",
     `${branch}@{upstream}`,
   );
+
   const target = upstream.exitCode === 0 && upstream.stdout ? upstream.stdout : "HEAD";
   const check = await git("merge-base", "--is-ancestor", branch, target);
+
   // Only a definite "not an ancestor" (exit 1) predicts refusal; an error leaves
   // the safe flag in place and lets `-d` speak for itself.
   return check.exitCode === 1 ? target : null;
@@ -299,12 +309,14 @@ async function scanWorktrees(
       const branchRef = entry.branch
         ? await git("rev-parse", "--verify", `refs/heads/${entry.branch}`)
         : { exitCode: 1 };
+
       if (branchRef.exitCode !== 0) {
         stale.push({ path: entry.path, branch: entry.branch, reason: "broken-ref" });
       } else if (entry.branch) {
         // A lock is an explicit "leave this alone".
         keep(entry.branch, "worktree", `${entry.path} (locked)`);
       }
+
       continue;
     }
 
@@ -327,18 +339,21 @@ async function scanWorktrees(
     // without a word: ignored files are untracked, so neither the porcelain
     // status nor git's own refusal counts them as work worth protecting.
     const status = await git("-C", entry.path, "status", "--porcelain", "--ignored");
+
     if (status.exitCode !== 0) {
       keep(entry.branch, "worktree", `${entry.path} (status unreadable)`);
       continue;
     }
 
     const lines = status.stdout.split("\n").filter(Boolean);
+
     if (lines.some((line) => !line.startsWith("!!"))) {
       keep(entry.branch, "dirty-worktree", entry.path);
       continue;
     }
 
     const proof = await proveContained(entry.branch, base);
+
     if (proof === "unproven") {
       keep(entry.branch, "worktree", entry.path);
       continue;
@@ -366,7 +381,7 @@ async function scanWorktrees(
 // Manifest hand-off (durable audit -> apply)
 // ---------------------------------------------------------------------------
 
-/* oxlint-disable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters, anti-slop/require-safety-comment-for-type-assertion, anti-slop/no-unsafe-dictionary-type -- the block below IS the boundary parser the rules ask for: it validates a manifest read from stdin before anything touches a branch. Their fix (parse before calling) has no earlier place to happen. */
+/* oxlint-disable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters, anti-slop/require-safety-comment-for-type-assertion, anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening -- the block below IS the boundary parser the rules ask for: it validates a manifest read from stdin before anything touches a branch. Their fix (parse before calling) has no earlier place to happen. */
 
 const isOid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{7,64}$/u.test(v);
 
@@ -379,8 +394,11 @@ const isKeptBranch = (k: unknown): boolean =>
 function isValidManifest(m: unknown): m is CleanupManifest {
   if (typeof m !== "object" || m === null) return false;
   const o = m as Record<string, unknown>;
+
   if (typeof o.base !== "string" || o.base === "") return false;
+
   if (!Array.isArray(o.worktrees) || !o.worktrees.every((w) => typeof w === "string")) return false;
+
   if (
     !Array.isArray(o.branches) ||
     !o.branches.every(
@@ -394,6 +412,7 @@ function isValidManifest(m: unknown): m is CleanupManifest {
   ) {
     return false;
   }
+
   if (
     !Array.isArray(o.remote_branches) ||
     !o.remote_branches.every(
@@ -407,8 +426,11 @@ function isValidManifest(m: unknown): m is CleanupManifest {
   ) {
     return false;
   }
+
   if (typeof o.prune_remotes !== "boolean") return false;
+
   if (typeof o.prune_worktrees !== "boolean") return false;
+
   return true;
 }
 
@@ -417,25 +439,31 @@ function isValidManifest(m: unknown): m is CleanupManifest {
 async function saveManifest(): Promise<SaveResult> {
   const raw = await Bun.stdin.text();
   let parsed: unknown;
+
   try {
     parsed = JSON.parse(raw);
   } catch {
     return { ok: false, error: "invalid JSON on stdin" };
   }
+
   if (typeof parsed !== "object" || parsed === null) {
     return { ok: false, error: "expected a {manifest, kept} object on stdin" };
   }
+
   const { manifest, kept } = parsed as { manifest?: unknown; kept?: unknown };
+
   if (!isValidManifest(manifest)) {
     return { ok: false, error: "invalid manifest shape" };
   }
+
   if (!Array.isArray(kept) || !kept.every((k) => isKeptBranch(k))) {
     return { ok: false, error: "invalid kept list (expected {name, reason}[])" };
   }
 
-  /* oxlint-enable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters, anti-slop/require-safety-comment-for-type-assertion, anti-slop/no-unsafe-dictionary-type */
+  /* oxlint-enable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters, anti-slop/require-safety-comment-for-type-assertion, anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening */
 
   const gitDir = await git("rev-parse", "--absolute-git-dir");
+
   if (gitDir.exitCode !== 0) {
     return { ok: false, error: `git rev-parse --absolute-git-dir failed: ${gitDir.stderr}` };
   }
@@ -444,6 +472,7 @@ async function saveManifest(): Promise<SaveResult> {
   const tmp = `${path}.tmp`;
   await Bun.write(tmp, JSON.stringify({ manifest, kept }, null, 2));
   await rename(tmp, path);
+
   return { ok: true, path };
 }
 
@@ -467,17 +496,21 @@ async function main(): Promise<AuditResult | SaveResult> {
     switch (args[i]) {
       case "--base": {
         const value = args[++i];
+
         if (value === undefined) {
           return { ok: false, error: "missing value for --base", step: "validate" };
         }
+
         baseArg = value;
         break;
       }
+
       case "--include-remote":
         includeRemote = true;
         break;
       case "--max-age": {
         const value = args[++i];
+
         if (value === undefined || !POSITIVE_INT.test(value)) {
           return {
             ok: false,
@@ -485,18 +518,22 @@ async function main(): Promise<AuditResult | SaveResult> {
             step: "validate",
           };
         }
+
         maxAgeArg = parseInt(value, 10);
         break;
       }
+
       default:
         return { ok: false, error: `unknown argument: ${args[i]}`, step: "validate" };
     }
   }
 
   const config = await readSweepConfig();
+
   if ("error" in config) {
     return { ok: false, error: config.error, step: "validate" };
   }
+
   const maxAgeDays = maxAgeArg ?? config.maxAgeDays;
 
   const originHead = await originHeadTarget();
@@ -511,11 +548,14 @@ async function main(): Promise<AuditResult | SaveResult> {
   }
 
   let base: string;
+
   if (baseArg === null) {
     const resolved = await resolveBase(config.base, originHead);
+
     if (resolved === null) {
       return { ok: false, error: "no trunk branch found; pass --base <branch>", step: "validate" };
     }
+
     base = resolved;
   } else {
     // An explicitly named base is the caller's decision: verified as a branch
@@ -524,6 +564,7 @@ async function main(): Promise<AuditResult | SaveResult> {
     if (!(await localBranchExists(baseArg))) {
       return { ok: false, error: `base branch '${baseArg}' not found`, step: "validate" };
     }
+
     base = baseArg;
   }
 
@@ -532,6 +573,7 @@ async function main(): Promise<AuditResult | SaveResult> {
   // Containment proofs rest on `git merge-tree --write-tree`; without it the
   // audit would silently under-report instead of proving anything.
   const version = await gitVersionAtLeast();
+
   if (!version.ok) {
     return {
       ok: false,
@@ -548,6 +590,7 @@ async function main(): Promise<AuditResult | SaveResult> {
     // Get worktree info for cross-referencing. A failure here is fatal (rather
     // than silently treating the tree as worktree-free).
     const worktreeList = await git("worktree", "list", "--porcelain");
+
     if (worktreeList.exitCode !== 0) {
       return {
         ok: false,
@@ -562,6 +605,7 @@ async function main(): Promise<AuditResult | SaveResult> {
       currentWorktree,
       protectedBranches,
     );
+
     const stale_worktrees = worktreeScan.stale;
     const removable_worktrees = worktreeScan.removable;
 
@@ -571,6 +615,7 @@ async function main(): Promise<AuditResult | SaveResult> {
 
     // Get merged branches (a failed listing is fatal, not an empty result)
     const mergedResult = await git("branch", "--merged", base, "--format=%(refname:short)");
+
     if (mergedResult.exitCode !== 0) {
       return {
         ok: false,
@@ -578,6 +623,7 @@ async function main(): Promise<AuditResult | SaveResult> {
         step: "scan-local",
       };
     }
+
     const mergedSet = new Set(
       mergedResult.stdout
         .split("\n")
@@ -587,6 +633,7 @@ async function main(): Promise<AuditResult | SaveResult> {
 
     // Get all local branches
     const allBranchesResult = await git("branch", "--format=%(refname:short)");
+
     if (allBranchesResult.exitCode !== 0) {
       return {
         ok: false,
@@ -594,9 +641,11 @@ async function main(): Promise<AuditResult | SaveResult> {
         step: "scan-local",
       };
     }
+
     const allBranches = allBranchesResult.stdout.split("\n").filter(Boolean);
 
     const kept: KeptBranch[] = [{ name: base, reason: "base", detail: null }];
+
     if (currentBranch && currentBranch !== base) {
       kept.push({ name: currentBranch, reason: "current", detail: null });
     }
@@ -618,6 +667,7 @@ async function main(): Promise<AuditResult | SaveResult> {
       // worktree is itself removable are absent here on purpose: they fall
       // through so branch and worktree go in the same pass.
       const heldBy = worktreeScan.retained.get(branch);
+
       if (heldBy) {
         kept.push(heldBy);
         continue;
@@ -643,6 +693,7 @@ async function main(): Promise<AuditResult | SaveResult> {
         // any other branch, so it is retained like any other unproven branch.
         const proof = await proveContained(branch, base);
         const info = await getBranchInfo(branch, base, proof);
+
         if (proof === "unproven") {
           kept.push({
             name: branch,
@@ -674,6 +725,7 @@ async function main(): Promise<AuditResult | SaveResult> {
       }
 
       const proof = await proveContained(branch, base);
+
       if (proof === "unproven") {
         kept.push({
           name: branch,
@@ -697,11 +749,13 @@ async function main(): Promise<AuditResult | SaveResult> {
     if (includeRemote) {
       // Origin-presence gate: no origin -> fully local, no network, refs intact.
       const originCheck = await git("remote", "get-url", "origin");
+
       if (originCheck.exitCode === 0) {
         // Non-destructive refresh: update remote-tracking refs WITHOUT pruning
         // (pruning stays a confirmed apply op) and without clobbering FETCH_HEAD.
         // Fail-closed: never proceed on stale remote data when offline.
         const fetchResult = await git("fetch", "--no-prune", "--no-write-fetch-head", "origin");
+
         if (fetchResult.exitCode !== 0) {
           return {
             ok: false,
@@ -721,6 +775,7 @@ async function main(): Promise<AuditResult | SaveResult> {
 
           // All remote branches (reject any non-origin prefix)
           const allRemoteResult = await git("branch", "-r", "--format=%(refname:short)");
+
           if (allRemoteResult.exitCode !== 0) {
             return {
               ok: false,
@@ -728,6 +783,7 @@ async function main(): Promise<AuditResult | SaveResult> {
               step: "scan-remote",
             };
           }
+
           const allRemotes = allRemoteResult.stdout
             .split("\n")
             .filter(Boolean)
@@ -747,6 +803,7 @@ async function main(): Promise<AuditResult | SaveResult> {
             }
 
             const info = await getRemoteBranchInfo(remoteBranch, "unproven");
+
             if (new Date(info.last_commit_date) < maxAgeDate) {
               kept_remote.push({
                 name: remoteBranch,
@@ -769,6 +826,7 @@ async function main(): Promise<AuditResult | SaveResult> {
         // `remote prune --dry-run` reports them honestly (populating stale_tracking
         // so apply can prune them under confirmation).
         const pruneResult = await git("remote", "prune", "origin", "--dry-run");
+
         if (pruneResult.stdout) {
           stale_tracking = pruneResult.stdout
             .split("\n")

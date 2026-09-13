@@ -5,7 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const testDir = import.meta.dirname;
+
 const scriptPath = join(testDir, "..", "validate-marketplace.ts");
+
 const fixturesDir = join(testDir, "fixtures");
 
 /**
@@ -28,6 +30,7 @@ async function setupTestRepo(fixtureName: string): Promise<string> {
  */
 async function runValidation(cwd: string) {
   const result = await $`bun ${scriptPath}`.cwd(cwd).nothrow().quiet();
+
   return {
     exitCode: result.exitCode,
     stdout: result.stdout.toString(),

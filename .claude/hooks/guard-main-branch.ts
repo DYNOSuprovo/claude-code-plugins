@@ -42,7 +42,9 @@ export function getCurrentBranch(cwd?: string): string | null {
     stdout: "pipe",
     stderr: "pipe",
   });
+
   if (result.exitCode !== 0) return null;
+
   return result.stdout.toString().trim();
 }
 
@@ -52,7 +54,9 @@ export function getRepoRoot(cwd?: string): string | null {
     stdout: "pipe",
     stderr: "pipe",
   });
+
   if (result.exitCode !== 0) return null;
+
   return result.stdout.toString().trim();
 }
 
@@ -61,10 +65,13 @@ export function getRepoRoot(cwd?: string): string | null {
 export function extractCdTarget(cmd: string): string | null {
   const m = cmd.match(/^\s*cd\s+("(?:[^"\\]|\\.)*"|'[^']*'|[^\s;&]+)\s*(?:&&|;)/u);
   const raw = m?.[1];
+
   if (raw === undefined) return null;
+
   if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
     return raw.slice(1, -1);
   }
+
   return raw;
 }
 
@@ -74,9 +81,11 @@ export function isProtectedBranch(branch: string): boolean {
 
 export function isBranchMutatingCommand(cmd: string): boolean {
   const sanitized = stripStringLiterals(cmd);
+
   for (const pattern of BRANCH_MUTATION_PATTERNS) {
     if (pattern.test(sanitized)) return true;
   }
+
   return false;
 }
 
@@ -87,6 +96,7 @@ if (import.meta.main) {
 
   const input = await Bun.stdin.text();
   const cmd = parseHookInput(input);
+
   if (!cmd) process.exit(HOOK_EXIT.ALLOW);
 
   if (!isBranchMutatingCommand(cmd)) process.exit(HOOK_EXIT.ALLOW);
@@ -96,18 +106,21 @@ if (import.meta.main) {
   // their own conventions and aren't ours to police.
   const cdTarget = extractCdTarget(cmd);
   const effectiveCwd = cdTarget ?? undefined;
+
   if (cdTarget) {
     const targetRoot = getRepoRoot(cdTarget);
     // Resolve the project repo from CLAUDE_PROJECT_DIR, not the hook's cwd:
     // the shell cwd drifts across calls, and a drifted cwd would make the
     // project repo look identical to the target and re-police other repos.
     const projectRoot = getRepoRoot(process.env["CLAUDE_PROJECT_DIR"]);
+
     if (targetRoot && projectRoot && targetRoot !== projectRoot) {
       process.exit(HOOK_EXIT.ALLOW);
     }
   }
 
   const branch = getCurrentBranch(effectiveCwd);
+
   if (!branch || !isProtectedBranch(branch)) process.exit(HOOK_EXIT.ALLOW);
 
   console.error(`BLOCKED: '${branch}' is a protected branch.`);

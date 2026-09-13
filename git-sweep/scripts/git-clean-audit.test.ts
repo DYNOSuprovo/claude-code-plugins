@@ -13,6 +13,7 @@ function makeTmpDir(prefix: string): string {
   const safe = prefix.replaceAll(/[^a-zA-Z0-9-]/gu, "-");
   const dir = mkdtempSync(join(tmpdir(), `git-clean-audit-test-${safe}-`));
   tmpDirs.push(dir);
+
   return dir;
 }
 
@@ -22,6 +23,7 @@ afterEach(() => {
       rmSync(dir, { recursive: true, force: true });
     } catch {}
   }
+
   tmpDirs = [];
 });
 
@@ -36,12 +38,15 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
     stderr: "pipe",
     env: { ...process.env, ...GIT_ISOLATION },
   });
+
   const stdout = await new Response(proc.stdout).text();
   const exitCode = await proc.exited;
+
   if (exitCode !== 0) {
     const stderr = await new Response(proc.stderr).text();
     throw new Error(`git ${args.join(" ")} failed (${exitCode}): ${stderr}`);
   }
+
   return stdout.trim();
 }
 
@@ -59,8 +64,10 @@ async function runAudit(
     stderr: "pipe",
     env: { ...process.env, ...GIT_ISOLATION },
   });
+
   const stdout = await new Response(proc.stdout).text();
   const exitCode = await proc.exited;
+
   try {
     return { exitCode, result: JSON.parse(stdout.trim()) };
   } catch {
@@ -79,6 +86,7 @@ async function makeRepo(prefix: string): Promise<string> {
   writeFileSync(join(repo, "init.txt"), "init");
   await git(repo, "add", ".");
   await git(repo, "commit", "-m", "initial commit");
+
   return repo;
 }
 
@@ -94,6 +102,7 @@ async function makeRepoWithOrigin(prefix: string): Promise<{ origin: string; rep
   await git(repo, "add", ".");
   await git(repo, "commit", "-m", "initial commit");
   await git(repo, "push", "-u", "origin", "main");
+
   return { origin, repo };
 }
 
@@ -119,8 +128,10 @@ async function runAuditWithFailingGit(
   ...args: string[]
 ): Promise<{ exitCode: number; result: Record<string, unknown> }> {
   const realGit = Bun.which("git");
+
   if (!realGit) throw new Error("git not found on PATH");
   const shimDir = makeTmpDir("git-shim");
+
   const shim = `#!/usr/bin/env bash
 if [[ "$*" == "${failOn}"* ]]; then
   echo "fatal: simulated failure: ${failOn}" >&2
@@ -128,15 +139,19 @@ if [[ "$*" == "${failOn}"* ]]; then
 fi
 exec ${realGit} "$@"
 `;
+
   writeFileSync(join(shimDir, "git"), shim, { mode: 0o755 });
+
   const proc = Bun.spawn(["bun", "run", SCRIPT, ...args], {
     cwd,
     stdout: "pipe",
     stderr: "pipe",
     env: { ...process.env, ...GIT_ISOLATION, PATH: `${shimDir}:${process.env.PATH}` },
   });
+
   const stdout = await new Response(proc.stdout).text();
   const exitCode = await proc.exited;
+
   try {
     return { exitCode, result: JSON.parse(stdout.trim()) };
   } catch {
@@ -367,6 +382,7 @@ describe("git-clean-audit", () => {
     await git(repo, "branch", "-D", "feature/remote-squashed");
 
     const { result } = await runAudit(repo, "--include-remote");
+
     const stale = (result.categories as Record<string, { name: string; proof: string }[]>)
       .stale_remote;
 
@@ -430,6 +446,7 @@ describe("git-clean-audit", () => {
     await git(repo, "merge", "feature/ahead-of-upstream");
 
     const { result } = await runAudit(repo);
+
     const merged = (
       result.categories as Record<string, { name: string; d_refusal: string | null }[]>
     ).merged_local;
@@ -449,6 +466,7 @@ describe("git-clean-audit", () => {
     await git(repo, "merge", "feature/pushed");
 
     const { result } = await runAudit(repo);
+
     const merged = (
       result.categories as Record<string, { name: string; d_refusal: string | null }[]>
     ).merged_local;
@@ -588,6 +606,7 @@ describe("git-clean-audit", () => {
     await git(repo, "worktree", "add", wtDir, "feature/agent-done");
 
     const { result } = await runAudit(repo);
+
     const categories = result.categories as Record<
       string,
       { name?: string; path?: string; branch?: string; proof?: string }[]
@@ -623,6 +642,7 @@ describe("git-clean-audit", () => {
     writeFileSync(join(wtDir, "node_modules", "dep.js"), "module.exports = 1");
 
     const { result } = await runAudit(repo);
+
     const removable = (
       result.categories as Record<
         string,
@@ -852,6 +872,7 @@ describe("git-clean-audit", () => {
 
   test("--save-manifest writes {manifest, kept} atomically to the git dir", async () => {
     const repo = await makeRepo("save-manifest");
+
     const manifest = {
       base: "main",
       worktrees: [],
@@ -860,6 +881,7 @@ describe("git-clean-audit", () => {
       prune_remotes: false,
       prune_worktrees: false,
     };
+
     const gitDir = await git(repo, "rev-parse", "--absolute-git-dir");
 
     const proc = Bun.spawn(["bun", "run", SCRIPT, "--save-manifest"], {
@@ -868,6 +890,7 @@ describe("git-clean-audit", () => {
       stdout: "pipe",
       stderr: "pipe",
     });
+
     const kept = [{ name: "main", reason: "base", detail: null }];
     proc.stdin.write(JSON.stringify({ manifest, kept }));
     await proc.stdin.end();
@@ -890,6 +913,7 @@ describe("git-clean-audit", () => {
       stdout: "pipe",
       stderr: "pipe",
     });
+
     proc.stdin.write(
       JSON.stringify({
         manifest: {
@@ -919,6 +943,7 @@ describe("git-clean-audit", () => {
       stdout: "pipe",
       stderr: "pipe",
     });
+
     proc.stdin.write(JSON.stringify({ manifest: { branches: "nope" }, kept: [] }));
     await proc.stdin.end();
     const out = JSON.parse((await new Response(proc.stdout).text()).trim());

@@ -63,6 +63,7 @@ interface ErrorResult {
 async function checkPortInUse(port: number): Promise<boolean> {
   try {
     const result = await $`lsof -i :${port} -t`.quiet();
+
     return result.stdout.toString().trim().length > 0;
   } catch {
     return false;
@@ -72,6 +73,7 @@ async function checkPortInUse(port: number): Promise<boolean> {
 async function scaffoldProject(projectPath: string): Promise<void> {
   if (await exists(projectPath)) {
     console.error(`Project already exists at ${projectPath}, skipping create-vite`);
+
     return;
   }
 
@@ -115,6 +117,7 @@ async function startDevServer(projectPath: string, port: number): Promise<number
   // Check if already running
   if (await checkPortInUse(port)) {
     console.error(`Port ${port} already in use, assuming dev server is running`);
+
     return null;
   }
 
@@ -161,12 +164,15 @@ async function main(): Promise<void> {
     // Check mode - just report if project exists
     if (values.check) {
       const projectExists = await checkProject(projectPath);
+
       const result = {
         exists: projectExists,
         project_path: projectPath,
         state_path: statePath,
       };
+
       console.log(JSON.stringify(result, null, 2));
+
       return;
     }
 
@@ -198,6 +204,7 @@ async function main(): Promise<void> {
       error: error instanceof Error ? error.message : String(error),
       details: error instanceof Error ? error.stack : undefined,
     };
+
     console.log(JSON.stringify(errorResult, null, 2));
     process.exit(1);
   }

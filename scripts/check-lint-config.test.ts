@@ -23,7 +23,9 @@ import {
 const repoRoot = join(import.meta.dir, "..");
 
 const GOOD_CATEGORIES = { correctness: "error", suspicious: "error", pedantic: "error" };
+
 const GOOD_PLUGINS = [{ name: "anti-slop", specifier: "./tools/oxlint/anti-slop/index.ts" }];
+
 const GOOD_PATTERNS = ["archive/**", "node_modules/**"];
 
 describe("checkCategories", () => {
@@ -79,18 +81,20 @@ describe("registeredRuleNames", () => {
       "\t},",
       "});",
     ].join("\n");
+
     expect(registeredRuleNames(source)).toEqual(["no-reflect-get", "no-widen-then-assert"]);
   });
 
   test("reads every rule the repo actually vendors", async () => {
     const source = await Bun.file(join(repoRoot, "tools/oxlint/anti-slop/index.ts")).text();
-    expect(registeredRuleNames(source)).toHaveLength(15);
+    expect(registeredRuleNames(source)).toHaveLength(18);
   });
 });
 
 describe("checkAntiSlopRules", () => {
   const files = ["no-reflect-get", "no-widen-then-assert"];
   const registered = ["no-reflect-get", "no-widen-then-assert"];
+
   const configured = {
     "anti-slop/no-reflect-get": "error",
     "anti-slop/no-widen-then-assert": "error",
@@ -109,6 +113,7 @@ describe("checkAntiSlopRules", () => {
     const failures = checkAntiSlopRules(files, registered, {
       "anti-slop/no-reflect-get": "error",
     });
+
     expect(failures.join("\n")).toContain("not configured");
   });
 
@@ -122,6 +127,7 @@ describe("checkAntiSlopRules", () => {
       ...configured,
       "anti-slop/no-reflect-get": "warn",
     });
+
     expect(failures.join("\n")).toContain('expected "error"');
   });
 });
@@ -207,12 +213,14 @@ describe("checkVendoredIntegrity", () => {
   test("the real manifest matches the real vendored tree", async () => {
     const vendoredRoot = join(repoRoot, "tools/oxlint");
     const listed = parseManifest(await Bun.file(join(vendoredRoot, "CHECKSUMS.sha256")).text());
+
     const actual = await digestTree(
       vendoredRoot,
       listed.map((entry) => entry.path),
     );
+
     expect(checkVendoredIntegrity(listed, actual)).toEqual([]);
-    expect(listed).toHaveLength(20);
+    expect(listed).toHaveLength(32);
   });
 });
 

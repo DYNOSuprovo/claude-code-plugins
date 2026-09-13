@@ -13,6 +13,7 @@ let tmpDirs: string[] = [];
 function makeTmpDir(prefix: string): string {
   const dir = mkdtempSync(join(tmpdir(), `rebase-test-${prefix}-`));
   tmpDirs.push(dir);
+
   return dir;
 }
 
@@ -22,6 +23,7 @@ afterEach(() => {
       rmSync(dir, { recursive: true, force: true });
     } catch {}
   }
+
   tmpDirs = [];
 });
 
@@ -31,9 +33,11 @@ afterEach(() => {
 
 async function git(cwd: string, ...args: string[]): Promise<string> {
   const { stdout, stderr, exitCode } = await $`git ${args}`.cwd(cwd).quiet().nothrow();
+
   if (exitCode !== 0) {
     throw new Error(`git ${args.join(" ")} failed (${exitCode}): ${stderr.toString().trim()}`);
   }
+
   return stdout.toString().trim();
 }
 
@@ -46,8 +50,10 @@ async function run(
     stdin === null
       ? $`bun run ${SCRIPT} ${args}`
       : $`bun run ${SCRIPT} ${args} < ${Buffer.from(stdin)}`;
+
   const { stdout, exitCode } = await shell.cwd(cwd).quiet().nothrow();
   const out = stdout.toString().trim();
+
   try {
     return { exitCode, result: JSON.parse(out) };
   } catch {
@@ -62,21 +68,25 @@ async function makeRepo(prefix: string, subjects: string[]): Promise<string> {
   await git(repo, "config", "user.email", "test@test.com");
   await git(repo, "config", "user.name", "Test");
   await git(repo, "config", "commit.gpgsign", "false");
+
   for (const [index, subject] of subjects.entries()) {
     await Bun.write(join(repo, `file-${index}.txt`), `${subject}\n`);
     await git(repo, "add", ".");
     await git(repo, "commit", "-m", subject);
   }
+
   return repo;
 }
 
 async function hashes(repo: string, count: number): Promise<string[]> {
   const listed = await git(repo, "log", "--reverse", "--format=%H", `-${count}`);
+
   return listed.split("\n").filter(Boolean);
 }
 
 async function logSubjects(repo: string): Promise<string[]> {
   const listed = await git(repo, "log", "--format=%s");
+
   return listed.split("\n").filter(Boolean);
 }
 
@@ -189,6 +199,7 @@ describe("plan", () => {
     await git(repo, "commit", "-m", "C: three");
 
     const list = await hashes(repo, 3);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~3"),
       steps: [
@@ -197,6 +208,7 @@ describe("plan", () => {
         step(list[2] ?? "", "pick"),
       ],
     };
+
     await run(repo, ["apply"], JSON.stringify(plan));
 
     const { result } = await run(repo, ["plan", "1"]);
@@ -219,10 +231,12 @@ describe("apply validation", () => {
   test("rejects an unknown action", async () => {
     const repo = await makeRepo("bad-action", ["initial commit", "second"]);
     const list = await hashes(repo, 1);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~1"),
       steps: [step(list[0] ?? "", "explode")],
     };
+
     const { result } = await run(repo, ["apply"], JSON.stringify(plan));
     expect(result.error).toBe("invalid-plan");
     expect(result.detail).toContain("action");
@@ -246,10 +260,12 @@ describe("apply validation", () => {
   test("rejects squashing the first commit that is kept", async () => {
     const repo = await makeRepo("squash-first", ["initial commit", "a", "b"]);
     const list = await hashes(repo, 2);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~2"),
       steps: [step(list[0] ?? "", "squash"), step(list[1] ?? "", "pick")],
     };
+
     const { result } = await run(repo, ["apply"], JSON.stringify(plan));
     expect(result.error).toBe("plan-invalid");
     expect(result.detail).toContain("cannot be squashed");
@@ -258,10 +274,12 @@ describe("apply validation", () => {
   test("rejects a reword with no message", async () => {
     const repo = await makeRepo("empty-reword", ["initial commit", "a"]);
     const list = await hashes(repo, 1);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~1"),
       steps: [step(list[0] ?? "", "reword")],
     };
+
     const { result } = await run(repo, ["apply"], JSON.stringify(plan));
     expect(result.error).toBe("plan-invalid");
     expect(result.detail).toContain("rewords without a message");
@@ -270,10 +288,12 @@ describe("apply validation", () => {
   test("rejects a message on a pick", async () => {
     const repo = await makeRepo("pick-message", ["initial commit", "a"]);
     const list = await hashes(repo, 1);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~1"),
       steps: [step(list[0] ?? "", "pick", "a message that would be ignored")],
     };
+
     const { result } = await run(repo, ["apply"], JSON.stringify(plan));
     expect(result.error).toBe("plan-invalid");
     expect(result.detail).toContain("carries a message");
@@ -282,10 +302,12 @@ describe("apply validation", () => {
   test("accepts an abbreviated hash instead of calling the plan stale", async () => {
     const repo = await makeRepo("short-hash", ["initial commit", "a"]);
     const list = await hashes(repo, 1);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~1"),
       steps: [step((list[0] ?? "").slice(0, 8), "reword", "feat: a")],
     };
+
     const { exitCode, result } = await run(repo, ["apply"], JSON.stringify(plan));
     expect(exitCode).toBe(0);
     expect(result.step).toBe("applied");
@@ -322,10 +344,12 @@ describe("apply validation", () => {
     const repo = await makeRepo("untracked", ["initial commit", "a"]);
     await Bun.write(join(repo, "scratch.json"), "{}\n");
     const list = await hashes(repo, 1);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~1"),
       steps: [step(list[0] ?? "", "reword", "feat: a")],
     };
+
     const { exitCode, result } = await run(repo, ["apply"], JSON.stringify(plan));
     expect(exitCode).toBe(0);
     expect(result.step).toBe("applied");
@@ -336,10 +360,12 @@ describe("apply validation", () => {
     const repo = await makeRepo("tracked-dirty", ["initial commit", "a"]);
     await Bun.write(join(repo, "file-0.txt"), "edited\n");
     const list = await hashes(repo, 1);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~1"),
       steps: [step(list[0] ?? "", "pick")],
     };
+
     const { result } = await run(repo, ["apply"], JSON.stringify(plan));
     expect(result.error).toBe("dirty-worktree");
     expect(result.detail).toContain("file-0.txt");
@@ -355,6 +381,7 @@ describe("apply", () => {
     const repo = await makeRepo("dry-run", ["initial commit", "feat: parser", "fix: typo"]);
     const head = await git(repo, "rev-parse", "HEAD");
     const list = await hashes(repo, 2);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~2"),
       steps: [
@@ -381,6 +408,7 @@ describe("apply", () => {
     const repo = await makeRepo("execute", ["initial commit", "feat: parser", "fix typo", "wip"]);
     const before = await git(repo, "rev-parse", "HEAD");
     const list = await hashes(repo, 3);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~3"),
       steps: [
@@ -406,6 +434,7 @@ describe("apply", () => {
   test("keeps every commit when the plan is all picks", async () => {
     const repo = await makeRepo("all-picks", ["initial commit", "a", "b"]);
     const list = await hashes(repo, 2);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~2"),
       steps: [step(list[0] ?? "", "pick"), step(list[1] ?? "", "pick")],
@@ -419,10 +448,12 @@ describe("apply", () => {
   test("leaves no state directory behind on success", async () => {
     const repo = await makeRepo("cleanup", ["initial commit", "a"]);
     const list = await hashes(repo, 1);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~1"),
       steps: [step(list[0] ?? "", "reword", "feat: a")],
     };
+
     await run(repo, ["apply"], JSON.stringify(plan));
     expect(await Bun.file(join(repo, ".git", "claude-rebase", "todo")).exists()).toBe(false);
   });
@@ -435,6 +466,7 @@ describe("apply", () => {
 /** A repo where dropping the middle commit makes the last one conflict. */
 async function makeConflictRepo(prefix: string): Promise<string> {
   const repo = await makeRepo(prefix, ["initial commit"]);
+
   for (const [subject, contents] of [
     ["A: one", "one"],
     ["B: two", "two"],
@@ -444,16 +476,20 @@ async function makeConflictRepo(prefix: string): Promise<string> {
     await git(repo, "add", ".");
     await git(repo, "commit", "-m", subject);
   }
+
   return repo;
 }
 
 async function startConflict(repo: string): Promise<Record<string, unknown>> {
   const list = await hashes(repo, 3);
+
   const plan = {
     base: await git(repo, "rev-parse", "HEAD~3"),
     steps: [step(list[0] ?? "", "pick"), step(list[1] ?? "", "drop"), step(list[2] ?? "", "pick")],
   };
+
   const { result } = await run(repo, ["apply"], JSON.stringify(plan));
+
   return result;
 }
 
@@ -559,16 +595,20 @@ async function makePickyRepo(prefix: string): Promise<string> {
   const hook = join(repo, ".git", "hooks", "commit-msg");
   await Bun.write(hook, '#!/bin/sh\ngrep -q "^feat" "$1" || { echo "hook: refused"; exit 1; }\n');
   await $`chmod +x ${hook}`.quiet();
+
   return repo;
 }
 
 async function startRejectedReword(repo: string): Promise<Record<string, unknown>> {
   const list = await hashes(repo, 1);
+
   const plan = {
     base: await git(repo, "rev-parse", "HEAD~1"),
     steps: [step(list[0] ?? "", "reword", "chore: the hook rejects this")],
   };
+
   const { result } = await run(repo, ["apply"], JSON.stringify(plan));
+
   return result;
 }
 
@@ -653,6 +693,7 @@ describe("routing", () => {
     const repo = await makeRepo("dryrun-typo", ["initial commit", "a"]);
     const head = await git(repo, "rev-parse", "HEAD");
     const list = await hashes(repo, 1);
+
     const plan = {
       base: await git(repo, "rev-parse", "HEAD~1"),
       steps: [step(list[0] ?? "", "reword", "feat: a")],

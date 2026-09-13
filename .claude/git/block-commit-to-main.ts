@@ -10,6 +10,7 @@ import { getCurrentBranch, isProtectedBranch } from "../hooks/guard-main-branch.
 if (process.env["MAIN_BYPASS"] === "1") process.exit(0);
 
 const branch = getCurrentBranch();
+
 if (branch && isProtectedBranch(branch)) {
   console.error(`\nERROR: Direct commits to '${branch}' are blocked.`);
   console.error("Work on 'dev' and merge via PR.\n");

@@ -40,6 +40,7 @@ import { isAbsolute, resolve } from "node:path";
 export const HOOK_EXIT = { ALLOW: 0, ERROR: 1, BLOCK: 2 } as const;
 
 export const GUARDED_PATH = ".claude/settings.json";
+
 export const SOURCE_PATH = ".claude/__settings.jsonc";
 
 export interface HookInput {
@@ -80,6 +81,7 @@ export function parseHookInput(raw: string): HookInput | null {
 
 export function projectDir(env: Record<string, string | undefined>): string {
   const dir = env["CLAUDE_PROJECT_DIR"];
+
   return dir && isAbsolute(dir) ? dir : process.cwd();
 }
 
@@ -91,6 +93,7 @@ export function checkCommand(cmd: string): string | null {
   for (const [pattern, label] of WRITE_PATTERNS) {
     if (pattern.test(cmd)) return label;
   }
+
   return null;
 }
 
@@ -106,6 +109,7 @@ if (import.meta.main) {
   if (process.env["SETTINGS_BYPASS"] === "1") process.exit(HOOK_EXIT.ALLOW);
 
   const input = parseHookInput(await Bun.stdin.text());
+
   if (!input) process.exit(HOOK_EXIT.ALLOW);
 
   const root = projectDir(process.env);
@@ -118,6 +122,7 @@ if (import.meta.main) {
 
   if (command) {
     const how = checkCommand(command);
+
     if (how) {
       console.error(blockMessage(how));
       process.exit(HOOK_EXIT.BLOCK);

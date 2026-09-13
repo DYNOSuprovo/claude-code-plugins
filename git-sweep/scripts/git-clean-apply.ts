@@ -50,6 +50,7 @@ async function git(
   ...args: string[]
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const { stdout, stderr, exitCode } = await $`git ${args}`.quiet().nothrow();
+
   return { stdout: stdout.toString().trim(), stderr: stderr.toString().trim(), exitCode };
 }
 
@@ -64,8 +65,11 @@ const isOid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{7
 function isValidManifest(m: unknown): m is CleanupManifest {
   if (typeof m !== "object" || m === null) return false;
   const o = m as Record<string, unknown>;
+
   if (typeof o.base !== "string" || o.base === "") return false;
+
   if (!Array.isArray(o.worktrees) || !o.worktrees.every((w) => typeof w === "string")) return false;
+
   if (
     !Array.isArray(o.branches) ||
     !o.branches.every(
@@ -79,6 +83,7 @@ function isValidManifest(m: unknown): m is CleanupManifest {
   ) {
     return false;
   }
+
   if (
     !Array.isArray(o.remote_branches) ||
     !o.remote_branches.every(
@@ -92,8 +97,11 @@ function isValidManifest(m: unknown): m is CleanupManifest {
   ) {
     return false;
   }
+
   if (typeof o.prune_remotes !== "boolean") return false;
+
   if (typeof o.prune_worktrees !== "boolean") return false;
+
   return true;
 }
 
@@ -111,24 +119,30 @@ function isValidManifest(m: unknown): m is CleanupManifest {
 // contradictory ones are an error, not something to guess at.
 function dedupe<T>(items: T[], keyOf: (item: T) => string, label: string): T[] | { error: string } {
   const seen = new Map<string, { key: string; json: string; item: T }>();
+
   for (const item of items) {
     const key = keyOf(item);
     const json = JSON.stringify(item);
     const previous = seen.get(key);
+
     if (!previous) {
       seen.set(key, { key, json, item });
     } else if (previous.json !== json) {
       return { error: `conflicting ${label} entries for '${key}' in the manifest` };
     }
   }
+
   return [...seen.values()].map((entry) => entry.item);
 }
 
 function dedupeManifest(m: CleanupManifest): CleanupManifest | { error: string } {
   const branches = dedupe(m.branches, (b) => b.name, "branch");
+
   if ("error" in branches) return branches;
   const remote_branches = dedupe(m.remote_branches, (r) => `${r.remote}/${r.ref}`, "remote branch");
+
   if ("error" in remote_branches) return remote_branches;
+
   return { ...m, worktrees: [...new Set(m.worktrees)], branches, remote_branches };
 }
 
@@ -169,6 +183,7 @@ async function execute(
   for (const path of manifest.worktrees) {
     const result = await git("worktree", "remove", path);
     const success = result.exitCode === 0;
+
     if (!success) remaining.worktrees.push(path);
     operations.push({
       type: "worktree-remove",
@@ -182,6 +197,7 @@ async function execute(
   if (manifest.prune_worktrees) {
     const result = await git("worktree", "prune");
     const success = result.exitCode === 0;
+
     if (!success) remaining.prune_worktrees = true;
     operations.push({
       type: "prune-worktree",
@@ -194,6 +210,7 @@ async function execute(
   // 3. Delete local branches
   for (const entry of manifest.branches) {
     const { name, force, oid } = entry;
+
     const fail = (error: string) => {
       remaining.branches.push(entry);
       operations.push({ type: "branch-delete", target: name, success: false, error });
@@ -204,10 +221,12 @@ async function execute(
       fail(`refusing to delete the base branch '${name}'`);
       continue;
     }
+
     if (name === currentBranch) {
       fail(`refusing to delete the checked-out branch '${name}'`);
       continue;
     }
+
     if (protectedBranches.has(name)) {
       fail(`refusing to delete the protected branch '${name}' (sweep.unprotect can lift it)`);
       continue;
@@ -216,20 +235,24 @@ async function execute(
     // The audit proved containment for THIS commit; if the branch moved since,
     // that proof no longer covers what would be deleted.
     const head = await git("rev-parse", "--verify", `refs/heads/${name}`);
+
     if (head.exitCode !== 0) {
       fail(`branch no longer exists: ${head.stderr}`);
       continue;
     }
+
     if (head.stdout !== oid) {
       fail(`branch moved since the audit (audited ${oid}, now ${head.stdout}) — re-run /git-sweep`);
       continue;
     }
 
     const result = await git("branch", force ? "-D" : "-d", name);
+
     if (result.exitCode !== 0) {
       fail(result.stderr);
       continue;
     }
+
     operations.push({ type: "branch-delete", target: name, success: true, error: null });
   }
 
@@ -250,6 +273,7 @@ async function execute(
       });
       continue;
     }
+
     if (protectedBranches.has(ref)) {
       remaining.remote_branches.push(entry);
       operations.push({
@@ -268,7 +292,9 @@ async function execute(
       "--delete",
       ref,
     );
+
     const success = result.exitCode === 0;
+
     if (!success) remaining.remote_branches.push(entry);
     operations.push({
       type: "remote-delete",
@@ -282,6 +308,7 @@ async function execute(
   if (manifest.prune_remotes) {
     const result = await git("remote", "prune", "origin");
     const success = result.exitCode === 0;
+
     if (!success) remaining.prune_remotes = true;
     operations.push({
       type: "prune-remote",
@@ -342,21 +369,27 @@ async function main(): Promise<CleanupResult | { ok: false; error: string }> {
   if (manifestFile !== null) {
     // Durable hand-off: file holds {manifest, kept} written by git-clean-audit.
     let raw: string;
+
     try {
       raw = await Bun.file(manifestFile).text();
     } catch {
       return { ok: false, error: `cannot read manifest file: ${manifestFile}` };
     }
+
     let parsed: unknown;
+
     try {
       parsed = JSON.parse(raw);
     } catch {
       return { ok: false, error: "invalid JSON in manifest file" };
     }
+
     const candidate = (parsed as { manifest?: unknown }).manifest;
+
     if (!isValidManifest(candidate)) {
       return { ok: false, error: "invalid manifest shape in manifest file" };
     }
+
     manifest = candidate;
     kept = (parsed as { kept?: unknown }).kept ?? [];
     consumePath = manifestFile;
@@ -364,20 +397,24 @@ async function main(): Promise<CleanupResult | { ok: false; error: string }> {
     return { ok: false, error: "missing --manifest or --manifest-file argument" };
   } else {
     let parsed: unknown;
+
     try {
       parsed = JSON.parse(manifestJson);
     } catch {
       return { ok: false, error: "invalid JSON in --manifest" };
     }
+
     if (!isValidManifest(parsed)) {
       return { ok: false, error: "invalid manifest shape in --manifest" };
     }
+
     manifest = parsed;
   }
 
   /* oxlint-enable anti-slop/require-safety-comment-for-type-assertion, anti-slop/no-known-value-widening */
 
   const deduped = dedupeManifest(manifest);
+
   if ("error" in deduped) {
     return { ok: false, error: deduped.error };
   }
@@ -395,6 +432,7 @@ async function main(): Promise<CleanupResult | { ok: false; error: string }> {
       // Replaying the original would re-attempt already-completed deletions and
       // could never reach a clean state.
       const tmp = `${consumePath}.tmp`;
+
       try {
         await Bun.write(tmp, JSON.stringify({ manifest: remaining, kept }, null, 2));
         await rename(tmp, consumePath);

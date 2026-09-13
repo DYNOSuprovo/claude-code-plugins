@@ -24,6 +24,7 @@ import {
 
 function tempDir(prefix: string): Disposable & { path: string } {
   const dir = mkdtempSync(join(tmpdir(), `sa-test-${prefix}-`));
+
   return {
     path: dir,
     [Symbol.dispose]() {
@@ -33,11 +34,17 @@ function tempDir(prefix: string): Disposable & { path: string } {
 }
 
 const UUID_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+
 const UUID_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+
 const UUID_C = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+
 const UUID_D = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+
 const OLD_DATE = new Date("2024-01-01");
+
 const JSONL_CONTENT = '{"type":"message","role":"user"}\n{"type":"message","role":"assistant"}\n';
+
 const LARGE_JSONL = JSONL_CONTENT.repeat(500);
 
 interface FakeProject {
@@ -71,6 +78,7 @@ async function createFakeProject(baseDir: string): Promise<FakeProject> {
   // Backdate files so they pass the "recent" check
   const old = Math.floor(OLD_DATE.getTime() / 1000);
   const { utimesSync } = await import("node:fs");
+
   for (const name of [`${UUID_A}.jsonl`, `${UUID_B}.jsonl`, UUID_B, UUID_C]) {
     utimesSync(join(dir, name), old, old);
   }
@@ -156,8 +164,10 @@ describe("parseArgs", () => {
     ["--max", "--max requires a non-negative integer"],
   ])("%s with an empty value exits 1", async (flag, message) => {
     const scriptPath = join(import.meta.dir, "session-archive.ts");
+
     const source = `import { parseArgs } from ${JSON.stringify(scriptPath)};
       parseArgs([${JSON.stringify(flag)}, ""]);`;
+
     const proc = Bun.spawn(["bun", "-e", source], { stdout: "pipe", stderr: "pipe" });
     const [stderr, exitCode] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
 
@@ -175,6 +185,7 @@ describe("shouldArchive", () => {
       mtime: OLD_DATE,
       sizeBytes: 100,
     };
+
     expect(shouldArchive(session, cutoff, new Set())).toBe(true);
   });
 
@@ -184,6 +195,7 @@ describe("shouldArchive", () => {
       mtime: OLD_DATE,
       sizeBytes: 100,
     };
+
     expect(shouldArchive(session, cutoff, new Set([UUID_A]))).toBe(false);
   });
 
@@ -193,6 +205,7 @@ describe("shouldArchive", () => {
       mtime: new Date(), // now
       sizeBytes: 100,
     };
+
     expect(shouldArchive(session, cutoff, new Set())).toBe(false);
   });
 
@@ -202,6 +215,7 @@ describe("shouldArchive", () => {
       mtime: new Date("2024-07-01"), // after cutoff
       sizeBytes: 100,
     };
+
     expect(shouldArchive(session, cutoff, new Set())).toBe(false);
   });
 });
@@ -333,6 +347,7 @@ describe("archiveSession", () => {
     using tmp = tempDir("archive-copy-missing");
     const dir = join(tmp.path, "project");
     mkdirSync(dir, { recursive: true });
+
     const session = {
       sessionId: UUID_C,
       dirPath: join(dir, UUID_C),

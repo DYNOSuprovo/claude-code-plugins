@@ -108,10 +108,15 @@ const SUGGESTIONS = {
  */
 export function classifyComponent(filePath: string): ComponentType | null {
   if (filePath.startsWith("archive/")) return null;
+
   if (/^\.claude\/rules\/.*\.md$/u.test(filePath)) return "rule";
+
   if (/(^|\/)agents\/[^/]+\.md$/u.test(filePath)) return "agent";
+
   if (/(^|\/)skills\/.*\/SKILL\.md$/u.test(filePath)) return "skill";
+
   if (/(^|\/)commands\/.*\.md$/u.test(filePath)) return "command";
+
   return null;
 }
 
@@ -158,6 +163,7 @@ export interface FrontmatterResult {
  */
 export function extractFrontmatter(content: string): string | null {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/u);
+
   return match?.[1] ?? null;
 }
 
@@ -174,6 +180,7 @@ export function validateFrontmatter(filePath: string, content: string): Frontmat
 
   try {
     const frontmatter = parse(yaml, { strict: true });
+
     return { valid: true, filePath, frontmatter };
   } catch (e) {
     if (e instanceof YAMLParseError) {
@@ -188,6 +195,7 @@ export function validateFrontmatter(filePath: string, content: string): Frontmat
         },
       };
     }
+
     return {
       valid: false,
       filePath,

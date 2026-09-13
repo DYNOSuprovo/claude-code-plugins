@@ -22,14 +22,19 @@ import {
 
 // Colors (disabled if not a terminal)
 const isTTY = process.stdout.isTTY;
+
 const GREEN = isTTY ? "\u001B[0;32m" : "";
+
 const RED = isTTY ? "\u001B[0;31m" : "";
+
 const BOLD = isTTY ? "\u001B[1m" : "";
+
 const RESET = isTTY ? "\u001B[0m" : "";
 
 let errors = 0;
 
 const pass = (msg: string) => console.log(`  ${GREEN}✓${RESET} ${msg}`);
+
 const fail = (msg: string) => {
   console.log(`  ${RED}✗${RESET} ${msg}`);
   errors++;
@@ -45,13 +50,16 @@ const report = (result: ValidationResult) => {
 
 // Get repo root
 const repoRootResult = await $`git rev-parse --show-toplevel`.nothrow().quiet();
+
 if (repoRootResult.exitCode !== 0) {
   console.error("Error: Not in a git repository");
   process.exit(2);
 }
+
 const repoRoot = repoRootResult.text().trim();
 
 const marketplaceFile = join(repoRoot, ".claude-plugin/marketplace.json");
+
 const readmeFile = join(repoRoot, "README.md");
 
 // Check marketplace.json exists
@@ -66,6 +74,7 @@ interface Marketplace {
 }
 
 let marketplace: Marketplace;
+
 try {
   marketplace = await Bun.file(marketplaceFile).json();
 } catch {
@@ -76,7 +85,9 @@ try {
 // Shipped plugin code, listed once and filtered per plugin below. Only what git
 // tracks ships, so an untracked scratch file is not the marketplace's problem.
 const trackedFiles = (await $`git ls-files -z`.quiet().text()).split("\0").filter(Boolean);
+
 const SHIPPED_TEXT_EXTENSIONS = [".ts", ".sh", ".md", ".json", ".js", ".mjs", ".cjs"];
+
 const isShippedText = (path: string) => SHIPPED_TEXT_EXTENSIONS.some((ext) => path.endsWith(ext));
 
 console.log(`${BOLD}Validating marketplace plugins...${RESET}\n`);
@@ -87,6 +98,7 @@ for (const mp of marketplace.plugins) {
 
   // Check 1: Plugin directory exists
   const pluginDir = join(repoRoot, mp.source);
+
   if (existsSync(pluginDir)) {
     pass(`Directory exists: ${mp.source}`);
   } else {
@@ -97,6 +109,7 @@ for (const mp of marketplace.plugins) {
 
   // Check 2: plugin.json exists
   const pluginJsonPath = join(pluginDir, ".claude-plugin/plugin.json");
+
   if (existsSync(pluginJsonPath)) {
     pass("plugin.json exists");
   } else {
@@ -107,6 +120,7 @@ for (const mp of marketplace.plugins) {
 
   // Load plugin.json
   let pluginJson: PluginJson;
+
   try {
     pluginJson = await Bun.file(pluginJsonPath).json();
   } catch {
@@ -130,14 +144,17 @@ for (const mp of marketplace.plugins) {
   // Check 7: no machine-specific home paths in shipped code
   const prefix = `${mp.source.replace(/^\.\//u, "")}/`;
   let hardcoded = 0;
+
   for (const file of trackedFiles) {
     if (!file.startsWith(prefix) || !isShippedText(file)) continue;
     const content = await Bun.file(join(repoRoot, file)).text();
+
     for (const hit of findHardcodedPaths(content)) {
       fail(`Hardcoded path: ${file}:${hit.line}: ${hit.text}`);
       hardcoded++;
     }
   }
+
   if (hardcoded === 0) {
     pass("No hardcoded paths");
   }
@@ -156,8 +173,10 @@ if (existsSync(readmeFile)) {
     if (!mp.version) continue;
 
     const readmeVersion = extractVersionFromReadme(readmeContent, mp.name);
+
     if (readmeVersion) {
       const result = validateReadmeVersion(readmeVersion, mp.version, mp.name);
+
       if (!result.passed) {
         fail(result.message);
         readmeErrors++;
@@ -168,11 +187,13 @@ if (existsSync(readmeFile)) {
   if (readmeErrors === 0) {
     pass("Versions match marketplace.json");
   }
+
   console.log();
 }
 
 // Summary
 console.log("─────────────────────────────");
+
 if (errors === 0) {
   console.log(`${GREEN}All checks passed.${RESET}`);
   process.exit(0);

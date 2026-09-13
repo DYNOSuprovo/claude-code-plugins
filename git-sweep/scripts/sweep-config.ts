@@ -7,11 +7,14 @@ async function git(
   ...args: string[]
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const { stdout, stderr, exitCode } = await $`git ${args}`.quiet().nothrow();
+
   return { stdout: stdout.toString().trim(), stderr: stderr.toString().trim(), exitCode };
 }
 
 const DEFAULT_AGENT_PREFIX = "worktree-agent-";
+
 const DEFAULT_BACKUP_PREFIX = "backup/";
+
 const DEFAULT_MAX_AGE_DAYS = 180;
 
 // One list for both roles: what the audit may resolve as the base (in this
@@ -43,6 +46,7 @@ export async function readProtectionConfig(): Promise<ProtectionConfig> {
     git("config", "--get-all", "sweep.protect"),
     git("config", "--get-all", "sweep.unprotect"),
   ]);
+
   return { protect: multi(protect), unprotect: multi(unprotect) };
 }
 
@@ -56,21 +60,25 @@ export async function readSweepConfig(): Promise<SweepConfig | { error: string }
   ]);
 
   let maxAgeDays = DEFAULT_MAX_AGE_DAYS;
+
   if (maxAge.exitCode === 0) {
     if (!POSITIVE_INT.test(maxAge.stdout)) {
       return {
         error: `invalid sweep.maxAgeDays '${maxAge.stdout}' (expected a positive integer)`,
       };
     }
+
     maxAgeDays = parseInt(maxAge.stdout, 10);
   }
 
   const agent =
     agentPrefix.exitCode === 0 && agentPrefix.stdout ? agentPrefix.stdout : DEFAULT_AGENT_PREFIX;
+
   const backup =
     backupPrefix.exitCode === 0 && backupPrefix.stdout
       ? backupPrefix.stdout
       : DEFAULT_BACKUP_PREFIX;
+
   // One prefix containing the other reroutes unproven agent branches into the
   // deletable backup category, past the kept-unproven guarantee.
   if (agent.startsWith(backup) || backup.startsWith(agent)) {
@@ -95,6 +103,7 @@ export async function localBranchExists(name: string): Promise<boolean> {
 
 export async function originHeadTarget(): Promise<string | null> {
   const head = await git("symbolic-ref", "--short", "refs/remotes/origin/HEAD");
+
   return head.exitCode === 0 && head.stdout.startsWith("origin/")
     ? head.stdout.slice("origin/".length)
     : null;
@@ -108,9 +117,11 @@ export async function resolveBase(configBase: string | null, originHead: string 
   const candidates = [configBase, originHead, ...TRUNK_CANDIDATES].filter(
     (c): c is string => c !== null,
   );
+
   for (const name of candidates) {
     if (await localBranchExists(name)) return name;
   }
+
   return null;
 }
 
@@ -126,8 +137,10 @@ export function buildProtectedSet(
     ...TRUNK_CANDIDATES,
     ...config.protect,
   ]);
+
   for (const name of config.unprotect) {
     if (name !== base) set.delete(name);
   }
+
   return set;
 }

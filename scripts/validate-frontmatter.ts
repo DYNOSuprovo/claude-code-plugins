@@ -12,26 +12,35 @@ import { checkKeys, classifyComponent, validateFrontmatter } from "./lib/frontma
 
 // Colors (disabled if not a terminal)
 const isTTY = process.stdout.isTTY;
+
 const RED = isTTY ? "\u001B[0;31m" : "";
+
 const GREEN = isTTY ? "\u001B[0;32m" : "";
+
 const YELLOW = isTTY ? "\u001B[1;33m" : "";
+
 const BOLD = isTTY ? "\u001B[1m" : "";
+
 const RESET = isTTY ? "\u001B[0m" : "";
 
 // Get repo root
 const repoRootResult = await $`git rev-parse --show-toplevel`.nothrow().quiet();
+
 if (repoRootResult.exitCode !== 0) {
   console.error("Error: Not in a git repository");
   process.exit(2);
 }
+
 const repoRoot = repoRootResult.text().trim();
 
 // File source: `--all` validates every tracked plugin markdown file (used in
 // CI, where nothing is staged); default validates only staged files (pre-commit).
 const checkAll = process.argv.includes("--all");
+
 const listResult = checkAll
   ? await $`git ls-files`.quiet()
   : await $`git diff --cached --name-only --diff-filter=ACMR`.quiet();
+
 const candidates = listResult.text().trim().split("\n").filter(Boolean);
 
 // Filter to Claude Code markdown files (commands, skills, agents, hooks,
@@ -58,6 +67,7 @@ let errors = 0;
 
 for (const file of mdFiles) {
   const fullPath = join(repoRoot, file);
+
   if (!existsSync(fullPath)) continue;
 
   const content = await Bun.file(fullPath).text();
@@ -68,9 +78,11 @@ for (const file of mdFiles) {
     const loc = result.error.line ? `:${result.error.line}:${result.error.col}` : "";
     console.log(`${RED}✗${RESET} ${file}${loc}`);
     console.log(`  ${result.error.message}`);
+
     if (result.error.code) {
       console.log(`  ${YELLOW}Code: ${result.error.code}${RESET}`);
     }
+
     console.log();
     continue;
   }
@@ -79,6 +91,7 @@ for (const file of mdFiles) {
   // (verified against CLI v2.1.232 — even `claude plugin validate --strict`
   // passes them), so this pre-commit check is the only gate.
   const type = classifyComponent(file);
+
   if (!type) continue;
 
   if (!result.frontmatter) {
@@ -88,21 +101,26 @@ for (const file of mdFiles) {
       console.log(`  Agent file has no frontmatter (name and description are required)`);
       console.log();
     }
+
     continue;
   }
 
   const keys = checkKeys(type, result.frontmatter);
+
   if (keys.unknown.length === 0 && keys.missing.length === 0) continue;
 
   errors++;
   console.log(`${RED}✗${RESET} ${file} (${type})`);
+
   for (const violation of keys.unknown) {
     const hint = violation.suggestion ? ` — ${violation.suggestion}` : "";
     console.log(`  Unknown key \`${violation.key}\`${hint}`);
   }
+
   for (const key of keys.missing) {
     console.log(`  Missing required key \`${key}\``);
   }
+
   console.log();
 }
 

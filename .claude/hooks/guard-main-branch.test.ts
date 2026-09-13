@@ -138,6 +138,7 @@ describe("subprocess integration", () => {
 
   async function runHook(command: string, env?: Record<string, string>) {
     const input = JSON.stringify({ tool_input: { command } });
+
     const proc = Bun.spawn(["bun", hookPath], {
       stdin: new Blob([input]),
       stdout: "pipe",
@@ -174,6 +175,7 @@ describe("subprocess integration", () => {
       ],
       { stdout: "pipe", stderr: "pipe" },
     );
+
     if (init.exitCode !== 0) {
       throw new Error(`Failed to create test repo: ${init.stderr.toString()}`);
     }
@@ -191,6 +193,7 @@ describe("subprocess integration", () => {
     );
 
     const input = JSON.stringify({ tool_input: { command } });
+
     const proc = Bun.spawn(["bun", hookPath], {
       stdin: new Blob([input]),
       stdout: "pipe",
@@ -212,6 +215,7 @@ describe("subprocess integration", () => {
     const { exitCode } = await runHook("git commit -m 'test'", {
       MAIN_BYPASS: "1",
     });
+
     expect(exitCode).toBe(HOOK_EXIT.ALLOW);
   });
 
@@ -221,6 +225,7 @@ describe("subprocess integration", () => {
       stdout: "pipe",
       stderr: "pipe",
     });
+
     expect(await proc.exited).toBe(HOOK_EXIT.ALLOW);
   });
 
@@ -230,6 +235,7 @@ describe("subprocess integration", () => {
       stdout: "pipe",
       stderr: "pipe",
     });
+
     expect(await proc.exited).toBe(HOOK_EXIT.ALLOW);
   });
 
@@ -280,6 +286,7 @@ describe("subprocess integration", () => {
     const { exitCode } = await runHookOnBranch("git commit -m 'emergency'", "main", {
       MAIN_BYPASS: "1",
     });
+
     expect(exitCode).toBe(HOOK_EXIT.ALLOW);
   });
 
@@ -292,9 +299,11 @@ describe("subprocess integration", () => {
       { stdout: "pipe", stderr: "pipe" },
     );
     const projectDir = `${import.meta.dir}/../..`;
+
     const input = JSON.stringify({
       tool_input: { command: `cd ${tmpDir} && git commit -m 'x'` },
     });
+
     const proc = Bun.spawn(["bun", hookPath], {
       stdin: new Blob([input]),
       stdout: "pipe",
@@ -302,6 +311,7 @@ describe("subprocess integration", () => {
       cwd: tmpDir,
       env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
     });
+
     expect(await proc.exited).toBe(HOOK_EXIT.ALLOW);
   });
 });

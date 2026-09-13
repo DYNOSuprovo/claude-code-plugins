@@ -109,20 +109,24 @@ Follow-up: /git:rebase continue | skip | abort | status`;
 // ---------------------------------------------------------------------------
 
 const US = "\u001F";
+
 const RS = "\u001E";
 
 async function git(
   ...args: string[]
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const { stdout, stderr, exitCode } = await $`git ${args}`.quiet().nothrow();
+
   return { stdout: stdout.toString().trim(), stderr: stderr.toString().trim(), exitCode };
 }
 
 async function gitOk(...args: string[]): Promise<string> {
   const result = await git(...args);
+
   if (result.exitCode !== 0) {
     throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
   }
+
   return result.stdout;
 }
 
@@ -149,6 +153,7 @@ function conflictFailure(step: Phase, state: RebaseState, backupRef: string | nu
 async function readNumber(path: string): Promise<number | null> {
   if (!existsSync(path)) return null;
   const value = Number((await readFile(path, "utf8")).trim());
+
   return Number.isFinite(value) ? value : null;
 }
 
@@ -156,18 +161,22 @@ async function countMarkers(path: string): Promise<number> {
   if (!existsSync(path)) return 0;
   const contents = await readFile(path, "utf8");
   let markers = 0;
+
   for (const line of contents.split("\n")) {
     if (line.startsWith("<<<<<<< ")) markers += 1;
   }
+
   return markers;
 }
 
 async function conflictedFiles(): Promise<ConflictedFile[]> {
   const listed = await gitOk("diff", "--name-only", "--diff-filter=U");
   const files: ConflictedFile[] = [];
+
   for (const path of listed.split("\n").filter(Boolean)) {
     files.push({ path, markers: await countMarkers(path) });
   }
+
   return files;
 }
 
@@ -181,12 +190,16 @@ type Stop = { kind: "exec-failed"; command: string } | { kind: "conflict" } | { 
 async function stopReason(state: RebaseState): Promise<Stop> {
   const mergeDir = await gitOk("rev-parse", "--git-path", "rebase-merge");
   const donePath = join(mergeDir, "done");
+
   if (existsSync(donePath)) {
     const done = (await readFile(donePath, "utf8")).split("\n").filter((line) => line !== "");
     const last = done.at(-1) ?? "";
+
     if (last.startsWith("exec ")) return { kind: "exec-failed", command: last.slice(5) };
   }
+
   if (state.conflicted.length > 0) return { kind: "conflict" };
+
   return { kind: "other" };
 }
 
@@ -199,14 +212,18 @@ async function stopFailure(
   if (!state.in_progress) {
     return { ...fail(step, "rebase-failed", stderr), backup_ref: backupRef };
   }
+
   const stop = await stopReason(state);
+
   if (stop.kind === "conflict") return conflictFailure(step, state, backupRef);
+
   if (stop.kind === "exec-failed") {
     const detail =
       `${stderr}\n\nThe command that failed was: ${stop.command}\n` +
       "It sets a commit message, and git skips a failed exec instead of replaying it, " +
       "so continuing would drop that message. Undo with /git:rebase abort, fix the cause, " +
       "then run /git:rebase again.";
+
     return {
       ok: false,
       step,
@@ -217,6 +234,7 @@ async function stopFailure(
       backup_ref: backupRef,
     };
   }
+
   return {
     ok: false,
     step,
@@ -232,9 +250,11 @@ async function readState(): Promise<RebaseState> {
   const mergeDir = await gitOk("rev-parse", "--git-path", "rebase-merge");
   const applyDir = await gitOk("rev-parse", "--git-path", "rebase-apply");
   const inProgress = existsSync(mergeDir) || existsSync(applyDir);
+
   if (!inProgress) {
     return { in_progress: false, current: null, total: null, conflicted: [] };
   }
+
   return {
     in_progress: true,
     current: await readNumber(join(mergeDir, "msgnum")),
@@ -253,28 +273,38 @@ type Range =
 
 async function resolveCommit(rev: string): Promise<string | null> {
   const result = await git("rev-parse", "--verify", `${rev}^{commit}`);
+
   return result.exitCode === 0 ? result.stdout : null;
 }
 
 async function resolveRange(spec: string): Promise<Range> {
   if (/^\d+$/u.test(spec)) {
     const base = await resolveCommit(`HEAD~${spec}`);
+
     if (base === null) return { kind: "rejected", reason: `HEAD has fewer than ${spec} commits` };
+
     return { kind: "resolved", base, note: null };
   }
 
   const dots = spec.indexOf("..");
+
   if (dots !== -1) {
     const left = spec.slice(0, dots);
     const right = spec.slice(dots + 2).replace(/^\./u, "");
+
     if (left === "") return { kind: "rejected", reason: `range without a base: ${spec}` };
     const base = await resolveCommit(left);
+
     if (base === null) return { kind: "rejected", reason: `unknown revision: ${left}` };
+
     if (right === "") return { kind: "resolved", base, note: null };
     const head = await resolveCommit("HEAD");
     const end = await resolveCommit(right);
+
     if (end === null) return { kind: "rejected", reason: `unknown revision: ${right}` };
+
     if (end === head) return { kind: "resolved", base, note: null };
+
     return {
       kind: "resolved",
       base,
@@ -283,11 +313,14 @@ async function resolveRange(spec: string): Promise<Range> {
   }
 
   const target = await resolveCommit(spec);
+
   if (target === null) return { kind: "rejected", reason: `unknown revision: ${spec}` };
   const mergeBase = await git("merge-base", "HEAD", target);
+
   if (mergeBase.exitCode !== 0) {
     return { kind: "rejected", reason: `no common ancestor between HEAD and ${spec}` };
   }
+
   return { kind: "resolved", base: mergeBase.stdout, note: null };
 }
 
@@ -300,22 +333,28 @@ type Stats = { files: number; insertions: number; deletions: number };
 async function collectStats(base: string): Promise<Map<string, Stats>> {
   const raw = await gitOk("log", "--reverse", `--format=${RS}%H`, "--numstat", `${base}..HEAD`);
   const stats = new Map<string, Stats>();
+
   for (const record of raw.split(RS)) {
     const lines = record.split("\n").filter((line) => line !== "");
     const hash = lines[0];
+
     if (hash === undefined) continue;
     let files = 0;
     let insertions = 0;
     let deletions = 0;
+
     for (const line of lines.slice(1)) {
       const parts = line.split("\t");
+
       if (parts.length < 3) continue;
       files += 1;
       insertions += Number(parts[0]) || 0;
       deletions += Number(parts[1]) || 0;
     }
+
     stats.set(hash, { files, insertions, deletions });
   }
+
   return stats;
 }
 
@@ -324,10 +363,12 @@ async function collectCommits(base: string): Promise<Commit[]> {
   const raw = await gitOk("log", "--reverse", `--format=${format}`, `${base}..HEAD`);
   const stats = await collectStats(base);
   const commits: Commit[] = [];
+
   for (const record of raw.split(RS)) {
     if (record.trim() === "") continue;
     const fields = record.split(US);
     const hash = fields[0] ?? "";
+
     if (hash === "") continue;
     const stat = stats.get(hash) ?? { files: 0, insertions: 0, deletions: 0 };
     commits.push({
@@ -342,6 +383,7 @@ async function collectCommits(base: string): Promise<Commit[]> {
       deletions: stat.deletions,
     });
   }
+
   return commits;
 }
 
@@ -358,12 +400,14 @@ const LABELS = new Map<Action, string>([
 
 function renderPlan(baseShort: string, commits: Commit[], steps: Step[]): string {
   const byHash = new Map(commits.map((commit) => [commit.hash, commit]));
+
   const counts = new Map<Action, number>([
     ["pick", 0],
     ["squash", 0],
     ["reword", 0],
     ["drop", 0],
   ]);
+
   const lines = [`Rebase plan — base ${baseShort}`, ""];
 
   for (const step of steps) {
@@ -371,17 +415,21 @@ function renderPlan(baseShort: string, commits: Commit[], steps: Step[]): string
     const short = commit?.short ?? step.hash.slice(0, 7);
     const subject = commit?.subject ?? "";
     lines.push(`  ${LABELS.get(step.action) ?? step.action} ${short} ${subject}`);
+
     if (step.action === "squash") {
       lines.push("           └─ folded into the commit above");
     }
+
     if (step.message !== null) {
       lines.push(`           └─ message: ${step.message.split("\n")[0] ?? ""}`);
     }
+
     counts.set(step.action, (counts.get(step.action) ?? 0) + 1);
   }
 
   const summary = [...counts.entries()].map(([action, count]) => `${count} ${action}`).join(", ");
   lines.push("", `Summary: ${summary}`);
+
   return lines.join("\n");
 }
 
@@ -403,43 +451,58 @@ function parseStep(value: unknown, index: number): Parsed<Step> {
   if (typeof value !== "object" || value === null) {
     return { ok: false, error: `steps[${index}] is not an object` };
   }
+
   const raw = value as Record<string, unknown>;
+
   if (typeof raw.hash !== "string" || !/^[0-9a-f]{7,64}$/u.test(raw.hash)) {
     return { ok: false, error: `steps[${index}].hash is not a commit hash` };
   }
+
   if (!isAction(raw.action)) {
     return { ok: false, error: `steps[${index}].action is not pick, squash, reword or drop` };
   }
+
   const message = raw.message ?? null;
+
   if (message !== null && typeof message !== "string") {
     return { ok: false, error: `steps[${index}].message is neither a string nor null` };
   }
+
   return { ok: true, value: { hash: raw.hash, action: raw.action, message } };
 }
 
 function parsePlan(input: string): Parsed<Plan> {
   let decoded: unknown;
+
   try {
     decoded = JSON.parse(input);
   } catch {
     return { ok: false, error: "plan is not valid JSON" };
   }
+
   if (typeof decoded !== "object" || decoded === null) {
     return { ok: false, error: "plan is not an object" };
   }
+
   const raw = decoded as Record<string, unknown>;
+
   if (typeof raw.base !== "string" || raw.base === "") {
     return { ok: false, error: "plan.base is missing" };
   }
+
   if (!Array.isArray(raw.steps) || raw.steps.length === 0) {
     return { ok: false, error: "plan.steps is empty" };
   }
+
   const steps: Step[] = [];
+
   for (const [index, entry] of raw.steps.entries()) {
     const parsed = parseStep(entry, index);
+
     if (!parsed.ok) return parsed;
     steps.push(parsed.value);
   }
+
   return { ok: true, value: { base: raw.base, steps } };
 }
 
@@ -459,8 +522,10 @@ function checkSteps(steps: Step[], commits: Commit[]): PlanFault | null {
       detail: `plan covers ${steps.length} commits, the range holds ${commits.length}`,
     };
   }
+
   for (const [index, step] of steps.entries()) {
     const hash = commits[index]?.hash ?? "";
+
     if (hash !== step.hash && !hash.startsWith(step.hash)) {
       return {
         code: "plan-stale",
@@ -468,17 +533,21 @@ function checkSteps(steps: Step[], commits: Commit[]): PlanFault | null {
       };
     }
   }
+
   const firstKept = steps.find((step) => step.action !== "drop");
+
   if (firstKept !== undefined && firstKept.action === "squash") {
     return {
       code: "plan-invalid",
       detail: "the first commit that is kept cannot be squashed: nothing precedes it",
     };
   }
+
   for (const [index, step] of steps.entries()) {
     if (step.action === "reword" && (step.message === null || step.message.trim() === "")) {
       return { code: "plan-invalid", detail: `steps[${index}] rewords without a message` };
     }
+
     if ((step.action === "pick" || step.action === "drop") && step.message !== null) {
       return {
         code: "plan-invalid",
@@ -486,6 +555,7 @@ function checkSteps(steps: Step[], commits: Commit[]): PlanFault | null {
       };
     }
   }
+
   return null;
 }
 
@@ -495,7 +565,9 @@ function checkSteps(steps: Step[], commits: Commit[]): PlanFault | null {
 
 async function requireRepo(step: Phase): Promise<Failure | null> {
   const top = await git("rev-parse", "--show-toplevel");
+
   if (top.exitCode !== 0) return fail(step, "not-a-git-repo", top.stderr);
+
   return null;
 }
 
@@ -504,13 +576,17 @@ async function requireClean(step: Phase): Promise<Failure | null> {
   // them would block a rebase git itself accepts.
   const unstaged = await git("diff", "--quiet");
   const staged = await git("diff", "--cached", "--quiet");
+
   if (unstaged.exitCode === 0 && staged.exitCode === 0) return null;
+
   return fail(step, "dirty-worktree", await gitOk("status", "--porcelain", "-uno"));
 }
 
 async function requireNoRebase(step: Phase): Promise<Failure | null> {
   const state = await readState();
+
   if (state.in_progress) return fail(step, "rebase-already-in-progress");
+
   return null;
 }
 
@@ -520,13 +596,17 @@ async function requireNoRebase(step: Phase): Promise<Failure | null> {
 
 async function planMode(spec: string): Promise<Result> {
   const repoError = await requireRepo("plan");
+
   if (repoError !== null) return repoError;
   const rebaseError = await requireNoRebase("plan");
+
   if (rebaseError !== null) return rebaseError;
   const cleanError = await requireClean("plan");
+
   if (cleanError !== null) return cleanError;
 
   const range = await resolveRange(spec);
+
   if (range.kind === "rejected") return fail("plan", "invalid-range", range.reason);
 
   return {
@@ -551,39 +631,49 @@ function shellQuote(value: string): string {
  */
 async function messageDir(): Promise<string> {
   const gitDir = await gitOk("rev-parse", "--absolute-git-dir");
+
   return join(gitDir, "claude-rebase");
 }
 
 async function buildTodo(steps: Step[], dir: string): Promise<string[]> {
   const lines: string[] = [];
+
   for (const [index, step] of steps.entries()) {
     lines.push(`${step.action === "reword" ? "pick" : step.action} ${step.hash}`);
+
     if (step.message === null) continue;
     const path = join(dir, `message-${index}.txt`);
     await writeFile(path, `${step.message.trimEnd()}\n`);
     lines.push(`exec git commit --amend --file=${shellQuote(path)}`);
   }
+
   return lines;
 }
 
 async function applyMode(input: string, dryRun: boolean): Promise<Result> {
   const repoError = await requireRepo("apply");
+
   if (repoError !== null) return repoError;
   const rebaseError = await requireNoRebase("apply");
+
   if (rebaseError !== null) return rebaseError;
   const cleanError = await requireClean("apply");
+
   if (cleanError !== null) return cleanError;
 
   const parsed = parsePlan(input);
+
   if (!parsed.ok) return fail("apply", "invalid-plan", parsed.error);
   const plan = parsed.value;
 
   const base = await resolveCommit(plan.base);
+
   if (base === null) return fail("apply", "invalid-plan", `unknown base: ${plan.base}`);
 
   // Without this, a base that HEAD does not descend from turns the rebase into a
   // transplant onto that base, while the plan still reads as a list of picks.
   const ancestor = await git("merge-base", "--is-ancestor", base, "HEAD");
+
   if (ancestor.exitCode !== 0) {
     return fail(
       "apply",
@@ -594,6 +684,7 @@ async function applyMode(input: string, dryRun: boolean): Promise<Result> {
 
   const commits = await collectCommits(base);
   const fault = checkSteps(plan.steps, commits);
+
   if (fault !== null) return fail("apply", fault.code, fault.detail);
 
   // The plan may carry abbreviated hashes; the todo gets the resolved ones.
@@ -603,16 +694,20 @@ async function applyMode(input: string, dryRun: boolean): Promise<Result> {
   }));
 
   const planText = renderPlan(await gitOk("rev-parse", "--short", base), commits, steps);
+
   if (dryRun) return { ok: true, step: "dry-run", plan_text: planText };
 
   const branch = await gitOk("branch", "--show-current");
+
   const stamp = new Date()
     .toISOString()
     .replaceAll(/[^0-9]/gu, "")
     .slice(0, 14);
+
   const label = (branch === "" ? "detached" : branch).replaceAll(/[^A-Za-z0-9._-]/gu, "-");
   const backupRef = `rebase-backup-${label}-${stamp}`;
   const backup = await git("branch", backupRef);
+
   if (backup.exitCode !== 0) return fail("apply", "backup-failed", backup.stderr);
 
   const dir = await messageDir();
@@ -634,11 +729,13 @@ async function applyMode(input: string, dryRun: boolean): Promise<Result> {
     .nothrow();
 
   const state = await readState();
+
   if (run.exitCode !== 0 || state.in_progress) {
     return stopFailure("apply", state, run.stderr.toString().trim(), backupRef);
   }
 
   await rm(dir, { recursive: true, force: true });
+
   return {
     ok: true,
     step: "applied",
@@ -651,31 +748,38 @@ async function applyMode(input: string, dryRun: boolean): Promise<Result> {
 
 async function stagedMarkers(): Promise<string | null> {
   const staged = await gitOk("diff", "--cached", "--name-only");
+
   for (const path of staged.split("\n").filter(Boolean)) {
     if ((await countMarkers(path)) > 0) return path;
   }
+
   return null;
 }
 
 /** The ref the apply that started this rebase left behind, if it is still there. */
 async function readBackupRef(): Promise<string | null> {
   const path = join(await messageDir(), "backup-ref");
+
   if (!existsSync(path)) return null;
   const ref = (await readFile(path, "utf8")).trim();
+
   return ref === "" ? null : ref;
 }
 
 async function resumeMode(mode: "continue" | "skip"): Promise<Result> {
   const repoError = await requireRepo(mode);
+
   if (repoError !== null) return repoError;
 
   const before = await readState();
+
   if (!before.in_progress) return fail(mode, "no-rebase-in-progress");
   const backupRef = await readBackupRef();
 
   // Neither --continue nor --skip replays a failed exec, so resuming here would
   // silently drop the message it was setting.
   const stop = await stopReason(before);
+
   if (stop.kind === "exec-failed") {
     return stopFailure(mode, before, "", backupRef);
   }
@@ -684,7 +788,9 @@ async function resumeMode(mode: "continue" | "skip"): Promise<Result> {
     if (before.conflicted.length > 0) {
       return { ...conflictFailure(mode, before, backupRef), error: "unresolved-conflicts" };
     }
+
     const marked = await stagedMarkers();
+
     if (marked !== null) {
       return { ...fail(mode, "conflict-markers-staged", marked), backup_ref: backupRef };
     }
@@ -696,11 +802,13 @@ async function resumeMode(mode: "continue" | "skip"): Promise<Result> {
     .nothrow();
 
   const after = await readState();
+
   if (run.exitCode !== 0 || after.in_progress) {
     return stopFailure(mode, after, run.stderr.toString().trim(), backupRef);
   }
 
   await rm(await messageDir(), { recursive: true, force: true });
+
   return {
     ok: true,
     step: "completed",
@@ -712,24 +820,30 @@ async function resumeMode(mode: "continue" | "skip"): Promise<Result> {
 
 async function abortMode(): Promise<Result> {
   const repoError = await requireRepo("abort");
+
   if (repoError !== null) return repoError;
 
   const state = await readState();
+
   if (!state.in_progress) return fail("abort", "no-rebase-in-progress");
   const backupRef = await readBackupRef();
 
   const run = await git("rebase", "--abort");
+
   if (run.exitCode !== 0) {
     return { ...fail("abort", "abort-failed", run.stderr), backup_ref: backupRef };
   }
 
   await rm(await messageDir(), { recursive: true, force: true });
+
   return { ok: true, step: "aborted", backup_ref: backupRef };
 }
 
 async function statusMode(): Promise<Result> {
   const repoError = await requireRepo("status");
+
   if (repoError !== null) return repoError;
+
   return { ok: true, step: "status", state: await readState() };
 }
 
@@ -740,8 +854,10 @@ async function statusMode(): Promise<Result> {
 /** An unrecognised flag must stop the run: silently ignoring `--dryrun` rewrites history. */
 function rejectExtra(step: Phase, rest: string[], allowed: string[]): Failure | null {
   const unknown = rest.filter((arg) => !allowed.includes(arg));
+
   if (unknown.length === 0) return null;
   const accepted = allowed.length === 0 ? "none" : allowed.join(", ");
+
   return fail(step, "unknown-argument", `${unknown.join(" ")}\n\nAccepted here: ${accepted}`);
 }
 
@@ -756,30 +872,42 @@ async function main(): Promise<Result> {
     case "help": {
       return { ok: true, step: "usage", usage: USAGE };
     }
+
     case "plan": {
       const spec = args[1];
+
       if (spec === undefined) return fail("plan", "missing-range", USAGE);
       const extra = rejectExtra("plan", args.slice(2), []);
+
       return extra ?? planMode(spec);
     }
+
     case "apply": {
       const rest = args.slice(1);
       const extra = rejectExtra("apply", rest, ["--dry-run"]);
+
       return extra ?? applyMode(await Bun.stdin.text(), rest.includes("--dry-run"));
     }
+
     case "continue":
     case "skip": {
       const extra = rejectExtra(mode, args.slice(1), []);
+
       return extra ?? resumeMode(mode);
     }
+
     case "abort": {
       const extra = rejectExtra("abort", args.slice(1), []);
+
       return extra ?? abortMode();
     }
+
     case "status": {
       const extra = rejectExtra("status", args.slice(1), []);
+
       return extra ?? statusMode();
     }
+
     default: {
       return fail("validate", "unknown-mode", `${mode}\n\n${USAGE}`);
     }
@@ -788,6 +916,7 @@ async function main(): Promise<Result> {
 
 if (import.meta.main) {
   let result: Result;
+
   try {
     result = await main();
   } catch (error) {
@@ -797,6 +926,7 @@ if (import.meta.main) {
       error instanceof Error ? error.message : String(error),
     );
   }
+
   console.log(JSON.stringify(result));
   process.exit(result.ok ? 0 : 1);
 }

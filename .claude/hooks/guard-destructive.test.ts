@@ -52,6 +52,7 @@ git push --force
 git reset --hard
 EOF
 )"`;
+
     const result = stripStringLiterals(cmd);
     expect(result).not.toContain("git push --force");
     expect(result).not.toContain("git reset --hard");
@@ -153,6 +154,7 @@ describe("subprocess integration", () => {
 
   async function runHook(command: string) {
     const input = JSON.stringify({ tool_input: { command } });
+
     const proc = Bun.spawn(["bun", hookPath], {
       stdin: new Blob([input]),
       stdout: "pipe",
@@ -195,6 +197,7 @@ describe("subprocess integration", () => {
       stdout: "pipe",
       stderr: "pipe",
     });
+
     expect(await proc.exited).toBe(HOOK_EXIT.ALLOW);
   });
 
@@ -204,6 +207,7 @@ describe("subprocess integration", () => {
       stdout: "pipe",
       stderr: "pipe",
     });
+
     expect(await proc.exited).toBe(HOOK_EXIT.ALLOW);
   });
 });

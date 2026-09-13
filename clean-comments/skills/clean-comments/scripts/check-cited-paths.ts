@@ -19,7 +19,9 @@ import { join, relative, resolve } from "node:path";
 
 const DEFAULT_EXT =
   "ts,tsx,js,jsx,mjs,cjs,astro,vue,svelte,py,go,rs,java,rb,php,c,h,cpp,cs,swift,kt";
+
 const DEFAULT_CITED_EXT = `${DEFAULT_EXT},md,mdx,json,jsonc,css,scss,sql,yml,yaml,toml,sh,liquid`;
+
 const DEFAULT_EXCLUDE = "node_modules,dist,build,out,target,vendor,.git,.claude,.astro,.next,.venv";
 
 const HELP = `check-cited-paths — list file paths cited in comments whose target does not exist
@@ -59,15 +61,20 @@ function parseArgs(argv: string[]) {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
+
     if (arg === undefined) break;
+
     const next = () => {
       const v = argv[++i];
+
       if (v === undefined) {
         console.error(`Error: ${arg} needs a value`);
         process.exit(2);
       }
+
       return v;
     };
+
     switch (arg) {
       case "-h":
       case "--help":
@@ -99,6 +106,7 @@ function parseArgs(argv: string[]) {
           console.error(HELP);
           process.exit(2);
         }
+
         if (!seenPositional) {
           repoRoot = arg;
           seenPositional = true;
@@ -143,7 +151,9 @@ const citedPathPattern = new RegExp(
 // part of the tree, and a broken symlink belongs to neither branch.
 function classify(entry: Dirent, full: string): "dir" | "file" | "broken" {
   if (entry.isDirectory()) return "dir";
+
   if (!entry.isSymbolicLink()) return "file";
+
   try {
     return statSync(full).isDirectory() ? "dir" : "file";
   } catch {
@@ -155,12 +165,14 @@ function collect(dir: string, out: string[]): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     const kind = classify(entry, full);
+
     if (kind === "dir") {
       if (!opts.exclude.has(entry.name)) collect(full, out);
     } else if (kind === "file" && opts.ext.some((e) => entry.name.endsWith(e))) {
       out.push(full);
     }
   }
+
   return out;
 }
 
@@ -180,6 +192,7 @@ const HASH_LANGS = new Set([
   ".r",
   ".ex",
 ]);
+
 const HTML_LANGS = new Set([".astro", ".vue", ".svelte", ".html", ".md", ".mdx", ".xml"]);
 
 // Masks string-literal content with spaces, length-preserving, so a comment marker
@@ -191,8 +204,10 @@ const HTML_LANGS = new Set([".astro", ".vue", ".svelte", ".html", ".md", ".mdx",
 function maskStrings(line: string): string {
   let out = "";
   let quote: string | null = null;
+
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
+
     if (quote) {
       if (ch === "\\") {
         out += "  ";
@@ -208,6 +223,7 @@ function maskStrings(line: string): string {
       out += ch;
     }
   }
+
   return out;
 }
 
@@ -221,27 +237,35 @@ function commentSegments(source: string, file: string): { line: number; text: st
   const out: { line: number; text: string }[] = [];
   let inBlock = false;
   let number = 0;
+
   for (const line of source.split("\n")) {
     number++;
+
     if (inBlock) {
       const end = line.indexOf("*/");
       out.push({ line: number, text: end === -1 ? line : line.slice(0, end) });
+
       if (end !== -1) inBlock = false;
       continue;
     }
+
     const masked = html ? line : maskStrings(line);
     const blockStart = masked.indexOf("/*");
+
     const starts = [
       hash ? -1 : masked.indexOf("//"),
       hash ? -1 : blockStart,
       html ? masked.indexOf("<!--") : -1,
       hash ? masked.indexOf("#") : -1,
     ].filter((i) => i !== -1);
+
     if (starts.length === 0) continue;
     const start = Math.min(...starts);
+
     if (start === blockStart && line.indexOf("*/", start) === -1) inBlock = true;
     out.push({ line: number, text: line.slice(start) });
   }
+
   return out;
 }
 
@@ -256,18 +280,23 @@ const ROOT_DEPTH = 3;
 
 function resolutionRoots(): string[] {
   const derived = [""];
+
   const walk = (dir: string, rel: string, depth: number): void => {
     if (depth > ROOT_DEPTH) return;
+
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (opts.exclude.has(entry.name) || entry.name.startsWith(".")) continue;
       const full = join(dir, entry.name);
+
       if (classify(entry, full) !== "dir") continue;
       const next = rel ? join(rel, entry.name) : entry.name;
       derived.push(next);
       walk(full, next, depth + 1);
     }
   };
+
   walk(opts.repoRoot, "", 1);
+
   return [...derived, ...opts.roots];
 }
 
@@ -279,57 +308,73 @@ const ROOTS = resolutionRoots();
 function ancestors(file: string): string[] {
   const out: string[] = [];
   let dir = resolve(join(file, ".."));
+
   while (dir.startsWith(opts.repoRoot) && dir !== opts.repoRoot) {
     out.push(dir);
     dir = resolve(join(dir, ".."));
   }
+
   return out;
 }
 
 function exists(cited: string, file: string): boolean {
   const cleaned = cited.replace(/^\.\//u, "");
+
   if (existsSync(resolve(join(file, ".."), cited))) return true;
+
   if (ROOTS.some((r) => existsSync(join(opts.repoRoot, r, cleaned)))) return true;
+
   return ancestors(file).some((a) => existsSync(join(a, cleaned)));
 }
 
 function isExternal(cited: string): boolean {
   const cleaned = cited.replace(/^\.\//u, "");
+
   return opts.external.some((re) => re.test(cleaned));
 }
 
 if (opts.count) {
   let total = 0;
+
   for (const file of collect(opts.repoRoot, [])) {
     let source: string;
+
     try {
       source = readFileSync(file, "utf8");
     } catch {
       continue;
     }
+
     const lines = commentSegments(source, file).length;
+
     if (lines > 0) console.log(`${relative(opts.repoRoot, file)}\t${lines}`);
     total += lines;
   }
+
   console.log(`\n${total} comment lines total.`);
   process.exit(0);
 }
 
 const broken: { file: string; line: number; cited: string }[] = [];
+
 let citations = 0;
 
 for (const file of collect(opts.repoRoot, [])) {
   let source: string;
+
   try {
     source = readFileSync(file, "utf8");
   } catch {
     continue;
   }
+
   for (const { line, text } of commentSegments(source, file)) {
     for (const match of text.matchAll(citedPathPattern)) {
       const cited = match[1];
+
       if (!cited || isExternal(cited)) continue;
       citations++;
+
       if (!exists(cited, file)) {
         broken.push({ file: relative(opts.repoRoot, file), line, cited });
       }
@@ -338,6 +383,7 @@ for (const file of collect(opts.repoRoot, [])) {
 }
 
 console.log(`${citations} paths cited in comments, ${broken.length} not found.\n`);
+
 for (const b of broken) {
   console.log(`${b.file}:${b.line} — cites "${b.cited}" — not found`);
 }

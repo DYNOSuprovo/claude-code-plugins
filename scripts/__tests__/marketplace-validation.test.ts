@@ -76,11 +76,13 @@ describe("validateRequiredFields", () => {
       version: "1.0.0",
       description: "A test plugin",
     };
+
     const plugin: PluginJson = {
       name: "test",
       version: "1.0.0",
       description: "A test plugin",
     };
+
     const result = validateRequiredFields(mp, plugin);
     expect(result.passed).toBe(true);
     expect(result.message).toBe("Required fields present");
@@ -91,11 +93,13 @@ describe("validateRequiredFields", () => {
       name: "test",
       source: "./test",
     };
+
     const plugin: PluginJson = {
       name: "test",
       version: "1.0.0",
       description: "A test plugin",
     };
+
     const result = validateRequiredFields(mp, plugin);
     expect(result.passed).toBe(false);
     expect(result.message).toContain("marketplace:version");
@@ -109,9 +113,11 @@ describe("validateRequiredFields", () => {
       version: "1.0.0",
       description: "A test plugin",
     };
+
     const plugin: PluginJson = {
       name: "test",
     };
+
     const result = validateRequiredFields(mp, plugin);
     expect(result.passed).toBe(false);
     expect(result.message).toContain("plugin:version");
@@ -123,6 +129,7 @@ describe("validateRequiredFields", () => {
       name: "test",
       source: "./test",
     };
+
     const plugin: PluginJson = {};
     const result = validateRequiredFields(mp, plugin);
     expect(result.passed).toBe(false);
@@ -179,6 +186,7 @@ describe("findHardcodedPaths", () => {
       "cd ${CLAUDE_PLUGIN_ROOT}",
       "~/.claude/settings.json",
     ].join("\n");
+
     expect(findHardcodedPaths(content)).toEqual([]);
   });
 
@@ -212,6 +220,7 @@ describe("extractVersionFromReadme", () => {
 | [plugin-b](b/) | 2.0.0 | Desc B |
 | [plugin-c](c/) | 3.5.1 | Desc C |
 `;
+
     expect(extractVersionFromReadme(content, "plugin-a")).toBe("1.0.0");
     expect(extractVersionFromReadme(content, "plugin-b")).toBe("2.0.0");
     expect(extractVersionFromReadme(content, "plugin-c")).toBe("3.5.1");
@@ -248,6 +257,7 @@ describe("setVersionInReadme", () => {
 | [plugin-a](a/) | 1.0.0 | Desc A |
 | [plugin-b](b/) | 2.0.0 | Desc B |
 | [plugin-c](c/) | 3.5.1 | Desc C |`;
+
     const result = setVersionInReadme(content, "plugin-b", "2.1.0");
     expect(result).toContain("| [plugin-b](b/) | 2.1.0 | Desc B |");
     expect(result).toContain("| [plugin-a](a/) | 1.0.0 | Desc A |");

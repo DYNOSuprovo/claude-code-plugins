@@ -124,26 +124,33 @@ function withoutLauncher(command: string): string {
 
 export function checkCategories(categories: JsonObject): string[] {
   const failures: string[] = [];
+
   for (const category of REQUIRED_CATEGORIES) {
     const severity = categories[category];
+
     if (severity !== "error") {
       failures.push(`categories.${category} is ${JSON.stringify(severity)}, expected "error"`);
     }
   }
+
   return failures;
 }
 
 export function checkJsPlugins(jsPlugins: JsPluginEntry[]): string[] {
   const actual = JSON.stringify(jsPlugins);
   const expected = JSON.stringify(REQUIRED_JS_PLUGINS);
+
   if (actual === expected) return [];
+
   return [`jsPlugins is ${actual}, expected ${expected}`];
 }
 
 export function checkIgnorePatterns(patterns: string[]): string[] {
-  return patterns
-    .filter((pattern) => !ALLOWED_IGNORE_PATTERNS.has(pattern))
-    .map((pattern) => `ignorePatterns holds ${JSON.stringify(pattern)}, which is not allowlisted`);
+  return patterns.flatMap((pattern) =>
+    ALLOWED_IGNORE_PATTERNS.has(pattern)
+      ? []
+      : [`ignorePatterns holds ${JSON.stringify(pattern)}, which is not allowlisted`],
+  );
 }
 
 /**
@@ -153,6 +160,7 @@ export function checkIgnorePatterns(patterns: string[]): string[] {
  */
 export function registeredRuleNames(indexSource: string): string[] {
   const matches = indexSource.matchAll(/^\s*"([a-z0-9-]+)":\s*\w+Rule,$/gmu);
+
   return [...matches].map((match) => match[1] ?? "");
 }
 
@@ -164,6 +172,7 @@ export function checkAntiSlopRules(
   const failures: string[] = [];
   const fromFiles = new Set(files);
   const fromIndex = new Set(registered);
+
   const fromConfig = new Set(
     Object.keys(configured)
       .filter((rule) => rule.startsWith(ANTI_SLOP_PREFIX))
@@ -172,51 +181,64 @@ export function checkAntiSlopRules(
 
   for (const rule of fromFiles) {
     if (!fromIndex.has(rule)) failures.push(`rules/${rule}.ts is not registered in index.ts`);
+
     if (!fromConfig.has(rule))
       failures.push(`rules/${rule}.ts is not configured in oxlint.config.ts`);
   }
+
   for (const rule of fromIndex) {
     if (!fromFiles.has(rule))
       failures.push(`index.ts registers ${rule}, which has no rules/${rule}.ts`);
   }
+
   for (const rule of fromConfig) {
     if (!fromFiles.has(rule))
       failures.push(`oxlint.config.ts configures ${rule}, which has no rules/${rule}.ts`);
     const severity = configured[`${ANTI_SLOP_PREFIX}${rule}`];
+
     if (severity !== "error") {
       failures.push(`${ANTI_SLOP_PREFIX}${rule} is ${JSON.stringify(severity)}, expected "error"`);
     }
   }
+
   return failures;
 }
 
 export function checkCommandParity(lefthookRuns: string[], ciRuns: string[]): string[] {
   const failures: string[] = [];
+
   for (const pair of EXPECTED_COMMANDS) {
     if (!lefthookRuns.includes(pair.lefthook)) {
       failures.push(`lefthook.yml runs no ${JSON.stringify(pair.lefthook)} for gate ${pair.gate}`);
     }
+
     if (!ciRuns.includes(pair.ci)) {
       failures.push(`ci.yml runs no ${JSON.stringify(pair.ci)} for gate ${pair.gate}`);
     }
+
     if (pair.difference === null && withoutLauncher(pair.lefthook) !== withoutLauncher(pair.ci)) {
       failures.push(`gate ${pair.gate} declares no difference yet its two commands diverge`);
     }
   }
+
   for (const command of [...lefthookRuns, ...ciRuns]) {
     if (command.includes("--update")) {
       failures.push(`--update must never run from a hook or from CI: ${JSON.stringify(command)}`);
     }
   }
+
   return failures;
 }
 
 /** Recursively order keys so the snapshot only moves when the config does. */
 export function sortKeys(value: JsonValue): JsonValue {
   if (Array.isArray(value)) return value.map((item) => sortKeys(item));
+
   if (!(value instanceof Object)) return value;
   const sorted: JsonObject = {};
+
   for (const key of Object.keys(value).toSorted()) sorted[key] = sortKeys(value[key] ?? null);
+
   return sorted;
 }
 
@@ -227,9 +249,11 @@ export function buildContract(authored: JsonValue): string {
 export function unifiedDiff(expected: string, actual: string): string {
   const before = expected.split("\n");
   const after = actual.split("\n");
+
   const common: number[][] = Array.from({ length: before.length + 1 }, () =>
     Array.from({ length: after.length + 1 }, () => 0),
   );
+
   for (let i = before.length - 1; i >= 0; i -= 1) {
     for (let j = after.length - 1; j >= 0; j -= 1) {
       const row = common[i] ?? [];
@@ -242,6 +266,7 @@ export function unifiedDiff(expected: string, actual: string): string {
   const lines: string[] = [];
   let i = 0;
   let j = 0;
+
   while (i < before.length && j < after.length) {
     if (before[i] === after[j]) {
       lines.push(`  ${before[i]}`);
@@ -249,8 +274,10 @@ export function unifiedDiff(expected: string, actual: string): string {
       j += 1;
       continue;
     }
+
     const dropped = common[i + 1]?.[j] ?? 0;
     const added = common[i]?.[j + 1] ?? 0;
+
     if (dropped >= added) {
       lines.push(`- ${before[i]}`);
       i += 1;
@@ -259,8 +286,11 @@ export function unifiedDiff(expected: string, actual: string): string {
       j += 1;
     }
   }
+
   for (; i < before.length; i += 1) lines.push(`- ${before[i]}`);
+
   for (; j < after.length; j += 1) lines.push(`+ ${after[j]}`);
+
   return trimToHunks(lines).join("\n");
 }
 
@@ -269,8 +299,10 @@ const CONTEXT_LINES = 3;
 /** Keep the changed lines and their context; elide the untouched stretches. */
 function trimToHunks(lines: string[]): string[] {
   const keep = new Set<number>();
+
   for (const [index, line] of lines.entries()) {
     if (line.startsWith("  ")) continue;
+
     for (let offset = -CONTEXT_LINES; offset <= CONTEXT_LINES; offset += 1) {
       if (index + offset >= 0 && index + offset < lines.length) keep.add(index + offset);
     }
@@ -278,11 +310,13 @@ function trimToHunks(lines: string[]): string[] {
 
   const hunks: string[] = [];
   let previous = -1;
+
   for (const index of [...keep].toSorted((a, b) => a - b)) {
     if (previous >= 0 && index > previous + 1) hunks.push("  ...");
     hunks.push(lines[index] ?? "");
     previous = index;
   }
+
   return hunks;
 }
 
@@ -312,22 +346,27 @@ export const UNMANIFESTED = new Set(["anti-slop/README.md"]);
 
 export function parseManifest(text: string): ManifestEntry[] {
   const entries: ManifestEntry[] = [];
+
   for (const line of text.split("\n")) {
     const match = /^([0-9a-f]{64}) {2}(\S.*)$/u.exec(line);
+
     if (match?.[1] !== undefined && match[2] !== undefined) {
       entries.push({ path: match[2], sha256: match[1] });
     }
   }
+
   return entries;
 }
 
 export async function digestTree(root: string, paths: string[]): Promise<ManifestEntry[]> {
   const entries: ManifestEntry[] = [];
+
   for (const path of paths) {
     const hasher = new Bun.CryptoHasher("sha256");
     hasher.update(await Bun.file(join(root, path)).bytes());
     entries.push({ path, sha256: hasher.digest("hex") });
   }
+
   return entries;
 }
 
@@ -345,29 +384,34 @@ export function checkVendoredIntegrity(
 
   for (const entry of recorded) {
     const digest = digests.get(entry.path);
+
     if (digest === undefined) {
       failures.push(`CHECKSUMS.sha256 lists ${entry.path}, which the repo no longer tracks`);
     } else if (digest !== entry.sha256) {
       failures.push(`${entry.path} no longer matches its recorded checksum`);
     }
   }
+
   for (const entry of actual) {
     if (!listed.has(entry.path)) {
       failures.push(`${entry.path} is vendored but missing from CHECKSUMS.sha256`);
     }
   }
+
   return failures;
 }
 
 export function lefthookCommands(source: string): string[] {
   const parsed: LefthookFile = parse(source);
   const jobs = parsed["pre-commit"]?.jobs ?? [];
+
   return jobs.map((job) => job.run?.trim() ?? "");
 }
 
 export function ciCommands(source: string): string[] {
   const parsed: CiFile = parse(source);
   const steps = parsed.jobs?.validate?.steps ?? [];
+
   return steps.map((step) => step.run?.trim() ?? "");
 }
 
@@ -388,9 +432,11 @@ if (import.meta.main) {
   const ruleFiles = (await readdir(rulesDir))
     .filter((entry) => entry.endsWith(".ts"))
     .map((entry) => entry.slice(0, -".ts".length));
+
   const indexSource = await Bun.file(join(repoRoot, "tools/oxlint/anti-slop/index.ts")).text();
 
   const vendoredRoot = join(repoRoot, "tools/oxlint");
+
   const tracked = (await $`git ls-files tools/oxlint/anti-slop`.cwd(repoRoot).quiet().text())
     .split("\n")
     .filter(Boolean)
@@ -409,6 +455,7 @@ if (import.meta.main) {
   ];
 
   const manifest = Bun.file(join(vendoredRoot, "CHECKSUMS.sha256"));
+
   if (await manifest.exists()) {
     failures.push(
       ...checkVendoredIntegrity(
@@ -423,8 +470,10 @@ if (import.meta.main) {
   }
 
   const snapshot = Bun.file(snapshotPath);
+
   if (await snapshot.exists()) {
     const recorded = await snapshot.text();
+
     if (recorded !== contract) {
       failures.push(
         `oxlint.config.ts no longer matches the snapshot:\n${unifiedDiff(recorded, contract)}\n` +
@@ -439,6 +488,7 @@ if (import.meta.main) {
 
   if (failures.length > 0) {
     console.error(`${failures.length} lint configuration violation(s):\n`);
+
     for (const failure of failures) console.error(`  ${failure}`);
     process.exit(1);
   }

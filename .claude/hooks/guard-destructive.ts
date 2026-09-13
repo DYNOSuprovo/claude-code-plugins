@@ -61,16 +61,19 @@ export function stripStringLiterals(cmd: string): string {
   stripped = stripped.replaceAll(/"(?:[^"\\]|\\.)*"/gu, '""');
   // Strip single-quoted strings (no escapes in single quotes)
   stripped = stripped.replaceAll(/'[^']*'/gu, "''");
+
   return stripped;
 }
 
 export function checkCommand(cmd: string): string | null {
   const sanitized = stripStringLiterals(cmd);
+
   for (const [pattern, label] of BLOCKED_PATTERNS) {
     if (pattern.test(sanitized)) {
       return label;
     }
   }
+
   return null;
 }
 
@@ -80,6 +83,7 @@ export function parseHookInput(raw: string): string | null {
     // a payload that does not match yields null, which the caller treats as
     // "nothing to block".
     const parsed = JSON.parse(raw) as HookInput;
+
     return parsed.tool_input?.command ?? null;
   } catch {
     return null;
@@ -89,11 +93,13 @@ export function parseHookInput(raw: string): string | null {
 if (import.meta.main) {
   const input = await Bun.stdin.text();
   const cmd = parseHookInput(input);
+
   if (!cmd) {
     process.exit(HOOK_EXIT.ALLOW);
   }
 
   const match = checkCommand(cmd);
+
   if (match) {
     console.error(`BLOCKED: destructive command detected: ${match}`);
     console.error(`Command: ${cmd}`);
