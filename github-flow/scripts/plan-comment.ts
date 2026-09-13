@@ -8,9 +8,11 @@ export const PLAN_MARKER = "<!-- plan -->";
 const COMMENT_FIELDS = ".[] | {id: .id, login: .user.login, body: .body}";
 const PR_CREATE = /\bgh\s+pr\s+create\b/u;
 const PULL_URL = /\/pull\/(\d+)/u;
+const SESSION_LINE = /^<!-- session_id: [^\s>]+ -->\n?/u;
 
 export interface HookPayload {
   cwd?: string;
+  session_id?: string;
   tool_input?: { command?: string; plan?: string };
   tool_response?: { plan?: string };
 }
@@ -55,8 +57,17 @@ export function planPath(home: string, key: string): string {
   return join(home, ".claude", "plans", "by-branch", `${key}.md`);
 }
 
+export function withSessionLine(plan: string, sessionId: string | undefined): string {
+  const body = plan.endsWith("\n") ? plan : `${plan}\n`;
+  if (sessionId === undefined || sessionId.length === 0) return body;
+  return `<!-- session_id: ${sessionId} -->\n${body}`;
+}
+
 export function buildBody(plan: string): string {
-  return `${PLAN_MARKER}\n<details><summary>Plan</summary>\n\n${plan.trim()}\n\n</details>\n`;
+  const session = plan.match(SESSION_LINE)?.[0].trim() ?? "";
+  const header = session.length === 0 ? PLAN_MARKER : `${PLAN_MARKER}\n${session}`;
+  const rest = plan.replace(SESSION_LINE, "").trim();
+  return `${header}\n<details><summary>Plan</summary>\n\n${rest}\n\n</details>\n`;
 }
 
 export function findPlanComment(commentsJsonl: string, login: string): number | null {

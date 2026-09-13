@@ -9,6 +9,7 @@ import {
   planPath,
   planText,
   prNumberFrom,
+  withSessionLine,
 } from "./plan-comment.ts";
 
 describe("parsePayload", () => {
@@ -16,11 +17,13 @@ describe("parsePayload", () => {
     const payload = parsePayload(
       JSON.stringify({
         cwd: "/repo",
+        session_id: "abc123",
         tool_input: { command: "gh pr create", plan: "# Plan" },
         tool_response: { plan: "# Approved" },
       }),
     );
     expect(payload?.cwd).toBe("/repo");
+    expect(payload?.session_id).toBe("abc123");
     expect(payload?.tool_input?.command).toBe("gh pr create");
     expect(payload?.tool_response?.plan).toBe("# Approved");
   });
@@ -94,11 +97,34 @@ describe("planPath", () => {
   });
 });
 
+describe("withSessionLine", () => {
+  test("the session line opens the file, the plan follows", () => {
+    expect(withSessionLine("# Plan", "abc123")).toBe("<!-- session_id: abc123 -->\n# Plan\n");
+    expect(withSessionLine("# Plan\n", "abc123")).toBe("<!-- session_id: abc123 -->\n# Plan\n");
+  });
+
+  test("no session id writes the plan alone, with no empty marker", () => {
+    expect(withSessionLine("# Plan", undefined)).toBe("# Plan\n");
+    expect(withSessionLine("# Plan", "")).toBe("# Plan\n");
+  });
+});
+
 describe("buildBody", () => {
   test("marker first, plan inside a details block", () => {
     expect(buildBody("# Plan\n1. Do it\n")).toBe(
       `${PLAN_MARKER}\n<details><summary>Plan</summary>\n\n# Plan\n1. Do it\n\n</details>\n`,
     );
+  });
+
+  test("a session line is hoisted next to the marker, out of the details block", () => {
+    expect(buildBody(withSessionLine("# Plan", "abc123"))).toBe(
+      `${PLAN_MARKER}\n<!-- session_id: abc123 -->\n<details><summary>Plan</summary>\n\n# Plan\n\n</details>\n`,
+    );
+  });
+
+  test("a hoisted session line still opens a matching plan comment", () => {
+    const body = buildBody(withSessionLine("# Plan", "abc123"));
+    expect(findPlanComment(JSON.stringify({ id: 5, login: "me", body }), "me")).toBe(5);
   });
 
   test("its own output is recognised as a plan comment", () => {

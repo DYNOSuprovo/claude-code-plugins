@@ -93,6 +93,8 @@ Two hooks carry the plan of a branch to the pull request that lands it, so the p
 
 `<repo>` is the basename of the main checkout (`git rev-parse --path-format=absolute --git-common-dir`), so a worktree writes under the same key as the checkout it was cut from; `<branch>` is `git branch --show-current`, and a branch with slashes nests into directories. Outside a repository, or with no branch, the hook does nothing. The `issue-worker` agent writes that same path for the plan it receives, which is how a worker's PR carries its plan.
 
+The plan file opens with `<!-- session_id: <id> -->`, which the comment carries next to the marker and GitHub renders as nothing, so the session that wrote the plan is found at `~/.claude/projects/<project>/<id>.jsonl` and resumed with `claude --resume <id>`.
+
 The comment opens with the marker `<!-- plan -->`, followed by a `<details><summary>Plan</summary>` block. A new plan on the same branch edits that comment instead of adding one: the hook lists the PR's comments and matches the first of yours whose body starts with the marker. One PR, one plan comment, whatever the number of revisions.
 
 `PreToolUse`, not `PostToolUse`: the plan dialog's "Yes, clear context" options ([`showClearContextOnPlanAccept`](https://code.claude.com/docs/en/settings-reference#showclearcontextonplanaccept)) resolve the `ExitPlanMode` call as a denial, and `PostToolUse` runs only after a tool succeeds, so a plan approved that way would never be captured. The trade is that the plan is written before the answer: a rejected plan leaves its file behind until the next approval on that branch overwrites it, and on a branch that already has a PR, it reaches the comment.

@@ -18,6 +18,7 @@ import {
   planPath,
   planText,
   upsertPlanComment,
+  withSessionLine,
 } from "./plan-comment.ts";
 
 if (import.meta.main) {
@@ -32,11 +33,12 @@ if (import.meta.main) {
     if (key === null) process.exit(0);
 
     const file = planPath(homedir(), key);
+    const content = withSessionLine(plan, payload.session_id);
     await mkdir(dirname(file), { recursive: true });
-    await Bun.write(file, plan.endsWith("\n") ? plan : `${plan}\n`);
+    await Bun.write(file, content);
 
     const pr = await openPrNumber(cwd);
-    if (pr !== null) await upsertPlanComment(cwd, pr, plan);
+    if (pr !== null) await upsertPlanComment(cwd, pr, content);
   } catch (error) {
     console.error(`capture-plan: ${error instanceof Error ? error.message : String(error)}`);
   }
