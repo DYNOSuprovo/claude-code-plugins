@@ -82,6 +82,23 @@ claude -p "/github-flow:shift" --permission-mode auto --max-turns 200 --max-budg
 
 `/loop` re-runs the skill each iteration, in an open session, on a 1-minute-to-1-hour interval. The `-p` form suits a systemd timer: in `auto` mode a blocked action does not run and the pass continues, `--max-budget-usd` counts the workers' spend too, and both caps are print-mode only. `/schedule` puts the same prompt on the cloud, minimum interval 1 hour.
 
+## Plans on pull requests
+
+Two hooks carry the plan of a branch to the pull request that lands it, so the plan is read where the diff is reviewed instead of in a file nobody opens.
+
+| Hook | Event | What it does |
+|---|---|---|
+| `scripts/capture-plan.ts` | `PreToolUse` on `ExitPlanMode` | Writes the plan to `~/.claude/plans/by-branch/<repo>/<branch>.md`, then refreshes the comment when the branch already has a PR. |
+| `scripts/attach-plan.ts` | `PostToolUse` on `Bash` | On a `gh pr create` whose output carries a `/pull/<n>` URL, posts that branch's plan on the new PR. |
+
+`<repo>` is the basename of the main checkout (`git rev-parse --path-format=absolute --git-common-dir`), so a worktree writes under the same key as the checkout it was cut from; `<branch>` is `git branch --show-current`, and a branch with slashes nests into directories. Outside a repository, or with no branch, the hook does nothing. The `issue-worker` agent writes that same path for the plan it receives, which is how a worker's PR carries its plan.
+
+The comment opens with the marker `<!-- plan -->`, followed by a `<details><summary>Plan</summary>` block. A new plan on the same branch edits that comment instead of adding one: the hook lists the PR's comments and matches the first of yours whose body starts with the marker. One PR, one plan comment, whatever the number of revisions.
+
+`PreToolUse`, not `PostToolUse`: the plan dialog's "Yes, clear context" options ([`showClearContextOnPlanAccept`](https://code.claude.com/docs/en/settings-reference#showclearcontextonplanaccept)) resolve the `ExitPlanMode` call as a denial, and `PostToolUse` runs only after a tool succeeds, so a plan approved that way would never be captured. The trade is that the plan is written before the answer: a rejected plan leaves its file behind until the next approval on that branch overwrites it, and on a branch that already has a PR, it reaches the comment.
+
+Neither hook blocks. Both exit 0 on every path and report a failure on stderr, which `claude --debug` shows.
+
 ## Requirements
 
 - GitHub CLI (`gh`) authenticated
