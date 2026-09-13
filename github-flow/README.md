@@ -12,8 +12,10 @@ GitHub lifecycle for Claude Code through `gh`: agent-ready issues, review-ready 
 | `await-merge` | `/github-flow:await-merge [--dry-run] [--rebase] [pr]` | Watches the checks, merges by squash (`--rebase` for atomic commits, never a merge commit), fast-forwards the local base branch. |
 | `commit-push-pr` | `/github-flow:commit-push-pr [issue] [images] [notes]` | Chains `git:commit` then `github-flow:pr`. |
 | `stacked-prs` | `/github-flow:stacked-prs [subcommand \| symptom]` | Runs a stack of PRs with `gh stack`: the cycle, the rules the CLI does not enforce, the repair table, and a worktree per layer cut from the top of the stack with its handoff symlinked in. |
+| `dispatch` | `/github-flow:dispatch <n> [<n>...] [--plan\|--no-plan] [--approve]` | Gates each issue on readiness, then spawns one `issue-worker` per issue; labels the outcome, reports a table. |
+| `shift` | `/github-flow:shift [--max <n>] [--dry-run]` | One pass of the loop: triage, dispatch, maintain the loop's PRs, return a digest. |
 
-`issue`, `pr` and `stacked-prs` invoke themselves when the request matches. `triage`, `await-merge` and `commit-push-pr` run only on an explicit call: each one closes, merges or pushes, and "check issue 12" must not close issue 12.
+`issue`, `pr` and `stacked-prs` invoke themselves when the request matches. `triage`, `await-merge` and `commit-push-pr` run only on an explicit call: each one closes, merges or pushes, and "check issue 12" must not close issue 12. `dispatch` and `shift` stay model-invocable because a scheduled fire runs no other kind, and neither one merges or pushes a shared branch; `shift` closes an issue only through the `triage` protocol it applies itself.
 
 No skill asks before it publishes, closes or merges: an orchestrating agent has nobody to answer. `--dry-run` does the whole job and prints what would be sent instead of sending it; rerun without it to send.
 
@@ -53,6 +55,32 @@ Close comments are one to three sentences of fact: what was verified and the com
 ### Stacked PRs
 
 `stacked-prs` documents `gh stack` (the `github/gh-stack` extension): one PR per layer, each based on the layer below, landed atomically bottom to top. It carries the rules the CLI leaves to the caller (branch from the top, one checkout per session, verify content after every rebase, nothing on the trunk before landing) and a repair table keyed by symptom. `scripts/worktree-handoff.ts <branch> --base origin/<top>` cuts a worktree for a parallel session: it symlinks the gitignored orchestration folder (`.gh/` by default) so the session finds its handoff and its checklist writes come back to the main checkout, adds the folder to `info/exclude`, and installs dependencies from the lockfile. The handoff template lives in `skills/stacked-prs/assets/`.
+
+## The loop
+
+`shift` runs one pass of an issue-to-PR loop with no human inside it. It triages the open issues, hands the ready ones to `dispatch`, and keeps the pull requests the loop already opened green. The human reads the digest and merges; nothing in the loop merges.
+
+`dispatch` spawns one `issue-worker` per issue, all in the same message. The agent (`github-flow:issue-worker`, `model: opus`, `isolation: worktree`) gets its own copy of the repository, implements, verifies itself under a 2-round red-green bound, then runs `git:commit` and `github-flow:pr`. Only a PR URL counts as done; anything else is `blocked`, reported with the failing output verbatim. In `fix <pr>` mode the same agent repairs a PR the loop owns.
+
+State lives on GitHub, in labels, so a pass is idempotent:
+
+| Label | On | Meaning |
+|---|---|---|
+| `needs-info` | issue | The readiness gate found no evidence or no acceptance criteria. |
+| `dispatched` | issue | A worker opened its PR. |
+| `blocked` | issue | A worker stopped; the failing output is a comment. |
+| `shift` | PR | The loop owns this PR and maintains it. |
+| `needs-human` | PR | Two fix rounds were not enough. The loop stops touching it. |
+
+Three runners, one skill:
+
+```bash
+/loop /github-flow:shift
+claude -p "/github-flow:shift" --permission-mode auto --max-turns 200 --max-budget-usd 5 --output-format json
+/schedule /github-flow:shift
+```
+
+`/loop` re-runs the skill each iteration, in an open session, on a 1-minute-to-1-hour interval. The `-p` form suits a systemd timer: in `auto` mode a blocked action does not run and the pass continues, `--max-budget-usd` counts the workers' spend too, and both caps are print-mode only. `/schedule` puts the same prompt on the cloud, minimum interval 1 hour.
 
 ## Requirements
 
