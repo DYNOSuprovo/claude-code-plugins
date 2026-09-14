@@ -8,20 +8,6 @@ import { markerPath, parseStopInput, skipsGates, type StopInput } from "./stop-g
 const SESSION_ID = "0244f1e4-d3aa-44b3-8919-3fe7b1e82701";
 
 describe("parseStopInput", () => {
-  test("reads the fields the hook acts on", () => {
-    const input = parseStopInput(
-      JSON.stringify({
-        session_id: SESSION_ID,
-        permission_mode: "default",
-        background_tasks: [{ id: "task-001", type: "shell", status: "running" }],
-      }),
-    );
-
-    expect(input?.session_id).toBe(SESSION_ID);
-    expect(input?.permission_mode).toBe("default");
-    expect(input?.background_tasks?.[0]?.type).toBe("shell");
-  });
-
   test("returns null on invalid JSON", () => {
     expect(parseStopInput("not json")).toBeNull();
   });

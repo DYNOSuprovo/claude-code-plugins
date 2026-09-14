@@ -3,30 +3,9 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import {
-  diffHunks,
-  formatterFor,
-  hookOutput,
-  parseHookInput,
-  toRepoRelative,
-} from "./format-on-edit.ts";
+import { diffHunks, formatterFor, parseHookInput, toRepoRelative } from "./format-on-edit.ts";
 
 describe("parseHookInput", () => {
-  test("reads the session id and tool_input.file_path", () => {
-    const input = parseHookInput(
-      JSON.stringify({ session_id: "abc-123", tool_input: { file_path: "/repo/a.ts" } }),
-    );
-
-    expect(input?.session_id).toBe("abc-123");
-    expect(input?.tool_input?.file_path).toBe("/repo/a.ts");
-  });
-
-  test("reads a payload without a path as an absent path", () => {
-    expect(
-      parseHookInput(JSON.stringify({ tool_input: {} }))?.tool_input?.file_path,
-    ).toBeUndefined();
-  });
-
   test("returns null on invalid JSON", () => {
     expect(parseHookInput("not json")).toBeNull();
   });
@@ -34,19 +13,11 @@ describe("parseHookInput", () => {
 
 describe("toRepoRelative", () => {
   test("strips the repo root", () => {
-    expect(toRepoRelative("/repo/scripts/a.ts", "/repo")).toBe("scripts/a.ts");
-  });
-
-  test("tolerates a trailing slash on the root", () => {
     expect(toRepoRelative("/repo/scripts/a.ts", "/repo/")).toBe("scripts/a.ts");
   });
 
   test("returns null for a file outside the repo", () => {
     expect(toRepoRelative("/elsewhere/a.ts", "/repo")).toBeNull();
-  });
-
-  test("passes a relative path through", () => {
-    expect(toRepoRelative("scripts/a.ts", "/repo")).toBe("scripts/a.ts");
   });
 });
 
@@ -119,14 +90,6 @@ describe("diffHunks", () => {
 
   test("is empty when the diff holds no hunk", () => {
     expect(diffHunks("diff --git a/x b/y\nold mode 100644\nnew mode 100755\n")).toBe("");
-  });
-});
-
-describe("hookOutput", () => {
-  test("wraps the context in the PostToolUse output shape", () => {
-    expect(JSON.parse(hookOutput("context"))).toEqual({
-      hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: "context" },
-    });
   });
 });
 

@@ -11,9 +11,7 @@
  * failure, a syntax error nearly every time, rides the same channel.
  */
 
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { join, relative as relativeTo } from "node:path";
 
 import { $ } from "bun";
 
@@ -37,9 +35,6 @@ const OXFMT_EXTENSIONS = [".ts", ".js", ".mjs", ".cjs"] as const;
 // Mirrors SHFMT_FLAGS in scripts/lint-shell.ts.
 const SHFMT_FLAGS = ["-i", "2", "-ci"] as const;
 
-// Mirrors EXCLUDED_PREFIXES in scripts/lint-shell.ts.
-const SHFMT_EXCLUDED_PREFIXES = ["archive/"] as const;
-
 const GIT_DIFF_FILES_DIFFER = 1;
 
 export function parseHookInput(raw: string): HookInput | null {
@@ -54,10 +49,9 @@ export function parseHookInput(raw: string): HookInput | null {
 
 /** Repo-relative path, or null when the file sits outside the repo. */
 export function toRepoRelative(filePath: string, repoRoot: string): string | null {
-  if (!filePath.startsWith("/")) return filePath;
-  const prefix = repoRoot.endsWith("/") ? repoRoot : `${repoRoot}/`;
+  const relative = relativeTo(repoRoot, filePath);
 
-  return filePath.startsWith(prefix) ? filePath.slice(prefix.length) : null;
+  return relative.startsWith("..") ? null : relative;
 }
 
 export function formatterFor(relativePath: string): Formatter | null {
@@ -74,9 +68,8 @@ export function formatterFor(relativePath: string): Formatter | null {
     };
   }
 
-  const excluded = SHFMT_EXCLUDED_PREFIXES.some((prefix) => relativePath.startsWith(prefix));
-
-  if (relativePath.endsWith(".sh") && !excluded) {
+  // archive/ is excluded as in scripts/lint-shell.ts.
+  if (relativePath.endsWith(".sh") && !relativePath.startsWith("archive/")) {
     return { tool: "shfmt", argv: ["shfmt", ...SHFMT_FLAGS, "-w", relativePath] };
   }
 
@@ -95,25 +88,6 @@ export function hookOutput(additionalContext: string): string {
   return JSON.stringify({
     hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext },
   });
-}
-
-async function formattingDiff(repoRoot: string, relative: string, before: string): Promise<string> {
-  const tempDir = await mkdtemp(join(tmpdir(), "format-on-edit-"));
-  const beforePath = join(tempDir, basename(relative));
-  await Bun.write(beforePath, before);
-
-  const diff = await $`git diff --no-index --no-color --no-ext-diff ${beforePath} ${relative}`
-    .cwd(repoRoot)
-    .nothrow()
-    .quiet();
-
-  await rm(tempDir, { recursive: true });
-
-  if (diff.exitCode !== GIT_DIFF_FILES_DIFFER) {
-    throw new Error(`git diff --no-index exited ${diff.exitCode}: ${diff.stderr.toString()}`);
-  }
-
-  return diffHunks(diff.stdout.toString());
 }
 
 if (import.meta.main) {
@@ -139,13 +113,26 @@ if (import.meta.main) {
   if (run.exitCode !== 0) {
     const output = `${run.stdout.toString()}${run.stderr.toString()}`.trim();
     console.log(hookOutput(`\`${formatter.tool}\` failed on \`${relative}\`:\n${output}`));
-  } else if ((await Bun.file(absolute).text()) !== before) {
-    const hunks = await formattingDiff(repoRoot, relative, before);
-
-    console.log(
-      hookOutput(
-        `\`${formatter.tool}\` reformatted \`${relative}\`; it now reads as this diff:\n${hunks}`,
-      ),
-    );
+    process.exit(HOOK_EXIT.ALLOW);
   }
+
+  const diff =
+    await $`git diff --no-index --no-color --no-ext-diff - ${relative} < ${new Blob([before])}`
+      .cwd(repoRoot)
+      .nothrow()
+      .quiet();
+
+  if (diff.exitCode === 0) process.exit(HOOK_EXIT.ALLOW);
+
+  if (diff.exitCode !== GIT_DIFF_FILES_DIFFER) {
+    throw new Error(`git diff --no-index exited ${diff.exitCode}: ${diff.stderr.toString()}`);
+  }
+
+  const hunks = diffHunks(diff.stdout.toString());
+
+  console.log(
+    hookOutput(
+      `\`${formatter.tool}\` reformatted \`${relative}\`; it now reads as this diff:\n${hunks}`,
+    ),
+  );
 }
