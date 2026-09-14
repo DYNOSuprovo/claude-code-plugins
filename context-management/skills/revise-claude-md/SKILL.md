@@ -11,7 +11,7 @@ allowed-tools:
 
 Review this session for learnings about working with Claude Code in this codebase. Update project memory with context that would help future Claude sessions be more effective.
 
-Scope boundary: this skill captures **current-session learnings**. Syncing CLAUDE.md against git history and codebase evolution is `/sync-claude-md`'s job.
+Scope boundary: this skill captures **current-session learnings**. Auditing agent docs against git history and codebase evolution is `/agent-docs-drift`'s job.
 
 ## Step 1: Reflect
 
