@@ -37,7 +37,7 @@ command claude --permission-mode default --plugin-dir <repo>/<plugin>
 
 ## Permission modes are not equal tests
 
-- `bypassPermissions` and `auto` (the owner's global `defaultMode: dontAsk`)
+- `bypassPermissions` and `auto` (the owner's global `defaultMode: auto`)
   auto-approve; a session in either proves nothing about `allowed-tools`.
   Only `default` mode surfaces the prompts that reveal a coverage gap.
 - An "always allow" click persists into `~/.claude/settings.local.json` and
