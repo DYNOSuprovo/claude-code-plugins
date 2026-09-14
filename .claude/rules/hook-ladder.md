@@ -40,9 +40,11 @@ Known ceilings:
   preview: Claude Code caps hook output there.
 - A write through Bash alone sets no marker, so that turn skips Stop;
   pre-commit and pre-push still check.
-- The gates run repo-wide at `CLAUDE_PROJECT_DIR`. Red work of another session
-  in the same checkout blocks this session once per verdict. A session that
-  enters a worktree keeps that directory, so its worktree work is not
-  Stop-gated; the hook input's `cwd` is the one field that follows the
-  worktree.
+- The gates run repo-wide in the checkout around the hook's `cwd`, the one
+  field that follows EnterWorktree; `CLAUDE_PROJECT_DIR` stays the main
+  checkout by design. Red work of another session in the same checkout blocks
+  this session once per verdict.
+- A worktree-isolated subagent's edits mark its parent session, whose Stop
+  gates the parent's checkout: SubagentStop carries no worktree path. That
+  worktree meets the gates at its own pre-commit and pre-push only.
 - pre-push checks the working tree, not the pushed commits.

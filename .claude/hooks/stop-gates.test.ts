@@ -3,9 +3,22 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
+import { $ } from "bun";
+
 import { markerPath, parseStopInput, skipsGates, type StopInput } from "./stop-gates.ts";
 
 const SESSION_ID = "0244f1e4-d3aa-44b3-8919-3fe7b1e82701";
+
+function gateRuns(dir: string): number {
+  const runs = join(dir, "gates-runs");
+
+  return existsSync(runs) ? readFileSync(runs, "utf8").length : 0;
+}
+
+function setGates(dir: string, exitCode: number, report: string) {
+  writeFileSync(join(dir, "gates-exit"), String(exitCode));
+  writeFileSync(join(dir, "gates-report"), report);
+}
 
 describe("parseStopInput", () => {
   test("returns null on invalid JSON", () => {
@@ -79,15 +92,14 @@ describe("hook subprocess", () => {
 
   const markerFile = () => join(tempRoot, "claude-code-plugins-stop", SESSION_ID);
 
-  function gateRuns(): number {
-    const runs = join(projectDir, "gates-runs");
+  async function makeWorktree(): Promise<string> {
+    const worktree = join(tempRoot, "worktree");
+    mkdirSync(join(worktree, "scripts"), { recursive: true });
+    mkdirSync(join(worktree, "sub"));
+    writeFileSync(join(worktree, "scripts", "run-gates.ts"), GATES_STUB);
+    await $`git init -q`.cwd(worktree).quiet();
 
-    return existsSync(runs) ? readFileSync(runs, "utf8").length : 0;
-  }
-
-  function setGates(exitCode: number, report: string) {
-    writeFileSync(join(projectDir, "gates-exit"), String(exitCode));
-    writeFileSync(join(projectDir, "gates-report"), report);
+    return worktree;
   }
 
   function setMarker(content: string) {
@@ -115,28 +127,51 @@ describe("hook subprocess", () => {
   }
 
   test("ends the turn without running the gates when the session made no edit", async () => {
-    setGates(1, RED_LINT);
+    setGates(projectDir, 1, RED_LINT);
 
     const { exitCode } = await runHook();
 
     expect(exitCode).toBe(0);
-    expect(gateRuns()).toBe(0);
+    expect(gateRuns(projectDir)).toBe(0);
+  });
+
+  test("gates the repository around the hook's cwd, a worktree, not the project", async () => {
+    const worktree = await makeWorktree();
+    setMarker("");
+    setGates(projectDir, 1, RED_LINT);
+    setGates(worktree, 0, "");
+
+    const { exitCode } = await runHook({ cwd: join(worktree, "sub") });
+
+    expect(exitCode).toBe(0);
+    expect(gateRuns(worktree)).toBe(1);
+    expect(gateRuns(projectDir)).toBe(0);
+  });
+
+  test("gates the project when the cwd sits outside any repository", async () => {
+    setMarker("");
+    setGates(projectDir, 0, "");
+
+    const { exitCode } = await runHook({ cwd: tempRoot });
+
+    expect(exitCode).toBe(0);
+    expect(gateRuns(projectDir)).toBe(1);
   });
 
   test("deletes the marker once the gates are green", async () => {
     setMarker("");
-    setGates(0, "");
+    setGates(projectDir, 0, "");
 
     const { exitCode } = await runHook();
 
     expect(exitCode).toBe(0);
-    expect(gateRuns()).toBe(1);
+    expect(gateRuns(projectDir)).toBe(1);
     expect(existsSync(markerFile())).toBe(false);
   });
 
   test("blocks on a red gate after an edit and records the verdict", async () => {
     setMarker("");
-    setGates(1, RED_LINT);
+    setGates(projectDir, 1, RED_LINT);
 
     const { exitCode, stderr } = await runHook({ stop_hook_active: true });
 
@@ -147,7 +182,7 @@ describe("hook subprocess", () => {
 
   test("ends the turn with a note on the same verdict when nothing was edited since", async () => {
     setMarker("Red gates: lint-ts");
-    setGates(1, RED_LINT);
+    setGates(projectDir, 1, RED_LINT);
 
     const { exitCode, stdout } = await runHook();
 
@@ -160,7 +195,7 @@ describe("hook subprocess", () => {
 
   test("blocks again on a changed verdict, even when nothing was edited since", async () => {
     setMarker("Red gates: lint-ts");
-    setGates(1, RED_FMT);
+    setGates(projectDir, 1, RED_FMT);
 
     const { exitCode } = await runHook();
 
@@ -170,7 +205,7 @@ describe("hook subprocess", () => {
 
   test("keeps the marker and skips the gates in plan mode and beside a background subagent", async () => {
     setMarker("");
-    setGates(1, RED_LINT);
+    setGates(projectDir, 1, RED_LINT);
 
     for (const payload of [
       { permission_mode: "plan" },
@@ -181,7 +216,7 @@ describe("hook subprocess", () => {
       expect(exitCode).toBe(0);
     }
 
-    expect(gateRuns()).toBe(0);
+    expect(gateRuns(projectDir)).toBe(0);
     expect(readFileSync(markerFile(), "utf8")).toBe("");
   });
 });

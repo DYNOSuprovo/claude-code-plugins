@@ -11,6 +11,10 @@
  * to the user: a red the agent cannot fix must not cost every turn Claude
  * Code's 8 consecutive blocks.
  *
+ * The gates run in the checkout the session sits in: the git toplevel of the
+ * hook's `cwd`, which follows EnterWorktree while `CLAUDE_PROJECT_DIR` stays
+ * the main checkout by design.
+ *
  * Skipped in plan mode, where a block loops through ExitPlanMode, and while a
  * subagent, workflow or teammate runs in the background: it may still be
  * editing.
@@ -26,6 +30,7 @@ import { HOOK_EXIT } from "./guard-destructive.ts";
 
 export interface StopInput {
   session_id?: string;
+  cwd?: string;
   permission_mode?: string;
   background_tasks?: { type?: string }[];
 }
@@ -55,6 +60,15 @@ export function skipsGates(input: StopInput): boolean {
   return (input.background_tasks ?? []).some((task) => EDITING_TASK_TYPES.has(task.type ?? ""));
 }
 
+/** The checkout to gate: the repository around `cwd`, else the project. */
+async function gateRoot(cwd: string | undefined, projectDir: string): Promise<string> {
+  if (cwd === undefined) return projectDir;
+
+  const toplevel = await $`git -C ${cwd} rev-parse --show-toplevel`.nothrow().quiet();
+
+  return toplevel.exitCode === 0 ? toplevel.text().trim() : projectDir;
+}
+
 if (import.meta.main) {
   const input = parseStopInput(await Bun.stdin.text());
   const marker = input?.session_id === undefined ? null : markerPath(input.session_id);
@@ -64,9 +78,10 @@ if (import.meta.main) {
   if (!(await Bun.file(marker).exists())) process.exit(HOOK_EXIT.ALLOW);
 
   const lastVerdict = await Bun.file(marker).text();
+  const projectDir = process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd();
 
   const gates = await $`${GATES_COMMAND}`
-    .cwd(process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd())
+    .cwd(await gateRoot(input.cwd, projectDir))
     .nothrow()
     .quiet();
 
