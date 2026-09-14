@@ -11,12 +11,30 @@ paths:
 # Hook ladder
 
 The rungs run from each edit to CI: post-edit, Stop, pre-commit, pre-push,
-CI. An agent meets a finding once, at the end of its turn, not on each edit.
+CI. The post-edit hook applies the safe lint fixes of the edited file; the
+agent meets any finding left once, at the end of its turn, not on each edit.
 
-- The post-edit hook (`format-on-edit.ts`) formats and never blocks. It hands
-  the formatting diff, or the formatter failure, back as PostToolUse
-  `additionalContext`. Claude Code renders a Write or Edit result from the
-  file path alone, so `updatedToolOutput` cannot carry code there.
+- The post-edit hook (`format-on-edit.ts`) fixes, formats and never blocks.
+  A `.ts`, `.js`, `.mjs` or `.cjs` file goes through oxfmt, `oxlint --fix`,
+  then oxfmt again: a line oxfmt wraps can need a blank line, and a fix can
+  need formatting. A `.sh` file goes through shfmt. A tool failure stops
+  the chain. The hook hands the failure, then the diff of the passes that
+  ran, back as PostToolUse `additionalContext`, and nothing about the
+  findings left. Claude Code renders a Write or Edit result from the file
+  path alone, so `updatedToolOutput` cannot carry code there.
+- `--fix` applies the fixes oxlint rates safe, never suggestions or dangerous
+  fixes. `bun x oxlint --rules -f json` gives the fix kind of each built-in
+  rule and omits JS plugin rules; among the `anti-slop` rules, only
+  `require-readable-spacing` has a fixer (`fixable: 'whitespace'` in its
+  vendored padding rule). Enabling a rule with a safe fixer changes what
+  every edit rewrites.
+- The tools run from the git toplevel of the edited file's directory. Run
+  from the project on a file under `.claude/worktrees/<agent>/`, oxlint
+  loads that worktree's `oxlint.config.ts` as a nested config and fails on
+  the second `anti-slop` registration (#84).
+- Per-edit cost, measured on 2026-09-14 with hyperfine on `stop-gates.ts`
+  (124 lines, clean), oxlint 1.82.0, oxfmt 0.67.0, 16 threads: 309 ms, the
+  same in an agent worktree. Formatting alone took 58 ms.
 - Each in-repo Edit or Write empties the editing agent's marker,
   `os.tmpdir()/claude-code-plugins-stop/<agent_id ?? session_id>`. The same
   hook (`stop-gates.ts`) runs on Stop and on SubagentStop and runs
@@ -41,8 +59,12 @@ CI. An agent meets a finding once, at the end of its turn, not on each edit.
 
 Known ceilings:
 
-- Claude Code still adds its own "likely a formatter" note to each reformat,
+- Claude Code still adds its own "likely a formatter" note to each rewrite,
   right after the diff.
+- The rewrite is two formatting passes around one fix pass, not a fixed
+  point. `oxlint --fix` skips a fix that overlaps another
+  (`no-negated-condition`, then `no-else-return` on one `if`), and the last
+  oxfmt pass can create a finding: both wait for Stop.
 - A diff over 10,000 characters reaches the agent as a file path and a
   preview: Claude Code caps hook output there.
 - A write through Bash alone sets no marker, so that turn skips Stop;

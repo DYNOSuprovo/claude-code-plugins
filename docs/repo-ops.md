@@ -26,13 +26,13 @@ There is no classic branch protection; querying `/branches/main/protection` retu
 
 ## Local enforcement
 
-The checks run as a ladder, from each edit to CI: the Claude Code post-edit formatter, the Stop gates, `pre-commit`, `pre-push`, then CI.
+The checks run as a ladder, from each edit to CI: the Claude Code post-edit fixer and formatter, the Stop gates, `pre-commit`, `pre-push`, then CI.
 
 - lefthook `pre-commit`, 12 jobs in order: `block-commit-to-main`, `block-settings-json`, `sync-settings`, `sync-versions` (auto-fix), `validate-marketplace`, `validate-frontmatter`, then the six repo-wide gates `lint-config`, `typecheck`, `lint-ts`, `fmt`, `lint-sh`, `check-lint-disables`. Only the mutating jobs are order-bound: they run before the jobs that validate what they wrote. `commit-msg`: 1 job, `block-ai-signatures`. Escape hatch for recovery only: `MAIN_BYPASS=1`.
 - lefthook `pre-push`, 1 script job, `gates-and-tests` (`.lefthook/pre-push/gates-and-tests.sh`): `scripts/run-gates.ts`, every gate unscoped as CI runs it, then both `bun test` runs. It first unsets the variables `git rev-parse --local-env-vars` lists: a push from a linked worktree exports `GIT_DIR`, which would send the suites' temp-repo commits to the pushing repo. A script, not a `run` job, because lefthook skips or fails a pre-push `run` job on its pushed-files lookup (reason in `lefthook.yml`). It checks the working tree, not the pushed commits.
 - CI parity: the six tooling gates and `validate-marketplace.ts` run again in CI with the same arguments. `validate-frontmatter.ts` runs on staged files in `pre-commit`, with `--all` in `pre-push` and CI. Neither test command runs in `pre-commit`.
 - Claude Code PreToolUse hooks: `.claude/hooks/guard-main-branch.ts` (no commit/push on a `main` checkout), `.claude/hooks/guard-git-push.ts` (no push targeting `main`, no force push targeting `dev` — the rulesets accept both, so only the hook refuses them agent-side).
-- Claude Code PostToolUse and Stop hooks: `.claude/hooks/format-on-edit.ts` formats each edited file and never blocks; `.claude/hooks/stop-gates.ts` runs `scripts/run-gates.ts` at the end of a turn that edited the repo and blocks while a gate is red, once per verdict when nothing was edited since the last block. Contract and ceilings: `.claude/rules/hook-ladder.md`.
+- Claude Code PostToolUse and Stop hooks: `.claude/hooks/format-on-edit.ts` applies oxlint's safe fixes to each edited file, formats it and never blocks; `.claude/hooks/stop-gates.ts` runs `scripts/run-gates.ts` at the end of a turn that edited the repo and blocks while a gate is red, once per verdict when nothing was edited since the last block. Contract and ceilings: `.claude/rules/hook-ladder.md`.
 
 ## CI
 

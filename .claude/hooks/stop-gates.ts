@@ -78,11 +78,11 @@ export function skipsGates(input: StopInput): boolean {
   return (input.background_tasks ?? []).some((task) => EDITING_TASK_TYPES.has(task.type ?? ""));
 }
 
-/** The checkout to gate: the repository around `cwd`, else the project. */
-async function gateRoot(cwd: string | undefined, projectDir: string): Promise<string> {
-  if (cwd === undefined) return projectDir;
+/** The repository around `dir`, else the project. */
+export async function checkoutRoot(dir: string | undefined, projectDir: string): Promise<string> {
+  if (dir === undefined) return projectDir;
 
-  const toplevel = await $`git -C ${cwd} rev-parse --show-toplevel`.nothrow().quiet();
+  const toplevel = await $`git -C ${dir} rev-parse --show-toplevel`.nothrow().quiet();
 
   return toplevel.exitCode === 0 ? toplevel.text().trim() : projectDir;
 }
@@ -99,7 +99,7 @@ if (import.meta.main) {
   const projectDir = process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd();
 
   const gates = await $`${GATES_COMMAND}`
-    .cwd(await gateRoot(input.cwd, projectDir))
+    .cwd(await checkoutRoot(input.cwd, projectDir))
     .nothrow()
     .quiet();
 

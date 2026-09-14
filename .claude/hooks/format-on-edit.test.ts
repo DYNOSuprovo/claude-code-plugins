@@ -1,9 +1,20 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
-import { diffHunks, formatterFor, parseHookInput, toRepoRelative } from "./format-on-edit.ts";
+import { $ } from "bun";
+
+import { diffHunks, parseHookInput, rewritersFor, toRepoRelative } from "./format-on-edit.ts";
 
 describe("parseHookInput", () => {
   test("returns null on invalid JSON", () => {
@@ -21,31 +32,47 @@ describe("toRepoRelative", () => {
   });
 });
 
-describe("formatterFor", () => {
-  test("sends the four script extensions to oxfmt, which skips what its config ignores", () => {
+describe("rewritersFor", () => {
+  test("sends the four script extensions through oxfmt, oxlint --fix, oxfmt, which skip what their config ignores", () => {
     for (const path of ["a.ts", "a.js", "a.mjs", "a.cjs", "archive/plugin/a.ts"]) {
-      expect(formatterFor(path)).toEqual({
+      const oxfmt = {
         tool: "oxfmt",
         argv: ["bun", "x", "oxfmt", "--no-error-on-unmatched-pattern", path],
-      });
+      };
+
+      expect(rewritersFor(path)).toEqual([
+        oxfmt,
+        {
+          tool: "oxlint --fix",
+          argv: [
+            "bun",
+            "x",
+            "oxlint",
+            "--fix",
+            "--silent",
+            "--no-error-on-unmatched-pattern",
+            path,
+          ],
+        },
+        oxfmt,
+      ]);
     }
   });
 
   test("sends shell scripts to shfmt with the lint-shell flags", () => {
-    expect(formatterFor("scripts/a.sh")).toEqual({
-      tool: "shfmt",
-      argv: ["shfmt", "-i", "2", "-ci", "-w", "scripts/a.sh"],
-    });
+    expect(rewritersFor("scripts/a.sh")).toEqual([
+      { tool: "shfmt", argv: ["shfmt", "-i", "2", "-ci", "-w", "scripts/a.sh"] },
+    ]);
   });
 
   test("has none for other files", () => {
     for (const path of ["a.md", "a.json", "a"]) {
-      expect(formatterFor(path)).toBeNull();
+      expect(rewritersFor(path)).toEqual([]);
     }
   });
 
   test("skips shell scripts under archive/, as lint-shell does", () => {
-    expect(formatterFor("archive/plugin/a.sh")).toBeNull();
+    expect(rewritersFor("archive/plugin/a.sh")).toEqual([]);
   });
 
   test("skips every file under a node_modules directory", () => {
@@ -54,12 +81,12 @@ describe("formatterFor", () => {
       "plugin/node_modules/pkg/a.ts",
       "node_modules/a.sh",
     ]) {
-      expect(formatterFor(path)).toBeNull();
+      expect(rewritersFor(path)).toEqual([]);
     }
   });
 
-  test("formats repo source, dot directories included", () => {
-    expect(formatterFor(".claude/hooks/guard-destructive.ts")?.tool).toBe("oxfmt");
+  test("rewrites repo source, dot directories included", () => {
+    expect(rewritersFor(".claude/hooks/guard-destructive.ts")).toHaveLength(3);
   });
 });
 
@@ -93,7 +120,20 @@ describe("diffHunks", () => {
   });
 });
 
-// shfmt drives these runs: oxfmt would need the repo's node_modules in the temp project.
+function fixedContext(name: string) {
+  return {
+    hookSpecificOutput: {
+      hookEventName: "PostToolUse",
+      additionalContext:
+        `\`oxfmt\` and \`oxlint --fix\` rewrote \`${name}\`; it now reads as this diff:\n` +
+        "@@ -1,5 +1,7 @@\n export function f(a: number): number {\n   if (a > 1) return 1;\n" +
+        "-  if (a > 2)   return 2;\n+\n+  if (a > 2) return 2;\n+\n   return 0;\n }",
+    },
+  };
+}
+
+// shfmt drives these runs, save the oxlint ones: oxlint and oxfmt need the
+// repo's node_modules linked into the temp project.
 describe("hook subprocess", () => {
   const HOOK = join(import.meta.dir, "format-on-edit.ts");
   const SESSION_ID = "format-on-edit-test";
@@ -168,7 +208,7 @@ describe("hook subprocess", () => {
       hookSpecificOutput: {
         hookEventName: "PostToolUse",
         additionalContext:
-          "`shfmt` reformatted `a.sh`; it now reads as this diff:\n" +
+          "`shfmt` rewrote `a.sh`; it now reads as this diff:\n" +
           "@@ -1,3 +1,3 @@\n if true; then\n-echo hi\n+  echo hi\n fi",
       },
     });
@@ -238,5 +278,146 @@ describe("hook subprocess", () => {
 
     expect(exitCode).toBe(0);
     expect(stdout).toBe("");
+  });
+
+  // The project and its agent worktree each register the anti-slop plugin
+  // from their own file, as the repo and a worktree copy of it do: oxlint run
+  // from the project on a worktree file fails on the second registration.
+  describe.each([
+    ["the project", ""],
+    ["an agent worktree", ".claude/worktrees/agent"],
+  ])("oxlint --fix in %s", (_, checkout) => {
+    const REPO_ROOT = join(import.meta.dir, "..", "..");
+
+    // An agent worktree has no node_modules of its own: Bun resolves the
+    // tools from the checkout around it.
+    const NODE_MODULES = dirname(dirname(Bun.resolveSync("oxlint/package.json", REPO_ROOT)));
+
+    const CONSECUTIVE_IFS =
+      "export function f(a: number): number {\n  if (a > 1) return 1;\n  if (a > 2)   return 2;\n  return 0;\n}\n";
+
+    const FIXED =
+      "export function f(a: number): number {\n  if (a > 1) return 1;\n\n  if (a > 2) return 2;\n\n  return 0;\n}\n";
+
+    const NO_FIXER =
+      "const code = (path: string): number => path.length;\n\nexport const lengths = (paths: string[]): number[] => paths.map(code);\n";
+
+    const OXLINT_CONFIG = {
+      jsPlugins: [{ name: "anti-slop", specifier: "./anti-slop.ts" }],
+      rules: {
+        "anti-slop/require-readable-spacing": "error",
+        "unicorn/no-array-callback-reference": "error",
+      },
+    };
+
+    let root = "";
+
+    beforeEach(async () => {
+      symlinkSync(NODE_MODULES, join(projectDir, "node_modules"));
+      const plugin = join(REPO_ROOT, "tools", "oxlint", "anti-slop", "index.ts");
+
+      for (const dir of [projectDir, join(projectDir, ".claude", "worktrees", "agent")]) {
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(
+          join(dir, "anti-slop.ts"),
+          `export { default } from ${JSON.stringify(plugin)};\n`,
+        );
+        writeFileSync(join(dir, ".oxlintrc.json"), JSON.stringify(OXLINT_CONFIG));
+        await $`git init -q`.cwd(dir).quiet();
+      }
+
+      root = join(projectDir, checkout);
+    });
+
+    test("applies a safe fix, formats the file and returns the diff", async () => {
+      const file = join(root, "a.ts");
+      writeFileSync(file, CONSECUTIVE_IFS);
+
+      const { exitCode, stdout } = await runHook(file);
+
+      expect(exitCode).toBe(0);
+      expect(JSON.parse(stdout)).toEqual(fixedContext(join(checkout, "a.ts")));
+      expect(readFileSync(file, "utf8")).toBe(FIXED);
+    });
+
+    test("follows a symlinked project dir to the checkout", async () => {
+      const link = join(tempRoot, "project-link");
+      symlinkSync(projectDir, link);
+      const file = join(link, checkout, "a.ts");
+      writeFileSync(file, CONSECUTIVE_IFS);
+
+      const { exitCode, stdout } = await runHook(file, { CLAUDE_PROJECT_DIR: link });
+
+      expect(exitCode).toBe(0);
+      expect(JSON.parse(stdout)).toEqual(fixedContext(join(checkout, "a.ts")));
+      expect(readFileSync(file, "utf8")).toBe(FIXED);
+    });
+
+    test.if(checkout === "")(
+      "keeps a file a symlink takes outside any checkout with the project",
+      async () => {
+        const outside = join(tempRoot, "outside");
+        mkdirSync(outside);
+        symlinkSync(outside, join(projectDir, "shared"));
+        const file = join(projectDir, "shared", "s.ts");
+        writeFileSync(file, CONSECUTIVE_IFS);
+
+        const { exitCode, stdout } = await runHook(file);
+
+        expect(exitCode).toBe(0);
+        expect(JSON.parse(stdout)).toEqual(fixedContext("shared/s.ts"));
+        expect(readFileSync(file, "utf8")).toBe(FIXED);
+      },
+    );
+
+    test("fixes the finding a line wrapped by oxfmt creates", async () => {
+      const file = join(root, "c.ts");
+      const value = JSON.stringify("x".repeat(90));
+      const head = "export function f(): number {\n";
+      const tail = "  const short = 1;\n\n  return long.length + short;\n}\n";
+      writeFileSync(file, `${head}  const long = ${value};\n${tail}`);
+
+      const { exitCode } = await runHook(file);
+
+      expect(exitCode).toBe(0);
+      expect(readFileSync(file, "utf8")).toBe(`${head}  const long =\n    ${value};\n\n${tail}`);
+    });
+
+    test("leaves a finding without a fixer as written, and silent", async () => {
+      const file = join(root, "b.ts");
+      writeFileSync(file, NO_FIXER);
+
+      const { exitCode, stdout } = await runHook(file);
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toBe("");
+      expect(readFileSync(file, "utf8")).toBe(NO_FIXER);
+
+      const lint = await $`bun x oxlint b.ts`.cwd(root).nothrow().quiet();
+
+      expect(lint.exitCode).toBe(1);
+      expect(lint.stdout.toString()).toContain("no-array-callback-reference");
+    });
+
+    test("returns an oxlint failure as context, ahead of the formatting before it", async () => {
+      const file = join(root, "a.ts");
+      const name = join(checkout, "a.ts");
+      writeFileSync(file, CONSECUTIVE_IFS);
+      writeFileSync(join(root, ".oxlintrc.json"), "{");
+
+      const { exitCode, stdout } = await runHook(file);
+      const output: { hookSpecificOutput: { additionalContext: string } } = JSON.parse(stdout);
+      const context = output.hookSpecificOutput.additionalContext;
+
+      expect(exitCode).toBe(0);
+      expect(context).toStartWith(`\`oxlint --fix\` failed on \`${name}\`:\n`);
+      expect(context).toContain("configuration file");
+
+      expect(context).toEndWith(
+        `\n\n\`oxfmt\` rewrote \`${name}\`; it now reads as this diff:\n` +
+          "@@ -1,5 +1,5 @@\n export function f(a: number): number {\n   if (a > 1) return 1;\n" +
+          "-  if (a > 2)   return 2;\n+  if (a > 2) return 2;\n   return 0;\n }",
+      );
+    });
   });
 });

@@ -100,9 +100,9 @@
     ],
     "PostToolUse": [
       {
-        // Formats the file just written (oxfmt, shfmt), hands the formatting
-        // diff back to the agent and marks the session for the Stop gates.
-        // Never blocks.
+        // Applies oxlint's safe fixes to the file just written and formats it
+        // (oxfmt, shfmt), hands the diff back to the agent and marks the
+        // editing agent for the Stop gates. Never blocks.
         "matcher": "Edit|Write",
         "hooks": [
           {
