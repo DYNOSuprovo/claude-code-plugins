@@ -13,7 +13,7 @@ import {
   PLAN_MARKER,
   planPath,
   planText,
-  prNumberFrom,
+  prFrom,
   sessionMarkers,
   withSessionLine,
 } from "./plan-comment.ts";
@@ -87,15 +87,29 @@ describe("isPrCreate", () => {
   });
 });
 
-describe("prNumberFrom", () => {
-  test("takes the first pull URL of the response", () => {
-    expect(prNumberFrom('{"stdout":"https://github.com/o/r/pull/42\\n"}')).toBe(42);
-    expect(prNumberFrom("https://github.com/o/r/pull/7 https://github.com/o/r/pull/9")).toBe(7);
+describe("prFrom", () => {
+  test("takes the repository and number of the first pull URL", () => {
+    expect(prFrom('{"stdout":"https://github.com/o/r/pull/42\\n"}')).toEqual({
+      repo: "o/r",
+      number: 42,
+    });
+    expect(prFrom("https://github.com/o/r/pull/7 https://github.com/x/y/pull/9")).toEqual({
+      repo: "o/r",
+      number: 7,
+    });
+  });
+
+  test("an enterprise host names its repository the same way", () => {
+    expect(prFrom("https://ghe.example.com/team/app/pull/3")).toEqual({
+      repo: "team/app",
+      number: 3,
+    });
   });
 
   test("no URL yields null", () => {
-    expect(prNumberFrom("")).toBeNull();
-    expect(prNumberFrom("https://github.com/o/r/issues/42")).toBeNull();
+    expect(prFrom("")).toBeNull();
+    expect(prFrom("https://github.com/o/r/issues/42")).toBeNull();
+    expect(prFrom("/pull/42")).toBeNull();
   });
 });
 
@@ -125,6 +139,10 @@ describe("sessionMarkers", () => {
   test("no marker yields nothing", () => {
     expect(sessionMarkers("")).toEqual([]);
     expect(sessionMarkers("# Plan\n1. Do it")).toEqual([]);
+  });
+
+  test("the pr skill's body lines are not plan markers", () => {
+    expect(sessionMarkers("<!-- opened_by: A -->\n<!-- updated_by: B -->")).toEqual([]);
   });
 
   test("finds a marker inside a JSON-escaped transcript line", () => {

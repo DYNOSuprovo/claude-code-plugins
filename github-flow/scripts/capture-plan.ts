@@ -14,7 +14,7 @@ import { dirname } from "node:path";
 
 import {
   harnessPlanFile,
-  openPrNumber,
+  openPr,
   parsePayload,
   planPath,
   planText,
@@ -51,7 +51,7 @@ if (import.meta.main) {
     if (harness !== null) await Bun.write(harness, content);
 
     const cwd = payload.cwd ?? process.cwd();
-    const pr = await openPrNumber(cwd);
+    const pr = await openPr(cwd);
 
     if (pr !== null) await upsertPlanComment(cwd, pr, content);
   } catch (error) {

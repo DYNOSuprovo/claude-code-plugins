@@ -10,7 +10,7 @@ const COMMENT_FIELDS = ".[] | {id: .id, login: .user.login, body: .body}";
 
 const PR_CREATE = /\bgh\s+pr\s+create\b/u;
 
-const PULL_URL = /\/pull\/(\d+)/u;
+const PULL_URL = /https?:\/\/[^/\s"\\]+\/([^/\s"\\]+\/[^/\s"\\]+)\/pull\/(\d+)/u;
 
 const SESSION_LINE = /^<!-- session_id: [^\s>]+ -->\n?/u;
 
@@ -55,10 +55,18 @@ export function isPrCreate(command: string): boolean {
   return PR_CREATE.test(command);
 }
 
-export function prNumberFrom(text: string): number | null {
-  const number = text.match(PULL_URL)?.[1];
+export interface PullRequest {
+  repo: string;
+  number: number;
+}
 
-  return number === undefined ? null : Number(number);
+/** The `<owner>/<repo>` and number of the first pull URL in `text`: the PR names its own repository. */
+export function prFrom(text: string): PullRequest | null {
+  const match = text.match(PULL_URL);
+
+  if (match?.[1] === undefined || match[2] === undefined) return null;
+
+  return { repo: match[1], number: Number(match[2]) };
 }
 
 /** `~/.claude/plans/by-session/<session>[/<agent>].md`, the identity known when a plan is approved. */
@@ -174,20 +182,15 @@ async function gh(cwd: string, ...args: string[]): Promise<Run> {
   return { stdout: stdout.toString().trim(), exitCode };
 }
 
-export async function openPrNumber(cwd: string): Promise<number | null> {
-  const { stdout, exitCode } = await $`gh pr view --json number --jq .number`
-    .cwd(cwd)
-    .quiet()
-    .nothrow();
+export async function openPr(cwd: string): Promise<PullRequest | null> {
+  const { stdout, exitCode } = await $`gh pr view --json url --jq .url`.cwd(cwd).quiet().nothrow();
 
-  const number = Number(stdout.toString().trim());
-
-  return exitCode === 0 && Number.isInteger(number) ? number : null;
+  return exitCode === 0 ? prFrom(stdout.toString()) : null;
 }
 
 export async function upsertPlanComment(
   cwd: string,
-  pr: number,
+  pr: PullRequest,
   plan: string,
   executedBy?: string,
 ): Promise<void> {
@@ -196,7 +199,7 @@ export async function upsertPlanComment(
   const comments = await gh(
     cwd,
     "api",
-    `repos/{owner}/{repo}/issues/${pr}/comments`,
+    `repos/${pr.repo}/issues/${pr.number}/comments`,
     "--paginate",
     "--jq",
     COMMENT_FIELDS,
@@ -204,18 +207,19 @@ export async function upsertPlanComment(
 
   const existing = findPlanComment(comments.stdout, login.stdout);
   // Outside the repository: a body file inside it would land in the next commit.
-  const file = join(tmpdir(), `plan-comment-${pr}-${process.pid}.md`);
+  const file = join(tmpdir(), `plan-comment-${pr.number}-${process.pid}.md`);
   await Bun.write(file, buildBody(plan, executedBy));
 
   try {
-    if (existing === null) await gh(cwd, "pr", "comment", String(pr), "--body-file", file);
-    else {
+    if (existing === null) {
+      await gh(cwd, "pr", "comment", String(pr.number), "-R", pr.repo, "--body-file", file);
+    } else {
       await gh(
         cwd,
         "api",
         "-X",
         "PATCH",
-        `repos/{owner}/{repo}/issues/comments/${existing}`,
+        `repos/${pr.repo}/issues/comments/${existing}`,
         "-F",
         `body=@${file}`,
       );

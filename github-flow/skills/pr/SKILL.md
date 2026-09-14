@@ -31,7 +31,7 @@ A PR body is a review brief. Its reader is a different agent, in a fresh session
    - What ran this session, with its numbers.
 4. **Images.** A change the reader sees (a page, a view, a component, a stylesheet) gets a Before/After pair when `$ARGUMENTS` gave none. The browser tool of the session captures the base state (the live page, else the base branch served) and the branch, one state per file, outside the repo. No reachable base: After alone, and the caption says so. A change with no visible result gets no image.
 5. **Body.** Pick the size from step 3, fill the sections below. The title follows the convention of `git log --oneline -10`.
-6. **Publish.** No question before it: the skill is the guard, and a caller that wants a look first passes `--dry-run`. Files the issue puts out of scope go in *Ask*, so the reviewer decides. Body in a temporary file outside the repo. A PR already open on the branch (`gh pr view --json number`) is edited, else one is created:
+6. **Publish.** No question before it: the skill is the guard, and a caller that wants a look first passes `--dry-run`. Files the issue puts out of scope go in *Ask*, so the reviewer decides. Body in a temporary file outside the repo. A PR already open on the branch (`gh pr view --json number,body`) is edited, else one is created:
 
    ```bash
    gh pr create --base <base> --title "<title>" --body-file <tmp> --attach './before.png#<alt>'
@@ -66,6 +66,14 @@ First line, when there is an issue: `Closes #N.`
 **Checks.** What ran, with its numbers: the command, passes, failures. A failure that predates the branch is named with its location and its cause. Tests added by the branch are listed apart, each with whether it was seen failing before the change; unknown is written as unknown. Nothing ran this session: run the validation commands from step 3, then report. Never a check that did not run.
 
 **Left open.** What this PR leaves alone, each measured or located: a known limit, a question without an answer, work done outside the diff. Omitted when empty.
+
+**Session line.** Last line of the body, always, rendered by GitHub as nothing:
+
+```markdown
+<!-- opened_by: ${CLAUDE_SESSION_ID} -->
+```
+
+On an update, the `opened_by` line of the current body is kept as it is and `<!-- updated_by: ${CLAUDE_SESSION_ID} -->` goes under it, replacing an earlier `updated_by`. The id names the session to resume (`claude --resume <id>`); inside a subagent it is the parent session's, so a PR from a dispatched worker names the session that dispatched it.
 
 ## Style
 

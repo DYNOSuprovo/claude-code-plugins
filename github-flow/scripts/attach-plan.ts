@@ -9,7 +9,7 @@ import {
   isPrCreate,
   parsePayload,
   planPath,
-  prNumberFrom,
+  prFrom,
   upsertPlanComment,
 } from "./plan-comment.ts";
 
@@ -21,7 +21,7 @@ if (import.meta.main) {
 
     if (!isPrCreate(payload.tool_input?.command ?? "")) process.exit(0);
 
-    const pr = prNumberFrom(JSON.stringify(payload.tool_response ?? ""));
+    const pr = prFrom(JSON.stringify(payload.tool_response ?? ""));
 
     if (pr === null) process.exit(0);
 

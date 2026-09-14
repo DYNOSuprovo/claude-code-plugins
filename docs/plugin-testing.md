@@ -22,8 +22,10 @@ command claude --permission-mode default --plugin-dir <repo>/<plugin>
   Pass one `--plugin-dir` per plugin here, or point it at a folder that
   carries no `.claude-plugin/`.
 - The flag adds, it never replaces. Installed plugins, external ones included,
-  stay loaded beside what it reads from disk — so a plugin that is both
-  installed and passed to the flag registers its skills twice.
+  stay loaded beside what it reads from disk. A plugin that is both installed
+  and passed to the flag loads once, from the flag: the debug log of 2.1.270
+  says `Plugin "github-flow" from --plugin-dir overrides installed version`,
+  and its hooks fire once.
 - A skill that rewrites history needs a clean tree, and the tree that holds
   the skill under edit is dirty by definition. Run the session in a second
   worktree (`git worktree add /tmp/t <branch>`) while `--plugin-dir` keeps
@@ -72,6 +74,11 @@ command claude -p --permission-mode default --setting-sources project \
   missing file: read each one before calling it a gap.
 - `AskUserQuestion` was not available in `-p` on Claude Code 2.1.270. Put the
   answers in the prompt, or record that the flow needs a person.
+- The `/<skill>` must open the prompt. Written after other text, it reaches
+  the model as a `Skill` tool call, and a skill that carries `allowed-tools`
+  prompts on that call in `default` mode: the `-p` run records a `Skill`
+  denial with `Execute skill: <plugin>:<skill>` and the model improvises from
+  the file. The same skill without `allowed-tools` runs. Measured on 2.1.270.
 - A background task ends about five seconds after the final result, so a flow
   that waits for a background exit notification (`pair-planning`) stops there.
 - A flow that writes under `~` runs against a throwaway home:
@@ -161,6 +168,31 @@ Transcripts live at `~/.claude/projects/<cwd-slug>/<session-id>.jsonl`.
 - An installed plugin is the source tree copied verbatim into
   `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, executable
   bits included. A layout that works under `--plugin-dir` works installed.
+
+## Testing a plugin hook from source
+
+A `hooks/hooks.json` under the plugin loads with `--plugin-dir` like the
+skills do: the debug log says `Read hooks.json for plugin <name>` and
+`Loading hooks from plugin: <name>`. Measured on 2.1.270 with `github-flow`.
+
+- Pipe a payload first. A command hook is a script on stdin, so
+  `printf '{"session_id":"t","cwd":"/x","tool_input":{...}}' | HOME=<tmp> bun
+  <plugin>/scripts/<hook>.ts` runs it in seconds with no session, and the
+  temp home holds what it wrote. The field names are the event's: see
+  https://code.claude.com/docs/en/hooks for each event's input.
+- `--debug-file <path>` keeps the log; `--debug` alone prints nothing in `-p`.
+  The log names a hook only when it printed something: `Hook <name> (<event>)
+  success:` followed by the output. A hook that exits 0 in silence leaves one
+  unnamed `Hook output does not start with {` line, so its proof is its
+  effect: the file it wrote, the comment it posted.
+- `ExitPlanMode` is not callable in `-p`, `--permission-mode plan` included:
+  the model writes the plan file and reports that it cannot call the tool. A
+  `PreToolUse` hook on it runs only in an interactive session.
+- A `PostToolUse` hook on `Bash` runs in `-p`. A hook that reads a session id
+  from its own transcript is fed one by putting the marker it scans for in the
+  prompt; the session's own id is `session_id` in the final JSON.
+- A hook that publishes (a PR comment) has no dry run; its live test is the
+  PR it lands on, opened from a `--plugin-dir` session.
 
 ## Prompt audit
 
