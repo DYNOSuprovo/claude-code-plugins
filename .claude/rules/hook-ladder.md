@@ -45,6 +45,6 @@ Known ceilings:
   checkout by design. Red work of another session in the same checkout blocks
   this session once per verdict.
 - A worktree-isolated subagent's edits mark its parent session, whose Stop
-  gates the parent's checkout: SubagentStop carries no worktree path. That
-  worktree meets the gates at its own pre-commit and pre-push only.
+  gates the parent's checkout, and no hook runs at SubagentStop. That
+  worktree meets the gates at its own pre-commit and pre-push only. Issue #88.
 - pre-push checks the working tree, not the pushed commits.
