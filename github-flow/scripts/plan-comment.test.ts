@@ -1,4 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { $ } from "bun";
 
 import {
   buildBody,
@@ -7,11 +12,29 @@ import {
   parsePayload,
   PLAN_MARKER,
   planKey,
+  planKeyFor,
   planPath,
   planText,
   prNumberFrom,
   withSessionLine,
 } from "./plan-comment.ts";
+
+let tmpDirs: string[] = [];
+
+afterEach(() => {
+  for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true });
+  tmpDirs = [];
+});
+
+/** An empty repository at <tmp>/ideas checked out on `dev`. */
+async function makeRepo(): Promise<string> {
+  const tmp = mkdtempSync(join(tmpdir(), "plan-comment-"));
+  tmpDirs.push(tmp);
+  const repo = join(tmp, "ideas");
+  await $`git init -q --initial-branch=dev ${repo}`.quiet();
+
+  return repo;
+}
 
 describe("parsePayload", () => {
   test("reads the fields the hooks use", () => {
@@ -90,6 +113,29 @@ describe("planKey", () => {
     expect(planKey("/w/ideas/.git", "")).toBeNull();
     expect(planKey(".git", "main")).toBeNull();
     expect(planKey("", "main")).toBeNull();
+  });
+});
+
+describe("planKeyFor", () => {
+  test("a given branch wins over the one checked out in cwd", async () => {
+    const repo = await makeRepo();
+
+    expect(await planKeyFor(repo, "fix/93-allowed-tools-rules")).toBe(
+      "ideas/fix/93-allowed-tools-rules",
+    );
+  });
+
+  test("no branch given keys the checked-out one", async () => {
+    const repo = await makeRepo();
+
+    expect(await planKeyFor(repo)).toBe("ideas/dev");
+  });
+
+  test("outside a repository yields null", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "plan-comment-"));
+    tmpDirs.push(tmp);
+
+    expect(await planKeyFor(tmp, "dev")).toBeNull();
   });
 });
 
