@@ -1,0 +1,124 @@
+---
+name: adversarial-review
+description: Adversarial review by Codex (OpenAI) of local git changes, either the uncommitted work or the current branch against a base ref, with optional focus text. Codex runs read-only; each finding names a file, a line range and a concrete fix, and the review ends with a SHIP or NO-SHIP verdict. Use when the user asks Codex to review, challenge or attack their uncommitted changes, their diff or their branch before shipping.
+argument-hint: "[--base <ref>] [-m <model>] [focus ...]"
+allowed-tools:
+  - Bash(git status *)
+  - Bash(git rev-parse *)
+  - Bash(git diff *)
+  - Bash(mkdir *)
+  - Bash(mktemp *)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/scripts/codex *)
+  - Bash(echo *)
+  - Bash(test *)
+  - Bash(sleep *)
+  - Bash(jq *)
+  - Read(./**)
+  - Read(~/.cache/agents-bridge/review/**)
+  - Edit(~/.cache/agents-bridge/review/**)
+---
+
+# Adversarial review of local changes
+
+Codex tries to break confidence in a git change: it looks for the strongest
+reasons the change must not ship. The review is read-only. This skill edits
+no file; fixing a finding is a separate request.
+
+The diff and the untracked files it lists go to OpenAI. Stop and ask when an
+untracked file looks like a secret or a dependency tree.
+
+For a proposal that lives in the conversation, not on disk, use `critique`.
+
+## Workflow
+
+1. **Parse the arguments.** `--base <ref>` selects the branch diff against
+   `<ref>`; without it, the target is the uncommitted work (staged, unstaged,
+   untracked). `-m <model>` selects the Codex model. Everything else is the
+   user's focus text, kept verbatim. `<ref>` and `<model>` go into commands
+   inside single quotes, as written below.
+
+2. **Check that the target is not empty.** A Codex run on nothing wastes
+   minutes, so stop here with the reason when a check fails.
+   - Uncommitted: `git status --short --untracked-files=all` must print at
+     least one line. When it prints nothing, suggest `--base <ref>`.
+   - Branch: `git rev-parse --verify --end-of-options '<ref>'` must succeed,
+     and `git diff --shortstat '<ref>...HEAD'` must print a line. Also run
+     `git status --short`: when it prints lines, tell the user that this
+     uncommitted work is outside the review.
+
+3. **Create the run directory.** One directory per run, so concurrent runs
+   never share a file. Use the printed path literally in every later step:
+   shell variables do not survive between Bash calls.
+
+   ```bash
+   mkdir -p ~/.cache/agents-bridge/review && mktemp -d ~/.cache/agents-bridge/review/run.XXXXXX
+   ```
+
+4. **Write the request** with the Write tool to `<dir>/request.md`. User text
+   goes in this file, never inline in the shell command: quotes and backticks
+   break it.
+
+   ```markdown
+   ## Target
+
+   uncommitted            <- or: base <ref>
+
+   ## Focus from the user
+
+   <focus text verbatim, or: none>
+   ```
+
+5. **Run Codex read-only** with the Bash tool's `run_in_background: true`:
+   a background command has no timeout, and a review at `xhigh` can run for
+   a long time. When the user passed `-m`, add `-m '<model>'` right after
+   `exec`.
+
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/scripts/codex" exec \
+     -s read-only \
+     -c model_reasoning_effort=xhigh \
+     --json -o <dir>/review.md \
+     "Run an adversarial code review. Read ${CLAUDE_PLUGIN_ROOT}/skills/adversarial-review/prompt.md and follow it exactly. The review target and the user's focus are in <dir>/request.md." \
+     </dev/null > <dir>/events.jsonl && echo 0 > <dir>/exit || echo 1 > <dir>/exit
+   ```
+
+   Copy that command as written: `$?` and a wrapper script both prompt.
+   Then block until the marker exists, with the Bash tool's
+   `timeout: 600000`, and repeat this command each time it returns without
+   the file. Never end the turn while Codex runs: a headless or subagent
+   session cannot tell it is one, and its last message kills the task.
+
+   ```bash
+   until test -f <dir>/exit; do sleep 10; done
+   ```
+
+   `<dir>/exit` holds `0` on success. `1`, or a missing `<dir>/review.md`,
+   is a failed run: report the last lines of `<dir>/events.jsonl` and show
+   no review.
+
+6. **Relay, then verify.** Show `<dir>/review.md` verbatim. Then check each
+   finding by reading the code with the Read tool and name the ones that do
+   not hold. Do not run the code: an import or a test run writes into the
+   repo (`__pycache__`, build output). When the `Verdict:` line is missing,
+   say so; never write one for Codex.
+
+## Defaults & overrides
+
+- Model: the codex config default unless the user passes `-m`. Effort
+  `xhigh`, sandbox `read-only`. Change the effort only when the user asks.
+- The run directory is created by `mktemp` with mode 0700 and is kept: the
+  thread id in `events.jsonl` is what a follow-up resumes.
+- To push back on a finding, write the objection to `<dir>/pushback.md`,
+  read the thread id, then resume by that id. Resume does not inherit the
+  first run's flags: re-state sandbox, effort, and any `-m`. The
+  `allowed-tools` grant covers the invoking turn only, so a later turn
+  prompts for these commands.
+
+  ```bash
+  jq -r 'select(.type=="thread.started") | .thread_id' <dir>/events.jsonl
+  "${CLAUDE_PLUGIN_ROOT}/scripts/codex" exec resume <thread id> \
+    -c sandbox_mode=read-only \
+    -c model_reasoning_effort=xhigh \
+    --json -o <dir>/review-2.md \
+    - < <dir>/pushback.md > <dir>/events-2.jsonl
+  ```

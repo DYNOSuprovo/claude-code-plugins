@@ -17,6 +17,14 @@ recipes in `docs/plugin-testing.md` → Skill mechanics worth knowing.
 - No editor: the session exports `GIT_EDITOR=true`, which beats
   `-c core.editor` and `EDITOR`. Feed text through a file (`-F`, `--body-file`)
   or an `exec` line.
+- `allowed-tools` file rules are `Read(path)` and `Edit(path)` only, in
+  gitignore syntax; `Edit` covers `Write`. `Write(*:*)` and `Read(*:*)`
+  grant nothing. An absolute path starts with `//`, a home path with `~/`.
+  `Bash(*:*)` does not cover a bundled script: name it,
+  `Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x *)`.
+- A skill that writes scratch files gives each run its own directory
+  (`mktemp -d`, the model copies the printed path) so concurrent sessions
+  never share a file; `/tmp` is world-readable and a symlink on macOS.
 - `description` ends with a "Use when ..." clause naming the user intents;
   a bare capability summary under-triggers. A skill with
   `disable-model-invocation: true` needs none: its description never reaches

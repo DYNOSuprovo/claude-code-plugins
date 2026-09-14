@@ -89,6 +89,12 @@ Transcripts live at `~/.claude/projects/<cwd-slug>/<session-id>.jsonl`.
   wildcard, so it reads as `Bash(* *)`, a literal-star prefix. `Bash(*)` is
   the match-all form; `Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x *)` the narrow
   one. Auto-approving modes hide the gap; only `default` mode shows it.
+- File rules take gitignore paths, and only `Read(path)` and `Edit(path)` are
+  consulted; `Edit` covers `Write`. `Write(*:*)` grants nothing: a Write to
+  `/tmp` still prompts in `default` mode. An absolute path needs two slashes,
+  `Edit(//tmp/name*)`, and an allow rule on a symlinked path such as macOS
+  `/tmp` needs the target to match too; `Edit(~/.cache/x/**)` avoids both.
+  Source: https://code.claude.com/docs/en/permissions#read-and-edit.
 - An `allow` rule stops at a leading environment assignment.
   `Bash(git rebase:*)` never matches `GIT_SEQUENCE_EDITOR=x git rebase`, in
   `default` mode it prompts every time; only a fixed known-safe list

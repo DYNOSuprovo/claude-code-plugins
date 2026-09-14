@@ -177,8 +177,9 @@ a wrapper agent:
 ## When to Use
 
 Ad-hoc second opinion — code review, debugging, architecture — on prompts and
-conversation context that never hit disk. For a **committed git diff**, prefer
-the official `/codex:review`, which reads the diff directly.
+conversation context that never hit disk. For **local git changes**,
+uncommitted work or a branch against its base, use
+`/agents-bridge:adversarial-review`, which reads the diff directly.
 
 **Keep runs bounded.** Use `low`/`medium` effort for quick probes; high effort
 plus a docs MCP can rabbit-hole. To stop a runaway, target the real process

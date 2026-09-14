@@ -22,10 +22,10 @@ better path when one exists. Not a rubber stamp, not reflexive contrarianism.
 - You said "not bad, right?" and actually want the honest answer.
 - A decision has real forks and one outside viewpoint would de-risk it.
 
-NOT for reviewing committed code against a diff — use `/codex:review` or
-`/codex:adversarial-review`. Those read the **git diff**; a proposal usually
-lives in the conversation, not on disk, so a diff-based review would miss it
-(and may review unrelated working-tree files instead).
+NOT for reviewing local git changes — use `/agents-bridge:adversarial-review`.
+It reads the **git diff**; a proposal usually lives in the conversation, not on
+disk, so a diff-based review would miss it (and may review unrelated
+working-tree files instead).
 
 ## Workflow
 
