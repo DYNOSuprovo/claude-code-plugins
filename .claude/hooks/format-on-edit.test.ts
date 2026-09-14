@@ -50,6 +50,7 @@ describe("rewritersFor", () => {
             "oxlint",
             "--fix",
             "--silent",
+            "--format=agent",
             "--no-error-on-unmatched-pattern",
             path,
           ],
@@ -170,6 +171,11 @@ describe("hook subprocess", () => {
         TMPDIR: tempRoot,
         GIT_CONFIG_GLOBAL: "/dev/null",
         GIT_CONFIG_NOSYSTEM: "1",
+        // oxlint picks its default output format from these, and CI sets
+        // none: emptied, a run under Claude Code sees what CI sees.
+        AI_AGENT: "",
+        CLAUDECODE: "",
+        CLAUDE_CODE: "",
         ...env,
       },
     });

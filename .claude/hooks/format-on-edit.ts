@@ -73,7 +73,9 @@ export function rewritersFor(relativePath: string): Rewriter[] {
     };
 
     // `--fix` applies safe fixes only; `--silent` leaves the other findings
-    // to the Stop gates.
+    // to the Stop gates. The default format still prints a summary line under
+    // `--silent`, and oxlint switches to `agent` only when an agent variable
+    // such as CLAUDECODE is set: pinned, the output does not depend on it.
     const oxlintFix: Rewriter = {
       tool: "oxlint --fix",
       argv: [
@@ -82,6 +84,7 @@ export function rewritersFor(relativePath: string): Rewriter[] {
         "oxlint",
         "--fix",
         "--silent",
+        "--format=agent",
         "--no-error-on-unmatched-pattern",
         relativePath,
       ],
@@ -151,7 +154,7 @@ if (import.meta.main) {
     const output = `${run.stdout.toString()}${run.stderr.toString()}`.trim();
 
     // oxlint exits 1 on a finding left without a fixer and on a failure;
-    // under `--silent` only a failure prints.
+    // with `--silent --format=agent` only a failure prints.
     const leftFindings = rewriter.tool === "oxlint --fix" && run.exitCode === 1 && output === "";
 
     if (run.exitCode !== 0 && !leftFindings) {
