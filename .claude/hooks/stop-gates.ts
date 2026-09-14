@@ -1,19 +1,19 @@
 #!/usr/bin/env bun
 
 /**
- * Stop hook — runs every CI gate at the end of a turn that edited the repo, and
- * blocks the stop while one is red.
+ * Stop and SubagentStop hook — runs every CI gate at the end of a turn that
+ * edited the repo, and blocks the stop while one is red.
  *
- * `format-on-edit.ts` empties the session's marker on each in-repo edit. A
- * green run deletes the marker. A red run writes its verdict, the first line
- * of the `scripts/run-gates.ts` report, into the marker and blocks. A later
- * Stop with no edit in between ends the turn on the same verdict, with a note
- * to the user: a red the agent cannot fix must not cost every turn Claude
- * Code's 8 consecutive blocks.
+ * `format-on-edit.ts` empties the marker on each in-repo edit. A green run
+ * deletes the marker. A red run writes its verdict, the first line of the
+ * `scripts/run-gates.ts` report, into the marker and blocks. A later stop with
+ * no edit in between ends the turn on the same verdict, with a note to the
+ * user: a red the agent cannot fix must not cost every turn Claude Code's 8
+ * consecutive blocks.
  *
- * The gates run in the checkout the session sits in: the git toplevel of the
- * hook's `cwd`, which follows EnterWorktree while `CLAUDE_PROJECT_DIR` stays
- * the main checkout by design.
+ * The gates run in the checkout the agent sits in: the git toplevel of the
+ * hook's `cwd`, which follows EnterWorktree and a subagent's `isolation:
+ * worktree` while `CLAUDE_PROJECT_DIR` stays the launching checkout by design.
  *
  * Skipped in plan mode, where a block loops through ExitPlanMode, and while a
  * subagent, workflow or teammate runs in the background: it may still be
@@ -30,6 +30,7 @@ import { HOOK_EXIT } from "./guard-destructive.ts";
 
 export interface StopInput {
   session_id?: string;
+  agent_id?: string;
   cwd?: string;
   permission_mode?: string;
   background_tasks?: { type?: string }[];
@@ -54,8 +55,25 @@ export function markerPath(sessionId: string): string | null {
   return /^[\w-]+$/u.test(sessionId) ? join(tmpdir(), "claude-code-plugins-stop", sessionId) : null;
 }
 
+/**
+ * The marker of the agent the payload belongs to. A subagent's hook input
+ * carries the parent's `session_id` and its own `agent_id`, so keying on
+ * `agent_id` first keeps the two markers independent: a green subagent run
+ * leaves the parent's mark, and a parent verdict does not release a subagent.
+ */
+export function markerFor(input: { session_id?: string; agent_id?: string }): string | null {
+  const id = input.agent_id ?? input.session_id;
+
+  return id === undefined ? null : markerPath(id);
+}
+
 export function skipsGates(input: StopInput): boolean {
   if (input.permission_mode === "plan") return true;
+
+  // `background_tasks` is scoped to the parent session and lists the stopping
+  // subagent itself (measured on 2.1.270), so at SubagentStop it names tasks
+  // of other checkouts, never editors of this agent's `cwd`.
+  if (input.agent_id !== undefined) return false;
 
   return (input.background_tasks ?? []).some((task) => EDITING_TASK_TYPES.has(task.type ?? ""));
 }
@@ -71,7 +89,7 @@ async function gateRoot(cwd: string | undefined, projectDir: string): Promise<st
 
 if (import.meta.main) {
   const input = parseStopInput(await Bun.stdin.text());
-  const marker = input?.session_id === undefined ? null : markerPath(input.session_id);
+  const marker = input === null ? null : markerFor(input);
 
   if (input === null || marker === null || skipsGates(input)) process.exit(HOOK_EXIT.ALLOW);
 

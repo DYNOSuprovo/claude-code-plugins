@@ -5,9 +5,12 @@ import { dirname, join } from "node:path";
 
 import { $ } from "bun";
 
-import { markerPath, parseStopInput, skipsGates, type StopInput } from "./stop-gates.ts";
+import { markerFor, markerPath, parseStopInput, skipsGates, type StopInput } from "./stop-gates.ts";
 
 const SESSION_ID = "0244f1e4-d3aa-44b3-8919-3fe7b1e82701";
+
+// Shape measured on Claude Code 2.1.270: 16 hex characters.
+const AGENT_ID = "ae64aaf2fc71fc3bd";
 
 function gateRuns(dir: string): number {
   const runs = join(dir, "gates-runs");
@@ -45,6 +48,22 @@ describe("skipsGates", () => {
 
   test("runs when the payload lists no background task", () => {
     expect(skipsGates({ permission_mode: "acceptEdits" })).toBe(false);
+  });
+
+  // A SubagentStop payload lists the stopping subagent itself as a running
+  // background task, so the parent's rule would skip every subagent.
+  test("runs for a subagent beside the background tasks of its parent session", () => {
+    const tasks = [{ type: "subagent" }, { type: "teammate" }];
+
+    expect(skipsGates({ agent_id: AGENT_ID, background_tasks: tasks })).toBe(false);
+  });
+});
+
+describe("markerFor", () => {
+  test("names the agent when the payload carries one, the session otherwise", () => {
+    expect(markerFor({ session_id: SESSION_ID, agent_id: AGENT_ID })).toBe(markerPath(AGENT_ID));
+    expect(markerFor({ session_id: SESSION_ID })).toBe(markerPath(SESSION_ID));
+    expect(markerFor({})).toBeNull();
   });
 });
 
@@ -90,7 +109,7 @@ describe("hook subprocess", () => {
     rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  const markerFile = () => join(tempRoot, "claude-code-plugins-stop", SESSION_ID);
+  const markerFile = (id: string = SESSION_ID) => join(tempRoot, "claude-code-plugins-stop", id);
 
   async function makeWorktree(): Promise<string> {
     const worktree = join(tempRoot, "worktree");
@@ -102,9 +121,9 @@ describe("hook subprocess", () => {
     return worktree;
   }
 
-  function setMarker(content: string) {
-    mkdirSync(dirname(markerFile()), { recursive: true });
-    writeFileSync(markerFile(), content);
+  function setMarker(content: string, id: string = SESSION_ID) {
+    mkdirSync(dirname(markerFile(id)), { recursive: true });
+    writeFileSync(markerFile(id), content);
   }
 
   async function runHook(payload: StopInput & { stop_hook_active?: boolean } = {}) {
@@ -201,6 +220,74 @@ describe("hook subprocess", () => {
 
     expect(exitCode).toBe(2);
     expect(readFileSync(markerFile(), "utf8")).toBe("Red gates: fmt");
+  });
+
+  // The four below replay a worktree-isolated subagent: its payload carries the
+  // parent's session_id, its own agent_id and the cwd of its worktree.
+  const asSubagent = (worktree: string) => ({
+    agent_id: AGENT_ID,
+    cwd: join(worktree, "sub"),
+    background_tasks: [{ type: "subagent" }],
+  });
+
+  test("blocks a worktree-isolated subagent on a red gate in its own worktree", async () => {
+    const worktree = await makeWorktree();
+    setMarker("", AGENT_ID);
+    setGates(worktree, 1, RED_LINT);
+    setGates(projectDir, 0, "");
+
+    const { exitCode, stderr } = await runHook(asSubagent(worktree));
+
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain("lint-ts: bun x oxlint");
+    expect(gateRuns(worktree)).toBe(1);
+    expect(gateRuns(projectDir)).toBe(0);
+    expect(readFileSync(markerFile(AGENT_ID), "utf8")).toBe("Red gates: lint-ts");
+  });
+
+  test("releases the subagent once its worktree is green", async () => {
+    const worktree = await makeWorktree();
+    setMarker("Red gates: lint-ts", AGENT_ID);
+    setGates(worktree, 0, "");
+
+    const { exitCode } = await runHook(asSubagent(worktree));
+
+    expect(exitCode).toBe(0);
+    expect(existsSync(markerFile(AGENT_ID))).toBe(false);
+  });
+
+  test("releases the subagent on an unchanged verdict with no edit since", async () => {
+    const worktree = await makeWorktree();
+    setMarker("Red gates: lint-ts", AGENT_ID);
+    setGates(worktree, 1, RED_LINT);
+
+    const { exitCode, stdout } = await runHook(asSubagent(worktree));
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({
+      systemMessage: expect.stringContaining("Red gates: lint-ts"),
+    });
+  });
+
+  test("keeps the subagent's marker and the parent session's independent", async () => {
+    const worktree = await makeWorktree();
+    setMarker("Red gates: fmt");
+    setMarker("Red gates: lint-ts", AGENT_ID);
+    setGates(worktree, 0, "");
+    setGates(projectDir, 0, "");
+
+    const green = await runHook(asSubagent(worktree));
+
+    expect(green.exitCode).toBe(0);
+    expect(readFileSync(markerFile(), "utf8")).toBe("Red gates: fmt");
+
+    setMarker("Red gates: lint-ts", AGENT_ID);
+
+    const parent = await runHook();
+
+    expect(parent.exitCode).toBe(0);
+    expect(existsSync(markerFile())).toBe(false);
+    expect(readFileSync(markerFile(AGENT_ID), "utf8")).toBe("Red gates: lint-ts");
   });
 
   test("keeps the marker and skips the gates in plan mode and beside a background subagent", async () => {

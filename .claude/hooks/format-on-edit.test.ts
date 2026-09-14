@@ -113,10 +113,14 @@ describe("hook subprocess", () => {
     rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  async function runHook(filePath: string, env: Record<string, string> = {}) {
+  async function runHook(
+    filePath: string,
+    env: Record<string, string> = {},
+    payload: { agent_id?: string } = {},
+  ) {
     const proc = Bun.spawn([process.execPath, HOOK], {
       stdin: new Blob([
-        JSON.stringify({ session_id: SESSION_ID, tool_input: { file_path: filePath } }),
+        JSON.stringify({ session_id: SESSION_ID, ...payload, tool_input: { file_path: filePath } }),
       ]),
       stdout: "pipe",
       stderr: "pipe",
@@ -135,7 +139,19 @@ describe("hook subprocess", () => {
     return { exitCode, stdout };
   }
 
-  const markerFile = () => join(tempRoot, "claude-code-plugins-stop", SESSION_ID);
+  const markerFile = (id: string = SESSION_ID) => join(tempRoot, "claude-code-plugins-stop", id);
+
+  test("marks the editing subagent, not the parent session its payload names", async () => {
+    const agentId = "ae64aaf2fc71fc3bd";
+    const script = join(projectDir, "a.sh");
+    writeFileSync(script, FORMATTED);
+
+    const { exitCode } = await runHook(script, {}, { agent_id: agentId });
+
+    expect(exitCode).toBe(0);
+    expect(existsSync(markerFile(agentId))).toBe(true);
+    expect(existsSync(markerFile())).toBe(false);
+  });
 
   test("returns a reformat as its unified diff, even under an external diff tool", async () => {
     const script = join(projectDir, "a.sh");

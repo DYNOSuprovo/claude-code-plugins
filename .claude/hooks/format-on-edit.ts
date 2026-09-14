@@ -2,8 +2,8 @@
 
 /**
  * PostToolUse hook for Edit|Write — formats the edited file with oxfmt or
- * shfmt, and marks the session for `stop-gates.ts`. Never blocks: lint, types
- * and the other gates wait for the end of the turn.
+ * shfmt, and marks the editing agent for `stop-gates.ts`. Never blocks: lint,
+ * types and the other gates wait for the end of the turn.
  *
  * A reformat reaches the agent as its diff in `additionalContext`. Claude Code
  * renders a Write or Edit result from the file path alone, so this is the one
@@ -16,10 +16,11 @@ import { join, relative as relativeTo } from "node:path";
 import { $ } from "bun";
 
 import { HOOK_EXIT } from "./guard-destructive.ts";
-import { markerPath } from "./stop-gates.ts";
+import { markerFor } from "./stop-gates.ts";
 
 export interface HookInput {
   session_id?: string;
+  agent_id?: string;
   tool_input?: {
     file_path?: string;
   };
@@ -98,7 +99,7 @@ if (import.meta.main) {
 
   if (relative === null) process.exit(HOOK_EXIT.ALLOW);
 
-  const marker = input?.session_id === undefined ? null : markerPath(input.session_id);
+  const marker = input === null ? null : markerFor(input);
 
   if (marker !== null) await Bun.write(marker, "");
 
