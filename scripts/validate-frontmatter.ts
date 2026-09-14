@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { $ } from "bun";
 
 import { checkKeys, classifyComponent, validateFrontmatter } from "./lib/frontmatter-validation";
+import { workingTreeFiles } from "./lib/working-tree-files.ts";
 
 // Colors (disabled if not a terminal)
 const isTTY = process.stdout.isTTY;
@@ -35,15 +36,18 @@ if (repoRootResult.exitCode !== 0) {
 
 const repoRoot = repoRootResult.text().trim();
 
-// File source: `--all` validates every tracked plugin markdown file (used in
-// CI, where nothing is staged); default validates only staged files (pre-commit).
+// File source: `--all` validates every plugin markdown file of the working
+// tree, untracked ones included (CI, Stop, pre-push); default validates only
+// staged files (pre-commit).
 const checkAll = process.argv.includes("--all");
 
-const listResult = checkAll
-  ? await $`git ls-files`.quiet()
-  : await $`git diff --cached --name-only --diff-filter=ACMR`.quiet();
-
-const candidates = listResult.text().trim().split("\n").filter(Boolean);
+const candidates = checkAll
+  ? await workingTreeFiles()
+  : (await $`git diff --cached --name-only --diff-filter=ACMR`.quiet())
+      .text()
+      .trim()
+      .split("\n")
+      .filter(Boolean);
 
 // Filter to Claude Code markdown files (commands, skills, agents, hooks,
 // path-scoped rules). archive/ holds vendored, frozen plugins — skip it.

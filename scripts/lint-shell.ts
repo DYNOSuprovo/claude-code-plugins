@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 
 /**
- * Lint every tracked shell script with shellcheck and shfmt.
+ * Lint every shell script of the working tree with shellcheck and shfmt.
  *
- * With no argument it walks the whole repo; with paths it checks only those,
- * after applying the same exclusions (used by the lefthook pre-commit job).
+ * With no argument it walks the whole repo, untracked files included; with
+ * paths it checks only those, after applying the same exclusions.
  */
 
-import { $ } from "bun";
+import { workingTreeFiles } from "./lib/working-tree-files.ts";
 
 const SHFMT_FLAGS = ["-i", "2", "-ci"] as const;
 
@@ -19,7 +19,7 @@ function isExcluded(path: string): boolean {
   return EXCLUDED_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
-/** A tracked file is a shell script if it ends in .sh or opens with a shell shebang. */
+/** A file is a shell script if it ends in .sh or opens with a shell shebang. */
 async function isShellScript(path: string): Promise<boolean> {
   if (path.endsWith(".sh")) return true;
   const file = Bun.file(path);
@@ -42,12 +42,6 @@ async function shellTargets(candidates: string[]): Promise<string[]> {
   return kept.toSorted();
 }
 
-async function trackedFiles(): Promise<string[]> {
-  const listed = await $`git ls-files -z`.quiet().text();
-
-  return listed.split("\0").filter(Boolean);
-}
-
 async function run(tool: string, args: string[]): Promise<boolean> {
   const proc = Bun.spawn([tool, ...args], { stdout: "inherit", stderr: "inherit" });
 
@@ -56,7 +50,7 @@ async function run(tool: string, args: string[]): Promise<boolean> {
 
 const requested = process.argv.slice(2);
 
-const targets = await shellTargets(requested.length > 0 ? requested : await trackedFiles());
+const targets = await shellTargets(requested.length > 0 ? requested : await workingTreeFiles());
 
 if (targets.length === 0) {
   process.exit(0);

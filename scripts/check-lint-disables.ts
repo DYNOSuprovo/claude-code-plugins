@@ -10,7 +10,7 @@
  * (used by the lefthook pre-commit job).
  */
 
-import { $ } from "bun";
+import { workingTreeFiles } from "./lib/working-tree-files.ts";
 
 const EXCLUDED_PREFIXES = ["archive/", "node_modules/", "tools/oxlint/anti-slop/"] as const;
 
@@ -46,15 +46,9 @@ export function isCandidate(path: string): boolean {
   return CHECKED_EXTENSIONS.some((extension) => path.endsWith(extension));
 }
 
-async function trackedFiles(): Promise<string[]> {
-  const listed = await $`git ls-files -z`.quiet().text();
-
-  return listed.split("\0").filter(Boolean);
-}
-
 if (import.meta.main) {
   const requested = process.argv.slice(2);
-  const listed = requested.length > 0 ? requested : await trackedFiles();
+  const listed = requested.length > 0 ? requested : await workingTreeFiles();
   const candidates = listed.filter((path) => isCandidate(path));
 
   const offences: Offence[] = [];
