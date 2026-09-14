@@ -36,7 +36,7 @@ A curated marketplace of Claude Code plugins for development workflow automation
 | [understanding](understanding/) | 1.1.0 | Understand a topic, a bug, or a Claude Code workflow: minimal explanations, root-cause diagnosis, execution traces |
 | [design-studio](design-studio/) | 1.1.1 | Generate 5 unique website redesigns using Theo's pattern: one agent, sequential creation, natural differentiation |
 | [plugin-cache-sync](plugin-cache-sync/) | 2.2.1 | Sync Claude Code plugin cache from local sources |
-| [git-sweep](git-sweep/) | 3.1.0 | Interactive git branch and worktree cleanup: proves a branch is contained before proposing it, frees finished worktrees, and reports what it kept and why |
+| [git-sweep](git-sweep/) | 3.2.0 | Interactive git branch and worktree cleanup: proves a branch is contained before proposing it, frees finished worktrees, and reports what it kept and why |
 | [goalify](goalify/) | 1.0.0 | Convert rough intent into the smallest useful goal payload to hand to a fresh Claude Code agent (new session, subagent, or /loop). Draft-first by default, or interactive question-first. |
 | [architecture-audit](architecture-audit/) | 1.0.0 | Architecture audit that grants the existing code no authority: derive the requirements, design the minimal from-scratch architecture, then classify every component KEEP / SIMPLIFY / REPLACE / DELETE |
 

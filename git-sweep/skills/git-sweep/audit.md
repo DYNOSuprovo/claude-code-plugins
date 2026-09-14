@@ -23,6 +23,11 @@ does **not** prune or delete anything. With no origin it stays fully local: no
 network, no ref deletion. Proving containment runs `git merge-tree`, which
 leaves unreachable tree objects behind; no ref moves, and `git gc` collects them.
 
+With `gh` installed and the repo on GitHub, the audit also asks the GitHub API
+which pull requests carry each still-unproven branch tip. Read-only, no writes.
+Without `gh`, off GitHub, or without `--include-remote`, it makes no GitHub call
+and the verdicts are the purely local ones.
+
 Execute the audit script, capturing exit code, stdout, and stderr. Do NOT
 discard stderr — the failure reason must stay visible:
 
@@ -92,6 +97,7 @@ flag from the category. When it is set, show why next to the branch:
 |---------|-----|---------|
 | `ancestry` | contained by ancestry | nothing is lost, history included |
 | `no-merge-delta` | no merge delta | the content is on the base; the intermediate commits are not |
+| `merged-pr` | merged by GitHub PR | GitHub merged this tip into the base through a pull request; it does not exclude a revert whose message lacks `This reverts commit` |
 | `unproven` | unproven | the test did not conclude — this is **not** proof of absence |
 
 ### 2a. Show every non-empty category
@@ -127,7 +133,9 @@ orphaned_worktree    | Branch | Ahead | Last commit | Subject | Proof | Deletion
 
 content_merged       | Branch | Ahead | Behind | Subject | Deletion |
   Say plainly: their content is on {base} (no merge delta), but their commits
-  are not — squash, rebase or cherry-pick.
+  are not — squash, rebase or cherry-pick. A `merged-pr` row says something
+  narrower: GitHub merged that tip into the base through a pull request, and
+  the base may have edited the content since.
 
 stale_remote         | Remote branch | Last commit | Subject | Proof |
   Remote refs carry no `d_refusal` and no force flag — deletion is by lease.

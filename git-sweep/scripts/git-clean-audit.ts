@@ -25,8 +25,10 @@ import {
 //   ancestry       — the tip is reachable from base. Nothing is lost, history included.
 //   no-merge-delta — merging it into base would change no file. Content is safe;
 //                    the intermediate commits are not (squash/rebase/cherry-pick).
+//   merged-pr      — GitHub merged this tip into the base through a pull request.
+//                    Says nothing about whether the base still holds the content.
 //   unproven       — the test did not conclude. NOT a proof of absence.
-type ProofKind = "ancestry" | "no-merge-delta" | "unproven";
+type ProofKind = "ancestry" | "no-merge-delta" | "merged-pr" | "unproven";
 
 type BranchInfo = {
   name: string;
@@ -126,6 +128,12 @@ async function git(
   return { stdout: stdout.toString().trim(), stderr: stderr.toString().trim(), exitCode };
 }
 
+async function gh(...args: string[]): Promise<{ stdout: string; exitCode: number }> {
+  const { stdout, exitCode } = await $`gh ${args}`.quiet().nothrow();
+
+  return { stdout: stdout.toString().trim(), exitCode };
+}
+
 // `git merge-tree --write-tree` is the containment proof; it landed in 2.38.
 const MIN_GIT = [2, 38] as const;
 
@@ -208,10 +216,125 @@ async function hasNoMergeDelta(branch: string, base: string): Promise<boolean> {
   return merged.stdout.split("\n")[0]?.trim() === baseTree.stdout;
 }
 
-async function proveContained(branch: string, base: string): Promise<ProofKind> {
+// A squash or rebase merge that the base has since edited defeats both proofs
+// above: the tip is no longer an ancestor and a three-way merge conflicts.
+// GitHub still knows which pull requests carry that tip.
+type GithubProver = (ref: string) => Promise<boolean>;
+
+type PullRef = { number: number; merged_at: string | null; base: { ref: string } };
+
+const REVERTS_COMMIT = /This reverts commit ([0-9a-f]{40})/gu;
+
+/* oxlint-disable anti-slop/no-runtime-typeof -- this IS the boundary parser the rule asks for: it validates one entry of the GitHub REST payload before any proof reads it, and gh hands that payload over as text, so there is no earlier place to parse. */
+function isPullRef(value: unknown): value is PullRef {
+  if (typeof value !== "object" || value === null) return false;
+
+  if (!("number" in value) || typeof value.number !== "number") return false;
+
+  if (
+    !("merged_at" in value) ||
+    (value.merged_at !== null && typeof value.merged_at !== "string")
+  ) {
+    return false;
+  }
+
+  if (!("base" in value) || typeof value.base !== "object" || value.base === null) return false;
+
+  return "ref" in value.base && typeof value.base.ref === "string";
+}
+
+/* oxlint-enable anti-slop/no-runtime-typeof -- end of the GitHub payload parser. */
+
+// Any non-zero exit is "no signal", never an error: an unknown commit answers
+// HTTP 422, and a missing or unauthenticated gh answers the same way.
+async function pullsFor(repo: string, sha: string): Promise<PullRef[]> {
+  const response = await gh("api", `repos/${repo}/commits/${sha}/pulls`);
+
+  if (response.exitCode !== 0) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(response.stdout);
+
+    return Array.isArray(parsed) ? parsed.filter((entry) => isPullRef(entry)) : [];
+  } catch {
+    return [];
+  }
+}
+
+// A merged pull request the base later reverted proves nothing. The revert is
+// found by `git revert`'s own message, within the window that already bounds
+// the containment test: a branch young enough to be tested has a younger revert.
+async function revertedPullNumbers(
+  repo: string,
+  base: string,
+  maxAgeDays: number,
+): Promise<Set<number>> {
+  const refs = [base];
+  const remoteBase = `origin/${base}`;
+
+  if ((await git("rev-parse", "--verify", remoteBase)).exitCode === 0) refs.push(remoteBase);
+
+  const reverted = new Set<number>();
+  const log = await git("log", ...refs, `--since=${maxAgeDays} days ago`, "--format=%B");
+
+  if (log.exitCode !== 0) return reverted;
+
+  for (const [, sha] of log.stdout.matchAll(REVERTS_COMMIT)) {
+    for (const pull of await pullsFor(repo, sha!)) reverted.add(pull.number);
+  }
+
+  return reverted;
+}
+
+// The repo probe and the revert scan run once, on the first still-unproven
+// branch, and never again — a repo with nothing unproven pays nothing.
+function makeGithubProver(base: string, maxAgeDays: number): GithubProver {
+  let context: Promise<{ repo: string; reverted: Set<number> } | null> | null = null;
+
+  const resolveContext = async () => {
+    // Same gate as the remote scan: no origin -> fully local, no network.
+    if ((await git("remote", "get-url", "origin")).exitCode !== 0) return null;
+
+    // gh resolves owner/repo from the remote itself, so ssh, https and
+    // `insteadOf` rewrites all work with no URL parsing here. The charset of
+    // the capture is also what makes the value safe in an API path.
+    const view = await gh("repo", "view", "--json", "nameWithOwner");
+
+    if (view.exitCode !== 0) return null;
+
+    const repo = view.stdout.match(/"nameWithOwner"\s*:\s*"([\w.-]+\/[\w.-]+)"/u)?.[1];
+
+    if (repo === undefined) return null;
+
+    return { repo, reverted: await revertedPullNumbers(repo, base, maxAgeDays) };
+  };
+
+  return async (ref: string) => {
+    context ??= resolveContext();
+    const resolved = await context;
+
+    if (resolved === null) return false;
+    const tip = await git("rev-parse", ref);
+
+    if (tip.exitCode !== 0) return false;
+
+    return (await pullsFor(resolved.repo, tip.stdout)).some(
+      (pull) =>
+        pull.merged_at !== null && pull.base.ref === base && !resolved.reverted.has(pull.number),
+    );
+  };
+}
+
+async function proveContained(
+  branch: string,
+  base: string,
+  github: GithubProver | null,
+): Promise<ProofKind> {
   if (await isAncestor(branch, base)) return "ancestry";
 
   if (await hasNoMergeDelta(branch, base)) return "no-merge-delta";
+
+  if (github !== null && (await github(branch))) return "merged-pr";
 
   return "unproven";
 }
@@ -293,6 +416,7 @@ async function scanWorktrees(
   base: string,
   currentWorktree: string,
   protectedBranches: Set<string>,
+  github: GithubProver | null,
 ): Promise<WorktreeScan> {
   const stale: WorktreeInfo[] = [];
   const removable: RemovableWorktree[] = [];
@@ -356,7 +480,7 @@ async function scanWorktrees(
       continue;
     }
 
-    const proof = await proveContained(entry.branch, base);
+    const proof = await proveContained(entry.branch, base, github);
 
     if (proof === "unproven") {
       keep(entry.branch, "worktree", entry.path);
@@ -586,6 +710,10 @@ async function main(): Promise<AuditResult | SaveResult> {
     };
   }
 
+  // --include-remote is already the audit's network opt-in; the GitHub proof
+  // rides on it rather than adding a second flag.
+  const github = includeRemote ? makeGithubProver(base, maxAgeDays) : null;
+
   try {
     // Get current branch (to exclude from cleanup)
     const currentBranch = (await git("branch", "--show-current")).stdout;
@@ -608,6 +736,7 @@ async function main(): Promise<AuditResult | SaveResult> {
       base,
       currentWorktree,
       protectedBranches,
+      github,
     );
 
     const stale_worktrees = worktreeScan.stale;
@@ -688,14 +817,14 @@ async function main(): Promise<AuditResult | SaveResult> {
         target.push(await getBranchInfo(branch, base, "ancestry"));
       } else if (branch.startsWith(config.backupPrefix)) {
         // Category 4: backup branch
-        backup.push(await getBranchInfo(branch, base, await proveContained(branch, base)));
+        backup.push(await getBranchInfo(branch, base, await proveContained(branch, base, github)));
       } else if (branch.startsWith(config.agentPrefix)) {
         // Unmerged worktree-agent branch. The tool creates these and agents
         // normally abandon them empty; one that still holds unproven commits
         // was worked on directly and carries the only copy. A name prefix is
         // no reason to offer a deletion that the same content would forbid on
         // any other branch, so it is retained like any other unproven branch.
-        const proof = await proveContained(branch, base);
+        const proof = await proveContained(branch, base, github);
         const info = await getBranchInfo(branch, base, proof);
 
         if (proof === "unproven") {
@@ -728,7 +857,7 @@ async function main(): Promise<AuditResult | SaveResult> {
         continue;
       }
 
-      const proof = await proveContained(branch, base);
+      const proof = await proveContained(branch, base, github);
 
       if (proof === "unproven") {
         kept.push({
@@ -832,14 +961,18 @@ async function main(): Promise<AuditResult | SaveResult> {
                 reason: "too-old",
                 detail: `older than ${maxAgeDays} days, containment not tested`,
               });
-            } else if (await hasNoMergeDelta(remoteBranch, remoteBaseRef)) {
-              stale_remote.push({ ...info, proof: "no-merge-delta" });
             } else {
-              kept_remote.push({
-                name: remoteBranch,
-                reason: "unproven",
-                detail: `not proven to be in ${remoteBaseRef}`,
-              });
+              const proof = await proveContained(remoteBranch, remoteBaseRef, github);
+
+              if (proof === "unproven") {
+                kept_remote.push({
+                  name: remoteBranch,
+                  reason: "unproven",
+                  detail: `not proven to be in ${remoteBaseRef}`,
+                });
+              } else {
+                stale_remote.push({ ...info, proof });
+              }
             }
           }
         }
