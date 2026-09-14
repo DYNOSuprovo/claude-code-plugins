@@ -117,7 +117,11 @@ type SaveResult = { ok: true; path: string } | { ok: false; error: string };
 async function git(
   ...args: string[]
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const { stdout, stderr, exitCode } = await $`git ${args}`.quiet().nothrow();
+  // git translates the messages the audit parses (`[would prune]`); LC_ALL=C pins them.
+  const { stdout, stderr, exitCode } = await $`git ${args}`
+    .env({ ...process.env, LC_ALL: "C" })
+    .quiet()
+    .nothrow();
 
   return { stdout: stdout.toString().trim(), stderr: stderr.toString().trim(), exitCode };
 }

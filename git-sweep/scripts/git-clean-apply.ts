@@ -49,7 +49,11 @@ type CleanupResult = {
 async function git(
   ...args: string[]
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const { stdout, stderr, exitCode } = await $`git ${args}`.quiet().nothrow();
+  // git translates the errors apply parses (`remote ref does not exist`); LC_ALL=C pins them.
+  const { stdout, stderr, exitCode } = await $`git ${args}`
+    .env({ ...process.env, LC_ALL: "C" })
+    .quiet()
+    .nothrow();
 
   return { stdout: stdout.toString().trim(), stderr: stderr.toString().trim(), exitCode };
 }
