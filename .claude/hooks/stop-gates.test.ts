@@ -1,8 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
-import { markerPath, parseStopInput, skipsGates } from "./stop-gates.ts";
+import { markerPath, parseStopInput, skipsGates, type StopInput } from "./stop-gates.ts";
 
 const SESSION_ID = "0244f1e4-d3aa-44b3-8919-3fe7b1e82701";
 
@@ -57,5 +58,144 @@ describe("markerPath", () => {
     for (const id of ["", "..", "../etc", "a/b", "a b"]) {
       expect(markerPath(id)).toBeNull();
     }
+  });
+});
+
+describe("hook subprocess", () => {
+  const HOOK = join(import.meta.dir, "stop-gates.ts");
+  const RED_LINT = "Red gates: lint-ts\n\nlint-ts: bun x oxlint\nscripts/a.ts:1:7: no-unused-vars";
+  const RED_FMT = "Red gates: fmt\n\nfmt: bun x oxfmt --check\nscripts/a.ts";
+
+  // Stands in for scripts/run-gates.ts: exits with the code in gates-exit,
+  // prints gates-report on stderr, and counts its runs in gates-runs.
+  const GATES_STUB = [
+    'import { appendFileSync, readFileSync } from "node:fs";',
+    'appendFileSync("gates-runs", "x");',
+    'const exitCode = Number(readFileSync("gates-exit", "utf8"));',
+    'if (exitCode !== 0) console.error(readFileSync("gates-report", "utf8"));',
+    "process.exit(exitCode);",
+  ].join("\n");
+
+  let projectDir = "";
+  let tempRoot = "";
+
+  beforeEach(() => {
+    projectDir = mkdtempSync(join(tmpdir(), "stop-gates-project-"));
+    tempRoot = mkdtempSync(join(tmpdir(), "stop-gates-tmp-"));
+    mkdirSync(join(projectDir, "scripts"));
+    writeFileSync(join(projectDir, "scripts", "run-gates.ts"), GATES_STUB);
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  const markerFile = () => join(tempRoot, "claude-code-plugins-stop", SESSION_ID);
+
+  function gateRuns(): number {
+    const runs = join(projectDir, "gates-runs");
+
+    return existsSync(runs) ? readFileSync(runs, "utf8").length : 0;
+  }
+
+  function setGates(exitCode: number, report: string) {
+    writeFileSync(join(projectDir, "gates-exit"), String(exitCode));
+    writeFileSync(join(projectDir, "gates-report"), report);
+  }
+
+  function setMarker(content: string) {
+    mkdirSync(dirname(markerFile()), { recursive: true });
+    writeFileSync(markerFile(), content);
+  }
+
+  async function runHook(payload: StopInput & { stop_hook_active?: boolean } = {}) {
+    const input = { session_id: SESSION_ID, permission_mode: "default", background_tasks: [] };
+
+    const proc = Bun.spawn([process.execPath, HOOK], {
+      stdin: new Blob([JSON.stringify({ ...input, ...payload })]),
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir, TMPDIR: tempRoot },
+    });
+
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+
+    return { exitCode, stdout, stderr };
+  }
+
+  test("ends the turn without running the gates when the session made no edit", async () => {
+    setGates(1, RED_LINT);
+
+    const { exitCode } = await runHook();
+
+    expect(exitCode).toBe(0);
+    expect(gateRuns()).toBe(0);
+  });
+
+  test("deletes the marker once the gates are green", async () => {
+    setMarker("");
+    setGates(0, "");
+
+    const { exitCode } = await runHook();
+
+    expect(exitCode).toBe(0);
+    expect(gateRuns()).toBe(1);
+    expect(existsSync(markerFile())).toBe(false);
+  });
+
+  test("blocks on a red gate after an edit and records the verdict", async () => {
+    setMarker("");
+    setGates(1, RED_LINT);
+
+    const { exitCode, stderr } = await runHook({ stop_hook_active: true });
+
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain("lint-ts: bun x oxlint");
+    expect(readFileSync(markerFile(), "utf8")).toBe("Red gates: lint-ts");
+  });
+
+  test("ends the turn with a note on the same verdict when nothing was edited since", async () => {
+    setMarker("Red gates: lint-ts");
+    setGates(1, RED_LINT);
+
+    const { exitCode, stdout } = await runHook();
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({
+      systemMessage: expect.stringContaining("Red gates: lint-ts"),
+    });
+    expect(readFileSync(markerFile(), "utf8")).toBe("Red gates: lint-ts");
+  });
+
+  test("blocks again on a changed verdict, even when nothing was edited since", async () => {
+    setMarker("Red gates: lint-ts");
+    setGates(1, RED_FMT);
+
+    const { exitCode } = await runHook();
+
+    expect(exitCode).toBe(2);
+    expect(readFileSync(markerFile(), "utf8")).toBe("Red gates: fmt");
+  });
+
+  test("keeps the marker and skips the gates in plan mode and beside a background subagent", async () => {
+    setMarker("");
+    setGates(1, RED_LINT);
+
+    for (const payload of [
+      { permission_mode: "plan" },
+      { background_tasks: [{ type: "subagent" }] },
+    ]) {
+      const { exitCode } = await runHook(payload);
+
+      expect(exitCode).toBe(0);
+    }
+
+    expect(gateRuns()).toBe(0);
+    expect(readFileSync(markerFile(), "utf8")).toBe("");
   });
 });

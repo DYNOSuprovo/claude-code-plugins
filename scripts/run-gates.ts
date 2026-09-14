@@ -2,8 +2,11 @@
 
 /**
  * Run every gate of `EXPECTED_COMMANDS` as CI runs it, in parallel, from the
- * repo root. Silent when all pass; otherwise prints each failing gate with its
- * output and exits 1.
+ * repo root. Silent when all pass; otherwise prints a `Red gates: <names>`
+ * line, then each failing gate with its output, and exits 1.
+ *
+ * That first line is the verdict `.claude/hooks/stop-gates.ts` compares from
+ * one Stop to the next: changing its shape changes both files.
  */
 
 import { join } from "node:path";
@@ -20,11 +23,14 @@ export interface GateResult {
 }
 
 export function failureReport(results: GateResult[]): string {
-  return results
-    .flatMap((result) =>
-      result.exitCode === 0 ? [] : [`${result.gate}: ${result.command}\n${result.output}`],
-    )
-    .join("\n\n");
+  const red = results.filter((result) => result.exitCode !== 0);
+
+  if (red.length === 0) return "";
+
+  return [
+    `Red gates: ${red.map((result) => result.gate).join(", ")}`,
+    ...red.map((result) => `${result.gate}: ${result.command}\n${result.output}`),
+  ].join("\n\n");
 }
 
 async function runGate(repoRoot: string, gate: string, command: string): Promise<GateResult> {

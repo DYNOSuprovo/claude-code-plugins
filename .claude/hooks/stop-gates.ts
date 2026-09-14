@@ -4,8 +4,13 @@
  * Stop hook — runs every CI gate at the end of a turn that edited the repo, and
  * blocks the stop while one is red.
  *
- * `format-on-edit.ts` marks the session on each in-repo edit. A green run
- * clears the mark; a red one keeps it, so every later Stop checks again.
+ * `format-on-edit.ts` empties the session's marker on each in-repo edit. A
+ * green run deletes the marker. A red run writes its verdict, the first line
+ * of the `scripts/run-gates.ts` report, into the marker and blocks. A later
+ * Stop with no edit in between ends the turn on the same verdict, with a note
+ * to the user: a red the agent cannot fix must not cost every turn Claude
+ * Code's 8 consecutive blocks.
+ *
  * Skipped in plan mode, where a block loops through ExitPlanMode, and while a
  * subagent, workflow or teammate runs in the background: it may still be
  * editing.
@@ -58,16 +63,29 @@ if (import.meta.main) {
 
   if (!(await Bun.file(marker).exists())) process.exit(HOOK_EXIT.ALLOW);
 
+  const lastVerdict = await Bun.file(marker).text();
+
   const gates = await $`${GATES_COMMAND}`
     .cwd(process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd())
     .nothrow()
     .quiet();
 
-  if (gates.exitCode !== 0) {
-    console.error(`\`${GATES_COMMAND.join(" ")}\` is red; fix it before ending the turn.`);
-    console.error(`${gates.stdout.toString()}${gates.stderr.toString()}`.trim());
-    process.exit(HOOK_EXIT.BLOCK);
+  if (gates.exitCode === 0) {
+    await rm(marker, { force: true });
+    process.exit(HOOK_EXIT.ALLOW);
   }
 
-  await rm(marker, { force: true });
+  const report = `${gates.stdout.toString()}${gates.stderr.toString()}`.trim();
+  const verdict = report.split("\n", 1)[0] ?? "";
+
+  if (verdict === lastVerdict) {
+    const note = `${verdict}: unchanged, and nothing edited since the last Stop block.`;
+    console.log(JSON.stringify({ systemMessage: note }));
+    process.exit(HOOK_EXIT.ALLOW);
+  }
+
+  await Bun.write(marker, verdict);
+  console.error(`\`${GATES_COMMAND.join(" ")}\` is red; fix it before ending the turn.`);
+  console.error(report);
+  process.exit(HOOK_EXIT.BLOCK);
 }

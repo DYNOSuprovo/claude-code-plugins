@@ -17,12 +17,15 @@ CI. An agent meets a finding once, at the end of its turn, not on each edit.
   the formatting diff, or the formatter failure, back as PostToolUse
   `additionalContext`. Claude Code renders a Write or Edit result from the
   file path alone, so `updatedToolOutput` cannot carry code there.
-- Each in-repo Edit or Write marks the session in
+- Each in-repo Edit or Write empties the session's marker,
   `os.tmpdir()/claude-code-plugins-stop/<session_id>`; a subagent edit marks
   its parent. The Stop hook (`stop-gates.ts`) runs `scripts/run-gates.ts` for
-  a marked session and blocks while a gate is red, `stop_hook_active` or not.
-  Plan mode and a background subagent, workflow or teammate are the only
-  skips. Claude Code ends a turn after 8 consecutive blocks.
+  a marked session. Green deletes the marker. Red writes the verdict, the
+  report's `Red gates:` line, into the marker and blocks, `stop_hook_active`
+  or not. A Stop with no edit since that block ends the turn on the same
+  verdict, with a `systemMessage` note; a changed verdict blocks again. Plan
+  mode and a background subagent, workflow or teammate are the only skips.
+  Claude Code ends a turn after 8 consecutive blocks.
 - A new gate is one `EXPECTED_COMMANDS` entry in
   `scripts/check-lint-config.ts`. `lint-config` then demands its pre-commit job
   and its CI step; Stop and pre-push run it through `run-gates.ts`.
@@ -38,7 +41,8 @@ Known ceilings:
 - A write through Bash alone sets no marker, so that turn skips Stop;
   pre-commit and pre-push still check.
 - The gates run repo-wide at `CLAUDE_PROJECT_DIR`. Red work of another session
-  in the same checkout blocks this session. A session that enters a worktree
-  keeps that directory, so its worktree work is not Stop-gated; the hook
-  input's `cwd` is the one field that follows the worktree.
+  in the same checkout blocks this session once per verdict. A session that
+  enters a worktree keeps that directory, so its worktree work is not
+  Stop-gated; the hook input's `cwd` is the one field that follows the
+  worktree.
 - pre-push checks the working tree, not the pushed commits.
