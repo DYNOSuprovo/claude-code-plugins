@@ -27,6 +27,7 @@ bun x tsgo --noEmit                                    # types; fall back to ./n
 bun x oxlint                                           # lint (correctness + suspicious + pedantic + anti-slop)
 bun x oxfmt '**/*.ts' '**/*.js' '**/*.mjs' '**/*.cjs'  # format; add --check to verify only
 bun ./scripts/lint-shell.ts                            # shellcheck + shfmt; takes paths, else the whole repo
+bun ./scripts/run-gates.ts                             # every gate, as CI runs it
 ```
 
 Everything above also runs in `pre-commit` and CI except `bun test`: `lefthook.yml` declares no test job, so run the tests yourself before pushing. Job list, order, and argument differences: `docs/repo-ops.md`.

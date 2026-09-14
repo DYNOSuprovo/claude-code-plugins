@@ -65,6 +65,7 @@ const ANTI_SLOP_PREFIX = "anti-slop/";
  * The single source of truth for gate parity. A generic diff of the two files
  * would flag the launcher and the documented `--all`; this table states each
  * expected pair instead, and every tolerated difference carries its reason.
+ * Its second reader is `run-gates.ts`, which runs the `ci` column.
  */
 export const EXPECTED_COMMANDS: CommandPair[] = [
   {
