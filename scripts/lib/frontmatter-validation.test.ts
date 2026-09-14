@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { checkKeys, classifyComponent, validateFrontmatter } from "./frontmatter-validation";
 
 describe("classifyComponent", () => {

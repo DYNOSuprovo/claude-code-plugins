@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { existsSync, readFileSync } from "node:fs";
 import {
   readdir,
   stat,
@@ -11,9 +12,8 @@ import {
   unlink,
   cp,
 } from "node:fs/promises";
-import { join, dirname, basename } from "node:path";
 import { homedir } from "node:os";
-import { existsSync, readFileSync } from "node:fs";
+import { join, dirname, basename } from "node:path";
 
 // === Constants ===
 const CLAUDE_DIR = join(homedir(), ".claude", "projects");

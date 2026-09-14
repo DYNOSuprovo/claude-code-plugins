@@ -7,10 +7,11 @@
 // one JSON object on stdout; the /git:rebase command asks the user and feeds the
 // answers back in as a plan on stdin.
 
-import { $ } from "bun";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
+import { $ } from "bun";
 
 // ---------------------------------------------------------------------------
 // Types

@@ -1,5 +1,6 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "sortImports": true,
   "ignorePatterns": [
     "archive/**",
     "tools/oxlint/anti-slop/**"

@@ -1,8 +1,9 @@
 import { describe, expect, test, afterAll } from "bun:test";
-import { $ } from "bun";
 import { mkdtemp, rm, cp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+import { $ } from "bun";
 
 const testDir = import.meta.dirname;
 

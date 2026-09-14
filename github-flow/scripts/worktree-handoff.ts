@@ -8,11 +8,12 @@
 // checklists it writes; a fresh worktree contains none of it, so every file is
 // symlinked back to the main checkout instead of copied.
 
-import { $, Glob } from "bun";
 import { existsSync, lstatSync } from "node:fs";
 import { appendFile, mkdir, readdir, readFile, symlink } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { parseArgs as parseArgv } from "node:util";
+
+import { $, Glob } from "bun";
 
 // ---------------------------------------------------------------------------
 // Types

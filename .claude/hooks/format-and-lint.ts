@@ -9,6 +9,7 @@
  */
 
 import { join } from "node:path";
+
 import { HOOK_EXIT } from "./guard-destructive.ts";
 
 export interface HookInput {

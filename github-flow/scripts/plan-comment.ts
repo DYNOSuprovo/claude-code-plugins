@@ -1,7 +1,8 @@
-import { $ } from "bun";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
+
+import { $ } from "bun";
 
 export const PLAN_MARKER = "<!-- plan -->";
 

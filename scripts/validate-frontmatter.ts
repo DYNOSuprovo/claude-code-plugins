@@ -7,7 +7,9 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+
 import { $ } from "bun";
+
 import { checkKeys, classifyComponent, validateFrontmatter } from "./lib/frontmatter-validation";
 
 // Colors (disabled if not a terminal)

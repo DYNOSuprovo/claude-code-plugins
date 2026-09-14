@@ -22,9 +22,10 @@
  * `--update` does not touch it: see that README for the bump procedure.
  */
 
-import { $ } from "bun";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+
+import { $ } from "bun";
 import { parse } from "yaml";
 
 import config from "../oxlint.config.ts";

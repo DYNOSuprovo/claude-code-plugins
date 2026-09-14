@@ -11,10 +11,12 @@
  * sync. validate-marketplace runs afterwards as a safety net.
  */
 
-import { $ } from "bun";
 import { existsSync } from "node:fs";
 import { rename } from "node:fs/promises";
 import { join } from "node:path";
+
+import { $ } from "bun";
+
 import {
   extractVersionFromReadme,
   setVersionInReadme,

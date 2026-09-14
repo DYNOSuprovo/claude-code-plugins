@@ -3,6 +3,7 @@
 /** Runs on every Bash call, so the command check comes before any subprocess. */
 
 import { homedir } from "node:os";
+
 import {
   isPrCreate,
   parsePayload,

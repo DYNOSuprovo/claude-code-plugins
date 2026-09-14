@@ -3,10 +3,11 @@
 // git-clean-audit — Scan git branches and worktrees for cleanup candidates.
 // Emits structured JSON for the git-sweep skill (audit phase, feeding git-clean-apply).
 
-import { $ } from "bun";
 import { existsSync } from "node:fs";
 import { rename } from "node:fs/promises";
 import { join } from "node:path";
+
+import { $ } from "bun";
 
 import {
   buildProtectedSet,

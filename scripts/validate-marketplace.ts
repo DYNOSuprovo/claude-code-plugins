@@ -4,9 +4,11 @@
  * Validates marketplace.json against individual plugin.json files
  */
 
-import { $ } from "bun";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+
+import { $ } from "bun";
+
 import {
   validateNameMatch,
   validateVersionSync,

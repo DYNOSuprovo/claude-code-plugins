@@ -1,8 +1,8 @@
 import { describe, test, expect } from "bun:test";
 import { mkdtempSync, mkdirSync, rmSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   parseArgs,

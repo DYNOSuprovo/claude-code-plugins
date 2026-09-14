@@ -3,8 +3,9 @@
 // git-clean-apply — Execute a cleanup manifest one operation at a time.
 // Consumed by the git-sweep skill (apply phase, fed by the audit phase).
 
-import { $ } from "bun";
 import { rename, unlink } from "node:fs/promises";
+
+import { $ } from "bun";
 
 import { buildProtectedSet, originHeadTarget, readProtectionConfig } from "./sweep-config.ts";
 

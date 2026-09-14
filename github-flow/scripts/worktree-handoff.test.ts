@@ -5,7 +5,9 @@ import { lstatSync, mkdtempSync, rmSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
 import { $ } from "bun";
+
 import { detectInstall, parseArgs } from "./worktree-handoff.ts";
 
 const SCRIPT = join(import.meta.dir, "worktree-handoff.ts");
