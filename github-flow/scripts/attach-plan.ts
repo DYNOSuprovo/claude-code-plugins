@@ -5,11 +5,10 @@
 import { homedir } from "node:os";
 
 import {
+  carriedPlan,
   isPrCreate,
   parsePayload,
-  planKeyFor,
   planPath,
-  prHeadBranch,
   prNumberFrom,
   upsertPlanComment,
 } from "./plan-comment.ts";
@@ -26,20 +25,25 @@ if (import.meta.main) {
 
     if (pr === null) process.exit(0);
 
-    // The session cwd may sit on another branch than the checkout `gh pr create` ran in.
     const cwd = payload.cwd ?? process.cwd();
-    const branch = await prHeadBranch(cwd, pr);
+    const home = homedir();
+    const own = planPath(home, payload.session_id ?? "", payload.agent_id);
+    const plan = own === null ? null : Bun.file(own);
 
-    if (branch === null) process.exit(0);
-    const key = await planKeyFor(cwd, branch);
+    if (plan !== null && (await plan.exists())) {
+      await upsertPlanComment(cwd, pr, await plan.text());
+      process.exit(0);
+    }
 
-    if (key === null) process.exit(0);
+    // No plan of its own: this session may have received one through "fresh context".
+    const transcript = payload.transcript_path;
 
-    const plan = Bun.file(planPath(homedir(), key));
+    if (transcript === undefined) process.exit(0);
+    const carried = await carriedPlan(home, transcript);
 
-    if (!(await plan.exists())) process.exit(0);
+    if (carried === null) process.exit(0);
 
-    await upsertPlanComment(cwd, pr, await plan.text());
+    await upsertPlanComment(cwd, pr, carried, payload.session_id);
   } catch (error) {
     console.error(`attach-plan: ${error instanceof Error ? error.message : String(error)}`);
   }
