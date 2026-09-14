@@ -151,6 +151,8 @@ sandbox, effort, and any non-default model on every resume**, via
 - **Never `resume --last`** — it races across codex runs in the same cwd.
 - The thread id is stable across resumes (`thread.started` re-fires with the
   same id), so the same `jq` command keeps working.
+- The `allowed-tools` grant covers the invoking turn only, so a follow-up in a
+  later turn prompts for the Write to `<dir>` and for these commands.
 
 ### Overrides (codex native flags)
 
