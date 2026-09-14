@@ -5,7 +5,7 @@
  * resolve ExitPlanMode as a denial (CLI 2.1.270), and PostToolUse only runs
  * after a tool succeeds, so a plan approved that way would never be captured.
  * The cost is a file written for a plan the user then rejects, overwritten by
- * the next approval on that branch.
+ * the next approval in that session.
  */
 
 import { mkdir } from "node:fs/promises";
@@ -13,9 +13,9 @@ import { homedir } from "node:os";
 import { dirname } from "node:path";
 
 import {
+  harnessPlanFile,
   openPrNumber,
   parsePayload,
-  planKeyFor,
   planPath,
   planText,
   upsertPlanComment,
@@ -31,16 +31,26 @@ if (import.meta.main) {
 
     if (plan === null) process.exit(0);
 
-    const cwd = payload.cwd ?? process.cwd();
-    const key = await planKeyFor(cwd);
+    const session = payload.session_id;
 
-    if (key === null) process.exit(0);
+    if (session === undefined) process.exit(0);
 
-    const file = planPath(homedir(), key);
-    const content = withSessionLine(plan, payload.session_id);
+    const home = homedir();
+    const file = planPath(home, session, payload.agent_id);
+
+    if (file === null) process.exit(0);
+
+    const content = withSessionLine(plan, session);
     await mkdir(dirname(file), { recursive: true });
     await Bun.write(file, content);
 
+    // The harness re-injects its own copy into a fresh-context session; tagging it
+    // is what carries the planning session's id across that handoff.
+    const harness = await harnessPlanFile(home, plan);
+
+    if (harness !== null) await Bun.write(harness, content);
+
+    const cwd = payload.cwd ?? process.cwd();
     const pr = await openPrNumber(cwd);
 
     if (pr !== null) await upsertPlanComment(cwd, pr, content);

@@ -19,9 +19,8 @@ The worktree branches from the repository's default branch. When the PR base is 
 1. **Read.** `gh issue view <n> --json title,body,comments,labels`. Then the `AGENTS.md` or `CLAUDE.md` of the repository and of every app the issue names.
 2. **Implement** in the worktree, inside the boundary the issue's *Out of scope* section draws.
 3. **Verify alone.** Run the validation commands from the prompt, `/verify` when the repository ships that skill. Run e2e when the evidence rules ask for it. At most 2 red-green rounds. Red after the second round: no commit, no push, report `blocked`.
-4. **Plan.** The prompt carried a plan: write it to `~/.claude/plans/by-branch/<repo>/<branch>.md` before the PR. `<repo>` is the basename of the main checkout from `git rev-parse --git-common-dir`, `<branch>` is `git branch --show-current`.
-5. **Land.** `git:commit <n>`, then `github-flow:pr`. A visible change carries its Before/After pair; `github-flow:pr` captures and attaches it.
-6. **Report.** The PR URL, the evidence with its numbers (commands run, passes, failures, e2e count, screenshots attached), what was left out.
+4. **Land.** `git:commit <n>`, then `github-flow:pr`. A visible change carries its Before/After pair; `github-flow:pr` captures and attaches it.
+5. **Report.** The PR URL, the evidence with its numbers (commands run, passes, failures, e2e count, screenshots attached), what was left out.
 
 ## Mode `fix <pr>`
 

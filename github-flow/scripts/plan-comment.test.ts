@@ -1,21 +1,20 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { $ } from "bun";
-
 import {
   buildBody,
+  carriedPlan,
   findPlanComment,
+  harnessPlanFile,
   isPrCreate,
   parsePayload,
   PLAN_MARKER,
-  planKey,
-  planKeyFor,
   planPath,
   planText,
   prNumberFrom,
+  sessionMarkers,
   withSessionLine,
 } from "./plan-comment.ts";
 
@@ -26,14 +25,11 @@ afterEach(() => {
   tmpDirs = [];
 });
 
-/** An empty repository at <tmp>/ideas checked out on `dev`. */
-async function makeRepo(): Promise<string> {
+function makeTmp(): string {
   const tmp = mkdtempSync(join(tmpdir(), "plan-comment-"));
   tmpDirs.push(tmp);
-  const repo = join(tmp, "ideas");
-  await $`git init -q --initial-branch=dev ${repo}`.quiet();
 
-  return repo;
+  return tmp;
 }
 
 describe("parsePayload", () => {
@@ -103,45 +99,169 @@ describe("prNumberFrom", () => {
   });
 });
 
-describe("planKey", () => {
-  test("names the main checkout, from the checkout or from a worktree", () => {
-    expect(planKey("/w/ideas/.git", "main")).toBe("ideas/main");
-    expect(planKey("/w/ideas/.git", "feature/plan-on-pr")).toBe("ideas/feature/plan-on-pr");
-  });
-
-  test("an empty branch or an unusable git dir yields null", () => {
-    expect(planKey("/w/ideas/.git", "")).toBeNull();
-    expect(planKey(".git", "main")).toBeNull();
-    expect(planKey("", "main")).toBeNull();
-  });
-});
-
-describe("planKeyFor", () => {
-  test("a given branch wins over the one checked out in cwd", async () => {
-    const repo = await makeRepo();
-
-    expect(await planKeyFor(repo, "fix/93-allowed-tools-rules")).toBe(
-      "ideas/fix/93-allowed-tools-rules",
-    );
-  });
-
-  test("no branch given keys the checked-out one", async () => {
-    const repo = await makeRepo();
-
-    expect(await planKeyFor(repo)).toBe("ideas/dev");
-  });
-
-  test("outside a repository yields null", async () => {
-    const tmp = mkdtempSync(join(tmpdir(), "plan-comment-"));
-    tmpDirs.push(tmp);
-
-    expect(await planKeyFor(tmp, "dev")).toBeNull();
-  });
-});
-
 describe("planPath", () => {
-  test("nests the branch under the repository", () => {
-    expect(planPath("/h", "ideas/feature/x")).toBe("/h/.claude/plans/by-branch/ideas/feature/x.md");
+  test("keys the session, and nests a subagent under it", () => {
+    expect(planPath("/h", "abc")).toBe("/h/.claude/plans/by-session/abc.md");
+    expect(planPath("/h", "abc", "agent-7f")).toBe("/h/.claude/plans/by-session/abc/agent-7f.md");
+  });
+
+  test("an id that is not a safe path segment yields null", () => {
+    expect(planPath("/h", "")).toBeNull();
+    expect(planPath("/h", "..")).toBeNull();
+    expect(planPath("/h", "a/b")).toBeNull();
+    expect(planPath("/h", "abc", "..")).toBeNull();
+  });
+});
+
+describe("sessionMarkers", () => {
+  test("names every session, in order, once each", () => {
+    expect(sessionMarkers("<!-- session_id: A -->\nx\n<!-- session_id: B -->\n")).toEqual([
+      "A",
+      "B",
+    ]);
+    expect(sessionMarkers("<!-- session_id: A -->\n<!-- session_id: A -->")).toEqual(["A"]);
+  });
+
+  test("no marker yields nothing", () => {
+    expect(sessionMarkers("")).toEqual([]);
+    expect(sessionMarkers("# Plan\n1. Do it")).toEqual([]);
+  });
+
+  test("finds a marker inside a JSON-escaped transcript line", () => {
+    const line = JSON.stringify({
+      type: "user",
+      message: { role: "user", content: "<!-- session_id: A -->\n# Plan" },
+    });
+
+    expect(sessionMarkers(line)).toEqual(["A"]);
+  });
+});
+
+describe("carriedPlan", () => {
+  /** A home with the stored plans given, and a transcript of one line per content. */
+  async function makeTranscript(
+    stored: Record<string, string>,
+    lines: string[],
+  ): Promise<{ home: string; transcript: string }> {
+    const tmp = makeTmp();
+    const home = join(tmp, "home");
+
+    for (const [id, text] of Object.entries(stored)) {
+      await Bun.write(join(home, ".claude", "plans", "by-session", `${id}.md`), text);
+    }
+
+    const transcript = join(tmp, "t.jsonl");
+    await Bun.write(
+      transcript,
+      lines
+        .map((content) => JSON.stringify({ type: "user", message: { role: "user", content } }))
+        .join("\n"),
+    );
+
+    return { home, transcript };
+  }
+
+  test("a marker with a stored plan yields that plan", async () => {
+    const { home, transcript } = await makeTranscript({ A: "<!-- session_id: A -->\n# Plan\n" }, [
+      "go",
+      "<!-- session_id: A -->\n# Plan",
+      "done",
+    ]);
+
+    expect(await carriedPlan(home, transcript)).toBe("<!-- session_id: A -->\n# Plan\n");
+  });
+
+  test("the last marker that has a file wins", async () => {
+    const { home, transcript } = await makeTranscript({ A: "# A's plan\n" }, [
+      "<!-- session_id: A -->",
+      "quoting <!-- session_id: B --> here",
+    ]);
+
+    expect(await carriedPlan(home, transcript)).toBe("# A's plan\n");
+  });
+
+  test("a marker with no stored plan yields null", async () => {
+    const { home, transcript } = await makeTranscript({}, ["<!-- session_id: A -->"]);
+
+    expect(await carriedPlan(home, transcript)).toBeNull();
+  });
+
+  test("a plan comment read from GitHub does not count", async () => {
+    const { home, transcript } = await makeTranscript({ X: "# X's plan\n" }, [
+      `${PLAN_MARKER}\n<!-- session_id: X -->\n<details><summary>Plan</summary>`,
+      `${PLAN_MARKER}\r\n<!-- session_id: X -->\r\n<details>`,
+    ]);
+
+    expect(await carriedPlan(home, transcript)).toBeNull();
+  });
+
+  test("an injected plan still wins over a later quoted comment", async () => {
+    const { home, transcript } = await makeTranscript({ A: "# A's plan\n", X: "# X's plan\n" }, [
+      "<!-- session_id: A -->\n# Plan",
+      `${PLAN_MARKER}\n<!-- session_id: X -->`,
+    ]);
+
+    expect(await carriedPlan(home, transcript)).toBe("# A's plan\n");
+  });
+
+  test("no marker yields null", async () => {
+    const { home, transcript } = await makeTranscript({ A: "# A's plan\n" }, ["go"]);
+
+    expect(await carriedPlan(home, transcript)).toBeNull();
+  });
+
+  test("a transcript that does not exist yields null", async () => {
+    const { home } = await makeTranscript({ A: "# A's plan\n" }, ["<!-- session_id: A -->"]);
+
+    expect(await carriedPlan(home, join(home, "nowhere.jsonl"))).toBeNull();
+  });
+});
+
+describe("harnessPlanFile", () => {
+  /** A home whose `~/.claude/plans/<name>.md` files hold the given content. */
+  async function makeHome(files: Record<string, string>): Promise<string> {
+    const home = join(makeTmp(), "home");
+
+    for (const [name, text] of Object.entries(files)) {
+      await Bun.write(join(home, ".claude", "plans", name), text);
+    }
+
+    return home;
+  }
+
+  test("the newest file with the same content wins", async () => {
+    const home = await makeHome({ "old.md": "# Plan\n", "new.md": "# Plan\n" });
+    const old = new Date(Date.now() - 10 * 60 * 1000);
+    utimesSync(join(home, ".claude", "plans", "old.md"), old, old);
+
+    expect(await harnessPlanFile(home, "# Plan")).toBe(join(home, ".claude", "plans", "new.md"));
+  });
+
+  test("a file already tagged still matches the untagged plan", async () => {
+    const home = await makeHome({ "a.md": "<!-- session_id: A -->\n# Plan\n" });
+
+    expect(await harnessPlanFile(home, "# Plan")).toBe(join(home, ".claude", "plans", "a.md"));
+  });
+
+  test("a plan written hours before its approval is still found", async () => {
+    const home = await makeHome({ "a.md": "# Plan\n" });
+    const earlier = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    utimesSync(join(home, ".claude", "plans", "a.md"), earlier, earlier);
+
+    expect(await harnessPlanFile(home, "# Plan")).toBe(join(home, ".claude", "plans", "a.md"));
+  });
+
+  test("subdirectories are skipped, not descended", async () => {
+    const home = await makeHome({ "by-session/A.md": "# Plan\n" });
+
+    expect(await harnessPlanFile(home, "# Plan")).toBeNull();
+  });
+
+  test("no matching content, or no plans directory, yields null", async () => {
+    const home = await makeHome({ "a.md": "# Other\n" });
+
+    expect(await harnessPlanFile(home, "# Plan")).toBeNull();
+    expect(await harnessPlanFile(join(home, "nowhere"), "# Plan")).toBeNull();
   });
 });
 
@@ -154,6 +274,12 @@ describe("withSessionLine", () => {
   test("no session id writes the plan alone, with no empty marker", () => {
     expect(withSessionLine("# Plan", undefined)).toBe("# Plan\n");
     expect(withSessionLine("# Plan", "")).toBe("# Plan\n");
+  });
+
+  test("re-tagging replaces the line instead of stacking one", () => {
+    expect(withSessionLine(withSessionLine("# Plan", "A"), "B")).toBe(
+      "<!-- session_id: B -->\n# Plan\n",
+    );
   });
 });
 
@@ -178,6 +304,29 @@ describe("buildBody", () => {
   test("its own output is recognised as a plan comment", () => {
     const body = buildBody("# Plan");
     expect(findPlanComment(JSON.stringify({ id: 1, login: "me", body }), "me")).toBe(1);
+  });
+
+  test("another executing session follows the session line", () => {
+    expect(buildBody(withSessionLine("# Plan", "A"), "B")).toBe(
+      `${PLAN_MARKER}\n<!-- session_id: A -->\n<!-- executed_by: B -->\n<details><summary>Plan</summary>\n\n# Plan\n\n</details>\n`,
+    );
+  });
+
+  test("the session that wrote the plan is not named twice", () => {
+    expect(buildBody(withSessionLine("# Plan", "A"), "A")).toBe(
+      `${PLAN_MARKER}\n<!-- session_id: A -->\n<details><summary>Plan</summary>\n\n# Plan\n\n</details>\n`,
+    );
+  });
+
+  test("an untagged plan carries the executing session alone", () => {
+    expect(buildBody("# Plan", "B")).toBe(
+      `${PLAN_MARKER}\n<!-- executed_by: B -->\n<details><summary>Plan</summary>\n\n# Plan\n\n</details>\n`,
+    );
+  });
+
+  test("a two-line header still opens a matching plan comment", () => {
+    const body = buildBody(withSessionLine("# Plan", "A"), "B");
+    expect(findPlanComment(JSON.stringify({ id: 6, login: "me", body }), "me")).toBe(6);
   });
 });
 

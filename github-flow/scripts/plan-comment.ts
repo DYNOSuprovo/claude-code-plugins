@@ -1,6 +1,6 @@
-import { rm } from "node:fs/promises";
+import { readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { join } from "node:path";
 
 import { $ } from "bun";
 
@@ -14,9 +14,17 @@ const PULL_URL = /\/pull\/(\d+)/u;
 
 const SESSION_LINE = /^<!-- session_id: [^\s>]+ -->\n?/u;
 
+const SESSION_MARKER = /<!-- session_id: ([^\s>]+) -->/gu;
+
+const SAFE_ID = /^[a-zA-Z0-9_-]+$/u;
+
+const QUOTED_PLAN_HEADER = /<!-- plan -->(?:\\r|\\n|\s)*<!-- session_id: [^\s>]+ -->/gu;
+
 export interface HookPayload {
   cwd?: string;
   session_id?: string;
+  agent_id?: string;
+  transcript_path?: string;
   tool_input?: { command?: string; plan?: string };
   tool_response?: { plan?: string };
 }
@@ -53,30 +61,43 @@ export function prNumberFrom(text: string): number | null {
   return number === undefined ? null : Number(number);
 }
 
-export function planKey(gitCommonDir: string, branch: string): string | null {
-  const repo = basename(dirname(gitCommonDir));
+/** `~/.claude/plans/by-session/<session>[/<agent>].md`, the identity known when a plan is approved. */
+export function planPath(home: string, session: string, agent?: string): string | null {
+  if (!SAFE_ID.test(session)) return null;
+  const dir = join(home, ".claude", "plans", "by-session");
 
-  if (branch.length === 0 || repo.length === 0 || repo === "." || repo === "..") return null;
+  if (agent === undefined) return join(dir, `${session}.md`);
 
-  return `${repo}/${branch}`;
+  return SAFE_ID.test(agent) ? join(dir, session, `${agent}.md`) : null;
 }
 
-export function planPath(home: string, key: string): string {
-  return join(home, ".claude", "plans", "by-branch", `${key}.md`);
+/** Drops a leading `<!-- session_id: … -->` line. */
+export function stripSessionLine(text: string): string {
+  return text.replace(SESSION_LINE, "");
 }
 
+/** Session ids named by markers in `text`, in order of appearance, deduped. */
+export function sessionMarkers(text: string): string[] {
+  return [...new Set([...text.matchAll(SESSION_MARKER)].flatMap((match) => match[1] ?? []))];
+}
+
+/** Replaces any leading session line, so a plan carried A -> B is not tagged twice. */
 export function withSessionLine(plan: string, sessionId: string | undefined): string {
-  const body = plan.endsWith("\n") ? plan : `${plan}\n`;
+  const tagged = sessionId !== undefined && sessionId.length > 0;
+  const plain = tagged ? stripSessionLine(plan) : plan;
+  const body = plain.endsWith("\n") ? plain : `${plain}\n`;
 
-  if (sessionId === undefined || sessionId.length === 0) return body;
-
-  return `<!-- session_id: ${sessionId} -->\n${body}`;
+  return tagged ? `<!-- session_id: ${sessionId} -->\n${body}` : body;
 }
 
-export function buildBody(plan: string): string {
+/** `executedBy` adds `<!-- executed_by: … -->` under the session line when it names another session. */
+export function buildBody(plan: string, executedBy?: string): string {
   const session = plan.match(SESSION_LINE)?.[0].trim() ?? "";
-  const header = session.length === 0 ? PLAN_MARKER : `${PLAN_MARKER}\n${session}`;
-  const rest = plan.replace(SESSION_LINE, "").trim();
+  const wrote = sessionMarkers(session)[0];
+  const names = executedBy !== undefined && executedBy.length > 0 && executedBy !== wrote;
+  const executed = names ? `<!-- executed_by: ${executedBy} -->` : "";
+  const header = [PLAN_MARKER, session, executed].filter((line) => line.length > 0).join("\n");
+  const rest = stripSessionLine(plan).trim();
 
   return `${header}\n<details><summary>Plan</summary>\n\n${rest}\n\n</details>\n`;
 }
@@ -94,13 +115,56 @@ export function findPlanComment(commentsJsonl: string, login: string): number | 
   return null;
 }
 
-type Run = { stdout: string; exitCode: number };
+/** The stored plan of the planning session named in the transcript; last marker that has a file wins. */
+export async function carriedPlan(home: string, transcriptPath: string): Promise<string | null> {
+  const transcript = Bun.file(transcriptPath);
 
-async function git(cwd: string, ...args: string[]): Promise<Run> {
-  const { stdout, exitCode } = await $`git ${args}`.cwd(cwd).quiet().nothrow();
+  if (!(await transcript.exists())) return null;
 
-  return { stdout: stdout.toString().trim(), exitCode };
+  // A PR comment read through gh quotes its own header; a bare quoted marker
+  // still counts, guarded only by the store file existing.
+  // ponytail: telling a planning handoff from a quoted id means parsing JSONL roles.
+  const text = (await transcript.text()).replace(QUOTED_PLAN_HEADER, "");
+
+  for (const id of sessionMarkers(text).toReversed()) {
+    const path = planPath(home, id);
+
+    if (path === null) continue;
+    const plan = Bun.file(path);
+
+    if (await plan.exists()) return await plan.text();
+  }
+
+  return null;
 }
+
+/** The harness's own plan file (`~/.claude/plans/<slug>.md`) whose content is `plan`, newest first. */
+export async function harnessPlanFile(home: string, plan: string): Promise<string | null> {
+  const dir = join(home, ".claude", "plans");
+  const files: { path: string; mtimeMs: number }[] = [];
+
+  try {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+      const path = join(dir, entry.name);
+      const { mtimeMs } = await stat(path);
+      files.push({ path, mtimeMs });
+    }
+  } catch {
+    return null;
+  }
+
+  files.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const wanted = stripSessionLine(plan).trim();
+
+  for (const { path } of files) {
+    if (stripSessionLine(await Bun.file(path).text()).trim() === wanted) return path;
+  }
+
+  return null;
+}
+
+type Run = { stdout: string; exitCode: number };
 
 async function gh(cwd: string, ...args: string[]): Promise<Run> {
   const { stdout, stderr, exitCode } = await $`gh ${args}`.cwd(cwd).quiet().nothrow();
@@ -108,31 +172,6 @@ async function gh(cwd: string, ...args: string[]): Promise<Run> {
   if (exitCode !== 0) throw new Error(`gh ${args.join(" ")}: ${stderr.toString().trim()}`);
 
   return { stdout: stdout.toString().trim(), exitCode };
-}
-
-/** Keys the plan of `branch`, or of the branch checked out in `cwd` when none is given. */
-export async function planKeyFor(cwd: string, branch?: string): Promise<string | null> {
-  const dir = await git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir");
-
-  if (dir.exitCode !== 0) return null;
-
-  if (branch !== undefined) return planKey(dir.stdout, branch);
-  const current = await git(cwd, "branch", "--show-current");
-
-  if (current.exitCode !== 0) return null;
-
-  return planKey(dir.stdout, current.stdout);
-}
-
-export async function prHeadBranch(cwd: string, pr: number): Promise<string | null> {
-  const { stdout, exitCode } = await $`gh pr view ${pr} --json headRefName --jq .headRefName`
-    .cwd(cwd)
-    .quiet()
-    .nothrow();
-
-  const branch = stdout.toString().trim();
-
-  return exitCode === 0 && branch.length > 0 ? branch : null;
 }
 
 export async function openPrNumber(cwd: string): Promise<number | null> {
@@ -146,7 +185,12 @@ export async function openPrNumber(cwd: string): Promise<number | null> {
   return exitCode === 0 && Number.isInteger(number) ? number : null;
 }
 
-export async function upsertPlanComment(cwd: string, pr: number, plan: string): Promise<void> {
+export async function upsertPlanComment(
+  cwd: string,
+  pr: number,
+  plan: string,
+  executedBy?: string,
+): Promise<void> {
   const login = await gh(cwd, "api", "user", "--jq", ".login");
 
   const comments = await gh(
@@ -161,7 +205,7 @@ export async function upsertPlanComment(cwd: string, pr: number, plan: string): 
   const existing = findPlanComment(comments.stdout, login.stdout);
   // Outside the repository: a body file inside it would land in the next commit.
   const file = join(tmpdir(), `plan-comment-${pr}-${process.pid}.md`);
-  await Bun.write(file, buildBody(plan));
+  await Bun.write(file, buildBody(plan, executedBy));
 
   try {
     if (existing === null) await gh(cwd, "pr", "comment", String(pr), "--body-file", file);
