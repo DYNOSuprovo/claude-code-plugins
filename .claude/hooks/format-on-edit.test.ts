@@ -161,9 +161,10 @@ describe("hook subprocess", () => {
     expect(readFileSync(markerFile(), "utf8")).toBe("");
   });
 
-  test("stays silent on a formatted file and still marks the session", async () => {
+  test("stays silent on a formatted executable file and still marks the session", async () => {
     const script = join(projectDir, "a.sh");
     writeFileSync(script, FORMATTED);
+    chmodSync(script, 0o755);
 
     const { exitCode, stdout } = await runHook(script);
 

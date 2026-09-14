@@ -116,13 +116,15 @@ if (import.meta.main) {
     process.exit(HOOK_EXIT.ALLOW);
   }
 
+  if ((await Bun.file(absolute).text()) === before) process.exit(HOOK_EXIT.ALLOW);
+
+  // stdin carries mode 100644, so an executable file differs by mode alone:
+  // the exit code cannot stand in for the content comparison above.
   const diff =
     await $`git diff --no-index --no-color --no-ext-diff - ${relative} < ${new Blob([before])}`
       .cwd(repoRoot)
       .nothrow()
       .quiet();
-
-  if (diff.exitCode === 0) process.exit(HOOK_EXIT.ALLOW);
 
   if (diff.exitCode !== GIT_DIFF_FILES_DIFFER) {
     throw new Error(`git diff --no-index exited ${diff.exitCode}: ${diff.stderr.toString()}`);
