@@ -764,6 +764,23 @@ async function main(): Promise<AuditResult | SaveResult> {
           };
         }
 
+        // Stale tracking refs: refs whose upstream is gone. With --no-prune above,
+        // `remote prune --dry-run` reports them honestly (populating stale_tracking
+        // so apply can prune them under confirmation). Read before the remote scan:
+        // a ref the upstream no longer has must never be proposed for deletion on
+        // that upstream, which fails with `remote ref does not exist`.
+        const pruneResult = await git("remote", "prune", "origin", "--dry-run");
+
+        if (pruneResult.stdout) {
+          stale_tracking = pruneResult.stdout
+            .split("\n")
+            .filter((line) => line.includes("would prune"))
+            .map((line) => line.replace(/^.*\[would prune\]\s*/u, "").trim())
+            .filter(Boolean);
+        }
+
+        const staleTracking = new Set(stale_tracking);
+
         // Remote branches are judged against origin/<base>, never local <base>:
         // a local base that lags would under-report, and an unpushed local merge
         // must never justify deleting the only remote copy of a branch.
@@ -787,7 +804,8 @@ async function main(): Promise<AuditResult | SaveResult> {
           const allRemotes = allRemoteResult.stdout
             .split("\n")
             .filter(Boolean)
-            .filter((b) => b.startsWith("origin/") && !b.endsWith("/HEAD") && b !== remoteBaseRef);
+            .filter((b) => b.startsWith("origin/") && !b.endsWith("/HEAD") && b !== remoteBaseRef)
+            .filter((b) => !staleTracking.has(b));
 
           for (const remoteBranch of allRemotes) {
             if (protectedBranches.has(remoteBranch.slice("origin/".length))) {
@@ -820,19 +838,6 @@ async function main(): Promise<AuditResult | SaveResult> {
               });
             }
           }
-        }
-
-        // Stale tracking refs: refs whose upstream is gone. With --no-prune above,
-        // `remote prune --dry-run` reports them honestly (populating stale_tracking
-        // so apply can prune them under confirmation).
-        const pruneResult = await git("remote", "prune", "origin", "--dry-run");
-
-        if (pruneResult.stdout) {
-          stale_tracking = pruneResult.stdout
-            .split("\n")
-            .filter((line) => line.includes("would prune"))
-            .map((line) => line.replace(/^.*\[would prune\]\s*/u, "").trim())
-            .filter(Boolean);
         }
       }
     }

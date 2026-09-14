@@ -293,7 +293,9 @@ async function execute(
       ref,
     );
 
-    const success = result.exitCode === 0;
+    // A ref the remote no longer has is the goal already reached, not a failure:
+    // the lease guards a ref that exists, and retrying can only fail the same way.
+    const success = result.exitCode === 0 || result.stderr.includes("remote ref does not exist");
 
     if (!success) remaining.remote_branches.push(entry);
     operations.push({

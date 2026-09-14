@@ -408,6 +408,31 @@ describe("git-clean-apply", () => {
     expect(remoteRefs).toContain("feature/busy");
   });
 
+  test("counts a remote delete as done when the ref is already gone", async () => {
+    const { origin, repo } = await makeRepoWithOrigin("remote-already-gone");
+
+    await git(repo, "checkout", "-b", "feature/vanished");
+    await addCommit(repo, "v.txt", "vanished work");
+    await git(repo, "push", "-u", "origin", "feature/vanished");
+    await git(repo, "checkout", "main");
+    const oid = await git(repo, "rev-parse", "feature/vanished");
+
+    // Someone else deletes it on origin between the audit and this run.
+    await git(origin, "update-ref", "-d", "refs/heads/feature/vanished");
+
+    const manifestFile = writeManifest(repo, {
+      remote_branches: [{ remote: "origin", ref: "feature/vanished", oid }],
+    });
+
+    const { exitCode, result } = await runApply(repo, "--manifest-file", manifestFile);
+
+    expect(exitCode).toBe(0);
+    expect(result.ok).toBe(true);
+    expect(opFor(result, "origin/feature/vanished")?.success).toBe(true);
+    // Nothing left pending: the hand-off file is consumed.
+    expect(existsSync(manifestFile)).toBe(false);
+  });
+
   // -------------------------------------------------------------------------
   // Partial failure
   // -------------------------------------------------------------------------

@@ -538,6 +538,30 @@ describe("git-clean-audit", () => {
     expect(remoteRefs.split("\n")).toContain("origin/feature/gone");
   });
 
+  test("keeps a branch already deleted on origin out of stale_remote", async () => {
+    const { origin, repo } = await makeRepoWithOrigin("remote-already-deleted");
+
+    await git(repo, "checkout", "-b", "feature/done");
+    await addCommit(repo, "done.txt", "work");
+    await git(repo, "push", "-u", "origin", "feature/done");
+    await git(repo, "checkout", "main");
+    await git(repo, "merge", "feature/done");
+    await git(repo, "push", "origin", "main");
+    await git(repo, "branch", "-d", "feature/done");
+
+    // Someone else deletes it on origin before the audit runs: the tracking ref
+    // survives the --no-prune fetch, so ancestry would still prove containment.
+    await git(origin, "update-ref", "-d", "refs/heads/feature/done");
+
+    const { result } = await runAudit(repo, "--include-remote");
+    const categories = result.categories as Record<string, unknown[]>;
+
+    expect(categories.stale_tracking).toContain("origin/feature/done");
+    expect((categories.stale_remote as { name: string }[]).map((b) => b.name)).not.toContain(
+      "origin/feature/done",
+    );
+  });
+
   test("excludes non-origin remote branches from stale_remote", async () => {
     const { repo } = await makeRepoWithOrigin("multi-remote");
     const other = makeTmpDir("multi-remote-other");
