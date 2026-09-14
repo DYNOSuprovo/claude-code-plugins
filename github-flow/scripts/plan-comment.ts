@@ -110,15 +110,29 @@ async function gh(cwd: string, ...args: string[]): Promise<Run> {
   return { stdout: stdout.toString().trim(), exitCode };
 }
 
-export async function planKeyFor(cwd: string): Promise<string | null> {
+/** Keys the plan of `branch`, or of the branch checked out in `cwd` when none is given. */
+export async function planKeyFor(cwd: string, branch?: string): Promise<string | null> {
   const dir = await git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir");
 
   if (dir.exitCode !== 0) return null;
-  const branch = await git(cwd, "branch", "--show-current");
 
-  if (branch.exitCode !== 0) return null;
+  if (branch !== undefined) return planKey(dir.stdout, branch);
+  const current = await git(cwd, "branch", "--show-current");
 
-  return planKey(dir.stdout, branch.stdout);
+  if (current.exitCode !== 0) return null;
+
+  return planKey(dir.stdout, current.stdout);
+}
+
+export async function prHeadBranch(cwd: string, pr: number): Promise<string | null> {
+  const { stdout, exitCode } = await $`gh pr view ${pr} --json headRefName --jq .headRefName`
+    .cwd(cwd)
+    .quiet()
+    .nothrow();
+
+  const branch = stdout.toString().trim();
+
+  return exitCode === 0 && branch.length > 0 ? branch : null;
 }
 
 export async function openPrNumber(cwd: string): Promise<number | null> {

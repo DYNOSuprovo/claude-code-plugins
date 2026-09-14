@@ -9,6 +9,7 @@ import {
   parsePayload,
   planKeyFor,
   planPath,
+  prHeadBranch,
   prNumberFrom,
   upsertPlanComment,
 } from "./plan-comment.ts";
@@ -25,8 +26,12 @@ if (import.meta.main) {
 
     if (pr === null) process.exit(0);
 
+    // The session cwd may sit on another branch than the checkout `gh pr create` ran in.
     const cwd = payload.cwd ?? process.cwd();
-    const key = await planKeyFor(cwd);
+    const branch = await prHeadBranch(cwd, pr);
+
+    if (branch === null) process.exit(0);
+    const key = await planKeyFor(cwd, branch);
 
     if (key === null) process.exit(0);
 
