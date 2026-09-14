@@ -15,6 +15,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
+import { $ } from "bun";
+
 import { HOOK_EXIT } from "./guard-destructive.ts";
 import { markerPath } from "./stop-gates.ts";
 
@@ -30,20 +32,13 @@ export interface Formatter {
   argv: string[];
 }
 
-interface RunResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
-
 const OXFMT_EXTENSIONS = [".ts", ".js", ".mjs", ".cjs"] as const;
-
-// Mirrors ignorePatterns in .oxfmtrc.json: oxfmt exits 2 on an ignored path,
-// the same code as a parse error.
-const SKIPPED_PREFIXES = ["archive/", "node_modules/", "tools/oxlint/anti-slop/"] as const;
 
 // Mirrors SHFMT_FLAGS in scripts/lint-shell.ts.
 const SHFMT_FLAGS = ["-i", "2", "-ci"] as const;
+
+// Mirrors EXCLUDED_PREFIXES in scripts/lint-shell.ts.
+const SHFMT_EXCLUDED_PREFIXES = ["archive/"] as const;
 
 const GIT_DIFF_FILES_DIFFER = 1;
 
@@ -66,13 +61,22 @@ export function toRepoRelative(filePath: string, repoRoot: string): string | nul
 }
 
 export function formatterFor(relativePath: string): Formatter | null {
-  if (SKIPPED_PREFIXES.some((prefix) => relativePath.startsWith(prefix))) return null;
+  // Bun installs node_modules as hard links into its global cache, and oxfmt
+  // formats a file named there: the rewrite would reach every project's copy.
+  if (relativePath.split("/").includes("node_modules")) return null;
 
   if (OXFMT_EXTENSIONS.some((ext) => relativePath.endsWith(ext))) {
-    return { tool: "oxfmt", argv: ["bun", "x", "oxfmt", relativePath] };
+    // oxfmt reads a path its config ignores as an unmatched pattern; without
+    // the flag it exits 2 there, the code it also gives a parse error.
+    return {
+      tool: "oxfmt",
+      argv: ["bun", "x", "oxfmt", "--no-error-on-unmatched-pattern", relativePath],
+    };
   }
 
-  if (relativePath.endsWith(".sh")) {
+  const excluded = SHFMT_EXCLUDED_PREFIXES.some((prefix) => relativePath.startsWith(prefix));
+
+  if (relativePath.endsWith(".sh") && !excluded) {
     return { tool: "shfmt", argv: ["shfmt", ...SHFMT_FLAGS, "-w", relativePath] };
   }
 
@@ -93,39 +97,23 @@ export function hookOutput(additionalContext: string): string {
   });
 }
 
-async function runInRepo(repoRoot: string, argv: string[]): Promise<RunResult> {
-  const proc = Bun.spawn(argv, { cwd: repoRoot, stdout: "pipe", stderr: "pipe" });
-
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-
-  return { exitCode, stdout, stderr };
-}
-
 async function formattingDiff(repoRoot: string, relative: string, before: string): Promise<string> {
   const tempDir = await mkdtemp(join(tmpdir(), "format-on-edit-"));
   const beforePath = join(tempDir, basename(relative));
   await Bun.write(beforePath, before);
 
-  const diff = await runInRepo(repoRoot, [
-    "git",
-    "diff",
-    "--no-index",
-    "--no-color",
-    beforePath,
-    relative,
-  ]);
+  const diff = await $`git diff --no-index --no-color --no-ext-diff ${beforePath} ${relative}`
+    .cwd(repoRoot)
+    .nothrow()
+    .quiet();
 
   await rm(tempDir, { recursive: true });
 
   if (diff.exitCode !== GIT_DIFF_FILES_DIFFER) {
-    throw new Error(`git diff --no-index exited ${diff.exitCode}: ${diff.stderr}`);
+    throw new Error(`git diff --no-index exited ${diff.exitCode}: ${diff.stderr.toString()}`);
   }
 
-  return diffHunks(diff.stdout);
+  return diffHunks(diff.stdout.toString());
 }
 
 if (import.meta.main) {
@@ -141,15 +129,15 @@ if (import.meta.main) {
   if (marker !== null) await Bun.write(marker, "");
 
   const formatter = formatterFor(relative);
-
-  if (formatter === null) process.exit(HOOK_EXIT.ALLOW);
-
   const absolute = join(repoRoot, relative);
+
+  if (formatter === null || !(await Bun.file(absolute).exists())) process.exit(HOOK_EXIT.ALLOW);
+
   const before = await Bun.file(absolute).text();
-  const run = await runInRepo(repoRoot, formatter.argv);
+  const run = await $`${formatter.argv}`.cwd(repoRoot).nothrow().quiet();
 
   if (run.exitCode !== 0) {
-    const output = `${run.stdout}${run.stderr}`.trim();
+    const output = `${run.stdout.toString()}${run.stderr.toString()}`.trim();
     console.log(hookOutput(`\`${formatter.tool}\` failed on \`${relative}\`:\n${output}`));
   } else if ((await Bun.file(absolute).text()) !== before) {
     const hunks = await formattingDiff(repoRoot, relative, before);

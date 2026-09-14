@@ -8,6 +8,8 @@
 
 import { join } from "node:path";
 
+import { $ } from "bun";
+
 import { EXPECTED_COMMANDS } from "./check-lint-config.ts";
 
 export interface GateResult {
@@ -26,15 +28,10 @@ export function failureReport(results: GateResult[]): string {
 }
 
 async function runGate(repoRoot: string, gate: string, command: string): Promise<GateResult> {
-  const proc = Bun.spawn(["sh", "-c", command], { cwd: repoRoot, stdout: "pipe", stderr: "pipe" });
+  const result = await $`sh -c ${command}`.cwd(repoRoot).nothrow().quiet();
+  const output = `${result.stdout.toString()}${result.stderr.toString()}`.trim();
 
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-
-  return { gate, command, exitCode, output: `${stdout}${stderr}`.trim() };
+  return { gate, command, exitCode: result.exitCode, output };
 }
 
 if (import.meta.main) {

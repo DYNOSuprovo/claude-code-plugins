@@ -11,8 +11,11 @@
  * editing.
  */
 
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+import { $ } from "bun";
 
 import { HOOK_EXIT } from "./guard-destructive.ts";
 
@@ -55,23 +58,16 @@ if (import.meta.main) {
 
   if (!(await Bun.file(marker).exists())) process.exit(HOOK_EXIT.ALLOW);
 
-  const proc = Bun.spawn(GATES_COMMAND, {
-    cwd: process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd(),
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  const gates = await $`${GATES_COMMAND}`
+    .cwd(process.env["CLAUDE_PROJECT_DIR"] ?? process.cwd())
+    .nothrow()
+    .quiet();
 
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-
-  if (exitCode !== 0) {
+  if (gates.exitCode !== 0) {
     console.error(`\`${GATES_COMMAND.join(" ")}\` is red; fix it before ending the turn.`);
-    console.error(`${stdout}${stderr}`.trim());
+    console.error(`${gates.stdout.toString()}${gates.stderr.toString()}`.trim());
     process.exit(HOOK_EXIT.BLOCK);
   }
 
-  await Bun.file(marker).delete();
+  await rm(marker, { force: true });
 }
