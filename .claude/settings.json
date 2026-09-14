@@ -66,9 +66,20 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-and-lint.ts\"",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-on-edit.ts\"",
             "timeout": 30,
-            "statusMessage": "Formatting and linting..."
+            "statusMessage": "Formatting..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-gates.ts\"",
+            "timeout": 120
           }
         ]
       }
