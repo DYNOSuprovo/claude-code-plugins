@@ -1,8 +1,12 @@
 ---
 description: Update plugin-cache-sync CLI installation
 allowed-tools:
-  - Bash(*:*)
-  - Read(*:*)
+  - Bash(readlink ~/.local/bin/plugin-cache-sync)
+  - Bash(ls -l ~/.local/bin/plugin-cache-sync)
+  - Bash(ln -sf "${CLAUDE_PLUGIN_ROOT}/scripts/plugin-cache-sync" *)
+  - Bash(plugin-cache-sync version)
+  - Read(~/.local/bin/**)
+  - Edit(~/.local/bin/**)
 ---
 
 # Update plugin-cache-sync
@@ -11,38 +15,31 @@ Verify and fix the `plugin-cache-sync` CLI installation.
 
 ## Execution
 
-```bash
-OS="$(uname -s)"
-TARGET="${HOME}/.local/bin/plugin-cache-sync"
-SOURCE="${CLAUDE_PLUGIN_ROOT}/scripts/plugin-cache-sync"
+1. Inspect the installed entry. `readlink` prints the target of a symlink and
+   nothing for anything else:
 
-if [[ ! -f "$TARGET" && ! -L "$TARGET" ]]; then
-  echo "Not installed. Run /plugin-cache-sync:install first."
-  exit 1
-fi
+   ```bash
+   readlink ~/.local/bin/plugin-cache-sync
+   ```
 
-case "$OS" in
-  MINGW*|MSYS*|CYGWIN*)
-    cp -f "$SOURCE" "$TARGET"
-    chmod +x "$TARGET"
-    echo "Updated: copied latest plugin-cache-sync to $TARGET"
-    ;;
-  *)
-    if [[ -L "$TARGET" ]]; then
-      current=$(readlink "$TARGET")
-      if [[ "$current" == "$SOURCE" ]]; then
-        echo "OK: symlink is valid"
-      else
-        ln -sf "$SOURCE" "$TARGET"
-        echo "Fixed: updated symlink to $SOURCE"
-      fi
-    else
-      echo "WARNING: $TARGET is a regular file, not a symlink. Re-creating as symlink."
-      ln -sf "$SOURCE" "$TARGET"
-      echo "Fixed: replaced with symlink to $SOURCE"
-    fi
-    ;;
-esac
+   - It prints `${CLAUDE_PLUGIN_ROOT}/scripts/plugin-cache-sync`: report `OK: symlink is valid` and go to step 3, except on Windows (Git Bash, MSYS2, Cygwin), which goes to step 2.
+   - It prints another target: go to step 2.
+   - It prints nothing: run `ls -l ~/.local/bin/plugin-cache-sync`. No such file: stop and tell the user to run `/plugin-cache-sync:install` first. A regular file: on Linux and macOS, warn that it is not a symlink and gets replaced by one. Then go to step 2.
 
-plugin-cache-sync version
-```
+2. Install the current script. On Linux and macOS:
+
+   ```bash
+   ln -sf "${CLAUDE_PLUGIN_ROOT}/scripts/plugin-cache-sync" ~/.local/bin/plugin-cache-sync
+   ```
+
+   On Windows, copy the latest script over the old one:
+
+   ```bash
+   cp -f "${CLAUDE_PLUGIN_ROOT}/scripts/plugin-cache-sync" ~/.local/bin/plugin-cache-sync && chmod +x ~/.local/bin/plugin-cache-sync
+   ```
+
+3. Confirm:
+
+   ```bash
+   plugin-cache-sync version
+   ```

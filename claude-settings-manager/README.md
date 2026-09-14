@@ -89,7 +89,7 @@ For sync, check, and validate operations, use `settings-manager` directly (see M
   "permissions": {
     "allow": [
       "Bash(git:*)",      // All git commands
-      "Read(*:*)",        // Read any file
+      "Read",             // Read any file
       "WebSearch"         // Web searches
     ],
     "deny": [

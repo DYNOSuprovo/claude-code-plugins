@@ -2,12 +2,7 @@
 description: Initialize testing strategy file for this project
 argument-hint: [architecture-type]
 allowed-tools:
-  - Bash(*:*)
-  - Read(*:*)
-  - Write(*:*)
-  - Glob(*:*)
-  - Grep(*:*)
-  - AskUserQuestion(*:*)
+  - Read(~/.claude/plugins/cache/*/claude-orchestration/*/skills/layer-testing/templates/**)
 ---
 
 # Setup Testing Strategy
@@ -155,18 +150,11 @@ Examples: "api,services,repositories" or "controllers,domain,data"
 
 Based on architecture selection:
 
-**If hexagonal/clean/layered**: Read template file:
-```bash
-PLUGIN_ROOT="$(realpath ~/.claude/plugins/marketplaces/*/orchestration 2>/dev/null || echo "${CLAUDE_PLUGIN_ROOT}")"
-TEMPLATE="${PLUGIN_ROOT}/skills/layer-testing/templates/examples/${ARCHITECTURE}-strategy.md"
-```
+**If hexagonal/clean/layered**: Read the template file with the Read tool:
+`${CLAUDE_PLUGIN_ROOT}/skills/layer-testing/templates/examples/<architecture>-strategy.md`
 
-**If custom**: Use blank template:
-```bash
-TEMPLATE="${PLUGIN_ROOT}/skills/layer-testing/templates/testing-strategy-template.md"
-```
-
-Read the template file.
+**If custom**: Read the blank template:
+`${CLAUDE_PLUGIN_ROOT}/skills/layer-testing/templates/testing-strategy-template.md`
 
 ### Step 5: Customize Template
 

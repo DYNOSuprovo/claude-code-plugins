@@ -8,7 +8,7 @@
     {
       "name": "claude-orchestration",
       "description": "Parallel multi-agent orchestration for complex features with Task-based coordination and git-wt --stack worktree isolation",
-      "version": "2.8.0",
+      "version": "2.8.1",
       "author": {
         "name": "Augustin BENGOLEA",
         "email": "bengous@protonmail.com"
@@ -89,7 +89,7 @@
     {
       "name": "code-quality",
       "description": "Code quality and cleanup commands for maintaining clean, maintainable code",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "author": {
         "name": "Augustin BENGOLEA",
         "email": "bengous@protonmail.com"
@@ -148,7 +148,7 @@
     {
       "name": "claude-settings-manager",
       "description": "Manage Claude Code settings with JSONC support and schema extraction",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "author": {
         "name": "Augustin BENGOLEA",
         "email": "bengous@protonmail.com"
@@ -171,7 +171,7 @@
     {
       "name": "git-worktree",
       "description": "Git worktree helper with stack support for multi-agent orchestration",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "author": {
         "name": "Augustin BENGOLEA",
         "email": "bengous@protonmail.com"
@@ -194,7 +194,7 @@
     {
       "name": "agents-bridge",
       "description": "Bridge to the OpenAI Codex CLI for cross-model collaboration",
-      "version": "1.11.0",
+      "version": "1.11.1",
       "author": {
         "name": "Augustin BENGOLEA",
         "email": "bengous@protonmail.com"
@@ -294,7 +294,7 @@
     {
       "name": "plugin-cache-sync",
       "description": "Sync Claude Code plugin cache from local sources",
-      "version": "2.2.1",
+      "version": "2.2.2",
       "author": {
         "name": "Augustin BENGOLEA",
         "email": "bengous@protonmail.com"

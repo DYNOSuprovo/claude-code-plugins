@@ -2,8 +2,8 @@
 name: plugin-cache-sync-usage
 description: Show plugin-cache-sync status and explain sync workflow
 allowed-tools:
-  - Bash(*:*)
-  - Read(*:*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plugin-cache-sync *)
+  - Bash(echo *)
 ---
 
 # plugin-cache-sync

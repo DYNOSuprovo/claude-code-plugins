@@ -1,11 +1,8 @@
 ---
 description: Extract and analyze Claude Code settings schema
 allowed-tools:
-  - Bash("${CLAUDE_PLUGIN_ROOT}/scripts/settings-manager":*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/scripts/settings-manager *)
   - Bash(claude --version:*)
-  - Read(*:*)
-  - Write(*:*)
-  - AskUserQuestion(*:*)
 model: opus
 ---
 

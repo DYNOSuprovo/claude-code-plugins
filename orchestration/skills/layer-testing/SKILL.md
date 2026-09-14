@@ -5,11 +5,12 @@ description: |
   Use when testing specific layers (core, domain, application, infrastructure, boundary).
   Reads testing strategy from playbook or uses interactive template selection.
 allowed-tools:
-  - Bash(*:*)
-  - Read(*:*)
-  - Grep(*:*)
-  - Glob(*:*)
-  - Agent(*:*)
+  - Bash(pnpm test *)
+  - Bash(pnpm typecheck *)
+  - Bash(pnpm lint *)
+  - Bash(jq *)
+  - Bash(git worktree add *)
+  - Read(~/.claude/plugins/cache/*/claude-orchestration/*/skills/layer-testing/templates/**)
 ---
 
 # Layer Testing Skill
@@ -93,7 +94,7 @@ fi
 
 Parse `coverage/coverage-summary.json`:
 ```bash
-TOTAL_COV=$(jq '.total.lines.pct' coverage/coverage-summary.json)
+jq '.total.lines.pct' coverage/coverage-summary.json
 ```
 
 **If 100% coverage:**
@@ -161,8 +162,7 @@ Wait for user response.
 6. **Create Worktree**
 
 ```bash
-BRANCH="test/${MODULE}-${LAYER}-coverage"
-git worktree add ../worktree-${BRANCH} -b ${BRANCH}
+git worktree add ../worktree-test/${MODULE}-${LAYER}-coverage -b test/${MODULE}-${LAYER}-coverage
 ```
 
 7. **Spawn Testing Agent**

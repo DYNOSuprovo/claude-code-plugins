@@ -1,12 +1,9 @@
 ---
 description: Set up JSONC workflow for Claude Code settings
 allowed-tools:
-  - Bash("${CLAUDE_PLUGIN_ROOT}/scripts/settings-manager":*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/scripts/settings-manager *)
   - Bash(ls:*)
-  - Read(*:*)
-  - Glob(*:*)
-  - Grep(*:*)
-  - AskUserQuestion(*:*)
+  - Read(~/.claude/settings.json)
 model: opus
 ---
 

@@ -43,6 +43,10 @@ command claude --permission-mode default --plugin-dir <repo>/<plugin>
 - An "always allow" click persists into `~/.claude/settings.local.json` and
   masks the same gap in every later session. Before concluding that a
   frontmatter fix works, check that file for a grant that covers it.
+- User and local `allow` rules mask a gap the same way: the owner's
+  `Bash(mkdir:*)` or `Bash(echo:*)` approves what a skill's `allowed-tools`
+  misses. `--setting-sources project`, run from a scratch directory without
+  `.claude/settings.json`, leaves `allowed-tools` as the only grant.
 
 ## Process traps
 
@@ -55,13 +59,25 @@ command claude --permission-mode default --plugin-dir <repo>/<plugin>
 ## Headless conclusive test
 
 ```bash
-command claude -p --permission-mode default --plugin-dir <plugin> "/<skill> <args>"
+command claude -p --permission-mode default --setting-sources project \
+  --output-format json --plugin-dir <plugin> "/<skill> <args>"
 ```
 
 - `!` preprocessing failures land on stderr before the model runs. Empty
   stderr means the skill's `allowed-tools` covers its `Inputs`.
 - In `-p`, a prompt becomes a denial. A full run without one validates the
   allowlist for the whole flow, stronger than an interactive pass.
+- The final JSON object lists each denial in `permission_denials`. An
+  `is_error` tool result also marks a non-zero exit, such as `test -f` on a
+  missing file: read each one before calling it a gap.
+- `AskUserQuestion` was not available in `-p` on Claude Code 2.1.270. Put the
+  answers in the prompt, or record that the flow needs a person.
+- A background task ends about five seconds after the final result, so a flow
+  that waits for a background exit notification (`pair-planning`) stops there.
+- A flow that writes under `~` runs against a throwaway home:
+  `HOME=<tmp> CLAUDE_CONFIG_DIR=<real home>/.claude` keeps the login and moves
+  every `~` path, rule paths included. Prepend `<tmp>/.local/bin` to `PATH`
+  when the flow runs what it installs.
 
 ## Verify through transcripts
 
@@ -95,6 +111,31 @@ Transcripts live at `~/.claude/projects/<cwd-slug>/<session-id>.jsonl`.
   `Edit(//tmp/name*)`, and an allow rule on a symlinked path such as macOS
   `/tmp` needs the target to match too; `Edit(~/.cache/x/**)` avoids both.
   Source: https://code.claude.com/docs/en/permissions#read-and-edit.
+- `${CLAUDE_PLUGIN_ROOT}` expands in `Bash(...)` rules only:
+  `Read(${CLAUDE_PLUGIN_ROOT}/x)` matches nothing. A plugin file outside the
+  working directory prompts on `Read`, installed cache included. An installed
+  copy is reachable with `Read(~/.claude/plugins/cache/*/<plugin>/*/<path>)`;
+  a `--plugin-dir` session still prompts.
+- A `Bash` rule approves the command, not its path arguments. `cat`, `ls`,
+  `grep`, `cmp` and `file` on a path outside the working directories stay
+  blocked until a `Read(path)` rule covers it; an `Edit(path)` rule alone
+  does not. `cp` needs `Edit(path)` on its source as well, and a flag
+  (`cp -f`) prompts whatever the rules say. `ls -l` on a
+  symlink also checks the link target; `readlink` does not. Measured on
+  Claude Code 2.1.270.
+- Past the executable, quotes in a rule are literal:
+  `Bash(ln -sf "${CLAUDE_PLUGIN_ROOT}/x" *)` matches only the quoted command.
+  A rule quoted around the executable, `Bash("${CLAUDE_PLUGIN_ROOT}/x":*)`,
+  misses a command continued over `\` line breaks;
+  `Bash(${CLAUDE_PLUGIN_ROOT}/x *)` matches the quoted executable on one line
+  or several.
+- A write under `.claude/` prompts whatever `allowed-tools` says:
+  `Edit(./.claude/**)` grants nothing there, and a `cp` out of the installed
+  plugin cache counts as one. `ln -s` from the cache passes.
+- `Read`, `Grep`, `Glob`, `Agent` and `AskUserQuestion` need no approval in
+  the working directory, so `Grep(*:*)`, `Glob(*:*)`, `Agent(*:*)` and
+  `AskUserQuestion(*:*)` grant nothing.
+  Source: https://code.claude.com/docs/en/tools-reference.
 - An `allow` rule stops at a leading environment assignment.
   `Bash(git rebase:*)` never matches `GIT_SEQUENCE_EDITOR=x git rebase`, in
   `default` mode it prompts every time; only a fixed known-safe list

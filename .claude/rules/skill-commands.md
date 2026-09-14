@@ -19,9 +19,15 @@ recipes in `docs/plugin-testing.md` → Skill mechanics worth knowing.
   or an `exec` line.
 - `allowed-tools` file rules are `Read(path)` and `Edit(path)` only, in
   gitignore syntax; `Edit` covers `Write`. `Write(*:*)` and `Read(*:*)`
-  grant nothing. An absolute path starts with `//`, a home path with `~/`.
-  `Bash(*:*)` does not cover a bundled script: name it,
+  grant nothing, and neither does a rule on a tool that needs no approval
+  (`Grep`, `Glob`, `Agent`, `AskUserQuestion`). An absolute path starts with
+  `//`, a home path with `~/`; `${CLAUDE_PLUGIN_ROOT}` expands in `Bash` rules
+  only. `Bash(*:*)` does not cover a bundled script: name it, unquoted,
   `Bash(${CLAUDE_PLUGIN_ROOT}/scripts/x *)`.
+- A `Bash` rule does not cover a path argument outside the working
+  directory: `ls`, `cat` or `cmp` there needs a `Read(path)` rule, `cp` both
+  `Read(path)` and `Edit(path)` on its source. Past the executable, quote a path in the
+  rule exactly as the command does.
 - A skill that writes scratch files gives each run its own directory
   (`mktemp -d`, the model copies the printed path) so concurrent sessions
   never share a file; `/tmp` is world-readable and a symlink on macOS.

@@ -3,9 +3,18 @@ name: imagegen
 description: Generate or edit images with the Codex CLI's built-in image_gen tool. Use when the user asks to create, generate or draw an image, icon, logo, favicon, illustration or mockup, or to edit an existing image file — restyle, retouch, upscale, add or remove elements.
 argument-hint: "<image to generate or edit> [-> destination path]"
 allowed-tools:
-  - Bash(*:*)
-  - Read(*:*)
-  - Write(*:*)
+  - Bash(mkdir *)
+  - Bash(mktemp *)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/scripts/codex *)
+  - Bash(jq *)
+  - Bash(ls *)
+  - Bash(cmp *)
+  - Bash(cp *)
+  - Bash(file *)
+  - Read(~/.cache/agents-bridge/imagegen/**)
+  - Edit(~/.cache/agents-bridge/imagegen/**)
+  - Read(~/.codex/generated_images/**)
+  - Edit(~/.codex/generated_images/**)
 ---
 
 # Image generation via Codex
@@ -40,42 +49,50 @@ copy into the project.
 
 Same invariants as the `codex` skill: prompt never inlined, written with the
 Write tool, read from stdin via `-`; `--json` + `-o`; thread id from
-`thread.started`.
+`thread.started`. Each run gets its own directory, so concurrent runs never
+share a file. Use the path `mktemp` prints literally in every later step:
+shell variables do not survive between Bash calls.
 
 ```bash
-# 1. Write /tmp/imagegen-prompt.md  <- the image request + the two instructions
+# 1. Create the run directory; it prints <dir>:
+mkdir -p ~/.cache/agents-bridge/imagegen && mktemp -d ~/.cache/agents-bridge/imagegen/run.XXXXXX
+
+# 2. Write <dir>/prompt.md  <- the image request + the two instructions
 #    below. Strip any `-> destination` off the request first: it is this
 #    skill's routing syntax, not part of the image description.
-#    Pick per-run filenames (prompt, .jsonl, .last) if runs may overlap.
-# 2. Run it. Add --skip-git-repo-check when -C is not inside a git repo.
+# 3. Run it. Add --skip-git-repo-check when -C is not inside a git repo.
 "${CLAUDE_PLUGIN_ROOT}/scripts/codex" exec \
   -s workspace-write -C /absolute/path/to/project \
-  --json -o /tmp/imagegen.last \
-  - < /tmp/imagegen-prompt.md \
-  > /tmp/imagegen.jsonl
+  --json -o <dir>/imagegen.last \
+  - < <dir>/prompt.md \
+  > <dir>/imagegen.jsonl
 
-tid="$(jq -r 'select(.type=="thread.started") | .thread_id // empty' \
-        /tmp/imagegen.jsonl | head -n1)"
+# 4. Print the thread id and keep it:
+jq -r 'select(.type=="thread.started") | .thread_id' <dir>/imagegen.jsonl
 ```
+
+Copy these commands as written, with the literal paths: a shell variable or
+`$?` added to them prompts.
 
 The prompt must end with two explicit instructions:
 
 1. **Copy** the chosen image to the absolute destination path.
 2. **Report the absolute paths in the final message.**
 
-The final message (`/tmp/imagegen.last`) is the only reliable channel for the
+The final message (`<dir>/imagegen.last`) is the only reliable channel for the
 output path — the filename is generated and version-dependent, and scraping the
 JSONL for it is brittle.
 
-**Then confirm the copy, scoped by `$tid`.** Codex finds its own output by
-scanning *all* of `~/.codex/generated_images/` for the newest file, so a
+**Then confirm the copy, scoped by the thread id.** Codex finds its own output
+by scanning *all* of `~/.codex/generated_images/` for the newest file, so a
 concurrent run can win that race and get copied instead — silently, with a
-success report. `$tid` names this thread's own directory, which settles it:
+success report. The thread id names this thread's own directory, which settles
+it. List it newest first, then compare the first entry with the destination:
 
 ```bash
-src="$(ls -t ~/.codex/generated_images/"${tid}"/* | head -n1)"
-cmp -s "${src}" /absolute/path/to/destination.png \
-  || cp "${src}" /absolute/path/to/destination.png
+ls -t ~/.codex/generated_images/<thread id>/
+cmp -s ~/.codex/generated_images/<thread id>/<newest file> /absolute/path/to/destination.png \
+  || cp ~/.codex/generated_images/<thread id>/<newest file> /absolute/path/to/destination.png
 ```
 
 ## Editing an existing image
@@ -94,7 +111,7 @@ on a standard size.
 
 ## Iterating = resume, not a new run
 
-"more blue", "drop the text", "same but wider" → `exec resume "$tid"`. The
+"more blue", "drop the text", "same but wider" → `exec resume <thread id>`. The
 thread still holds the previous image in context; a fresh run loses it and
 regenerates from scratch.
 
@@ -107,11 +124,11 @@ success.
 
 ```bash
 cd /absolute/path/to/project && \
-"${CLAUDE_PLUGIN_ROOT}/scripts/codex" exec resume "${tid}" \
+"${CLAUDE_PLUGIN_ROOT}/scripts/codex" exec resume <thread id> \
   -c sandbox_mode=workspace-write \
-  --json -o /tmp/imagegen-2.last \
-  - < /tmp/imagegen-followup.md \
-  > /tmp/imagegen-2.jsonl
+  --json -o <dir>/imagegen-2.last \
+  - < <dir>/followup.md \
+  > <dir>/imagegen-2.jsonl
 ```
 
 Add `--skip-git-repo-check` here too when that directory is not a git repo.
@@ -119,8 +136,9 @@ Use fresh `.last`/`.jsonl` names — reusing the first run's overwrites the only
 record of it. The follow-up prompt is a full prompt: it needs **its own
 destination path and the same two closing instructions**, otherwise the new
 image never leaves `~/.codex/generated_images/`. Confirm it with the same
-`$tid`-scoped check — the thread dir accumulates, and `ls -t` picks the latest
-iteration.
+thread-scoped check — the thread dir accumulates, and `ls -t` lists the latest
+iteration first. The `allowed-tools` grant covers the invoking turn only, so a
+follow-up in a later turn prompts for these commands.
 
 ## Pitfalls
 

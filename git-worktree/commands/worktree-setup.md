@@ -3,7 +3,6 @@ description: Install git-wt helper with stack support for multi-agent workflows
 allowed-tools:
   - Bash("${CLAUDE_PLUGIN_ROOT}/scripts/worktree-setup":*)
   - Bash(ls:*)
-  - Read(*:*)
 ---
 
 # Git Worktree Setup

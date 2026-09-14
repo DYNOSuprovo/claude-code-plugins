@@ -3,9 +3,6 @@ description: Generate comprehensive context transfer document for agent session 
 argument-hint: "[focus-area] [--brief]"
 model: opus
 allowed-tools:
-  - Read(*:*)
-  - Grep(*:*)
-  - Glob(*:*)
   - Bash(git:*)
 ---
 

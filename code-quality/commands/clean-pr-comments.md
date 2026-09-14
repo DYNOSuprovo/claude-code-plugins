@@ -2,10 +2,7 @@
 description: Review PR comments - fix bad naming, preserve necessary context
 argument-hint: "[PR_REFERENCE]"
 allowed-tools:
-  - Read(*:*)
-  - Edit(*:*)
-  - Grep(*:*)
-  - Glob(*:*)
+  - Edit(./**)
   - Bash(git:*)
   - Bash(gh:*)
 model: opus
