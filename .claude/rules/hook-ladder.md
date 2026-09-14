@@ -3,14 +3,15 @@ paths:
   - ".claude/hooks/**"
   - ".claude/__settings.jsonc"
   - "lefthook.yml"
+  - ".lefthook/**"
   - "scripts/run-gates.ts"
   - "scripts/check-lint-config.ts"
 ---
 
 # Hook ladder
 
-Each rung checks more than the one before, so an agent meets a finding once,
-at the end of its turn: post-edit, Stop, pre-commit, pre-push, CI.
+The rungs run from each edit to CI: post-edit, Stop, pre-commit, pre-push,
+CI. An agent meets a finding once, at the end of its turn, not on each edit.
 
 - The post-edit hook (`format-on-edit.ts`) formats and never blocks. It hands
   the formatting diff, or the formatter failure, back as PostToolUse

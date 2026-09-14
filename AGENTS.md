@@ -30,7 +30,7 @@ bun ./scripts/lint-shell.ts                            # shellcheck + shfmt; tak
 bun ./scripts/run-gates.ts                             # every gate, as CI runs it
 ```
 
-Everything above also runs in `pre-commit` and CI except `bun test`: `lefthook.yml` declares no test job, so run the tests yourself before pushing. Job list, order, and argument differences: `docs/repo-ops.md`.
+Everything above also runs in `pre-push` and CI; `pre-commit` runs all of it except `bun test`. Job list, order, and argument differences: `docs/repo-ops.md`.
 
 ## Code Standards
 
