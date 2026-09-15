@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { pickTarget } from "./pinpoint.ts";
+import { pickTarget, tableEdge } from "./pinpoint.ts";
 
 describe("pickTarget", () => {
   test("a paragraph is a block at 0", () => {
@@ -37,5 +37,54 @@ describe("pickTarget", () => {
 
   test("code in a fenced block is the block, at the pre", () => {
     expect(pickTarget(["code", "pre"], "inside")).toEqual({ index: 1, kind: "code" });
+  });
+
+  test("inside a table the cell is the target", () => {
+    expect(pickTarget(["td", "tr", "tbody", "table"], "inside")).toEqual({
+      index: 0,
+      kind: "cell",
+    });
+  });
+
+  test("a side zone takes the row", () => {
+    expect(pickTarget(["td", "tr", "tbody", "table"], "side")).toEqual({ index: 1, kind: "row" });
+  });
+
+  test("a top or bottom zone takes the table", () => {
+    expect(pickTarget(["td", "tr", "tbody", "table"], "topOrBottom")).toEqual({
+      index: 3,
+      kind: "table",
+    });
+  });
+
+  test("the edge wins over an inline in the cell", () => {
+    expect(pickTarget(["strong", "td", "tr", "tbody", "table"], "side")).toEqual({
+      index: 2,
+      kind: "row",
+    });
+  });
+
+  test("a row without a cell under the pointer is the table", () => {
+    expect(pickTarget(["tr", "tbody", "table"], "inside")).toEqual({ index: 2, kind: "table" });
+  });
+});
+
+describe("tableEdge", () => {
+  const box = { left: 0, top: 0, right: 300, bottom: 200 };
+
+  test("the middle is inside", () => {
+    expect(tableEdge(150, 100, box)).toBe("inside");
+  });
+
+  test("within 22 px of the left edge is a side", () => {
+    expect(tableEdge(10, 100, box)).toBe("side");
+  });
+
+  test("within 22 px of the bottom edge is top or bottom", () => {
+    expect(tableEdge(150, 190, box)).toBe("topOrBottom");
+  });
+
+  test("a corner is top or bottom", () => {
+    expect(tableEdge(10, 10, box)).toBe("topOrBottom");
   });
 });
