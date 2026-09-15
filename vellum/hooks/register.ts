@@ -133,34 +133,39 @@ async function startServer(
   id: string,
   workdir: string,
 ): Promise<ServerInfo | null> {
-  const run = await $.process.run(
-    [
-      "bun",
-      `${$.plugin.root}/src/cli.ts`,
-      "start",
-      "--session",
-      id,
-      "--project",
-      await $.session.cwd(),
-      "--workdir",
-      workdir,
-    ],
-    { timeoutMs: START_TIMEOUT_MS },
-  );
+  const argv = [
+    "bun",
+    `${$.plugin.root}/src/cli.ts`,
+    "start",
+    "--session",
+    id,
+    "--project",
+    await $.session.cwd(),
+    "--workdir",
+    workdir,
+  ];
 
-  if (run.exitCode !== 0) {
+  try {
+    const run = await $.process.run(argv, { timeoutMs: START_TIMEOUT_MS });
+
+    if (run.exitCode === 0) return parseServerInfo(parseJson(run.stdout));
     $.ui.log(`vellum: the review server did not start: ${run.stderr.trim()}`);
-
-    return null;
+  } catch (cause) {
+    $.ui.log(`vellum: the review server did not start: ${String(cause)}`);
   }
 
-  return parseServerInfo(parseJson(run.stdout));
+  return null;
 }
 
+/** The session `$.store` kept across a module reload, with its heartbeat restarted. */
 async function storedSession($: EngineInterface, id: string): Promise<Session | null> {
   const stored = parseSession(await $.store.get(`session:${id}`));
 
-  return stored !== null && (await alive($, stored.server)) ? stored : null;
+  if (stored === null || !(await alive($, stored.server))) return null;
+  session = stored;
+  startHeartbeat($, stored.server);
+
+  return stored;
 }
 
 /** The session's server and working directory: in memory, else from `$.store`, else started now. */
@@ -170,12 +175,7 @@ async function ensureSession($: EngineInterface): Promise<Session | null> {
   if (session !== null && (await alive($, session.server))) return session;
   const stored = await storedSession($, id);
 
-  if (stored !== null) {
-    session = stored;
-    startHeartbeat($, stored.server);
-
-    return stored;
-  }
+  if (stored !== null) return stored;
 
   const date = new Date().toISOString().slice(0, 10);
   const workdir = session?.workdir ?? `plans/${date}/wip-${id.slice(0, 8)}/`;
@@ -209,28 +209,51 @@ function approvedPrompt(version: number): string {
   return `Plan v${version} was approved in the browser. Call ExitPlanMode again with the same plan.`;
 }
 
-/** Polls the server once a second until the browser decides, then submits one prompt. */
+function reviewUrl(server: ServerInfo): string {
+  return `http://127.0.0.1:${server.port}/t/${server.token}/`;
+}
+
+/**
+ * Polls the server once a second until the browser decides, then submits one prompt. The poll
+ * stops once the prompt entered; a prompt dropped by another plugin or a failed submit is logged
+ * and the poll goes on, so the decision is retried on the next tick.
+ */
 function watch($: EngineInterface, server: ServerInfo, version: number): void {
   review?.poll.cancel();
+  let submitting = false;
 
   const poll = $.clock.every(POLL_MS, () => {
+    if (submitting) return;
+
     void api($, server, "/api/pending")
-      .then((response) => {
+      .then(async (response) => {
         const pending = parsePending(response.text);
 
         if (pending.kind === "none") return;
-        review?.poll.cancel();
-        review = null;
-        $.ui.status(undefined);
+        submitting = true;
+
+        const text =
+          pending.kind === "approved" ? approvedPrompt(pending.version) : feedbackPrompt(pending);
+
+        const result = await $.prompt.submit({ text });
+
+        if (result.drop !== undefined) {
+          $.ui.log(`vellum: the review prompt was dropped: ${result.drop}`);
+          submitting = false;
+
+          return;
+        }
 
         if (pending.kind === "approved") approved = pending.version;
+        poll.cancel();
 
-        return $.prompt.submit({
-          text:
-            pending.kind === "approved" ? approvedPrompt(pending.version) : feedbackPrompt(pending),
-        });
+        if (review?.poll === poll) review = null;
+        $.ui.status(undefined);
       })
-      .catch(() => {});
+      .catch((cause: unknown) => {
+        $.ui.log(`vellum: the review poll failed: ${String(cause)}`);
+        submitting = false;
+      });
   });
 
   review = { version, poll };
@@ -238,6 +261,12 @@ function watch($: EngineInterface, server: ServerInfo, version: number): void {
 }
 
 export const register: Register = (on) => {
+  // A fresh environment on every load; spelled out so a test that calls register twice starts clean.
+  session = null;
+  review = null;
+  approved = null;
+  heartbeat = null;
+
   on("skill.prompt", { skill: SKILL }, async ($, e, next) => {
     const current = await ensureSession($);
     const result = await next(e);
@@ -260,8 +289,9 @@ export const register: Register = (on) => {
       const response = await api($, current.server, "/api/finalize", {
         method: "POST",
         body: JSON.stringify({ version: approved }),
-      });
+      }).catch((): HttpResponse | null => null);
 
+      if (response === null) return next(e);
       const plan = response.ok ? parseFinalized(response.text) : null;
 
       if (plan === null) {
@@ -298,6 +328,7 @@ export const register: Register = (on) => {
 
     if (version === null) return next(e);
     watch($, current.server, version);
+    $.ui.log(`vellum: plan v${version} under review at ${reviewUrl(current.server)}`);
 
     return {
       decision: {

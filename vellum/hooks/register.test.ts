@@ -31,6 +31,8 @@ const SERVER = { port: 4242, token: "tok", pid: 7 };
 
 const SESSION_ID = "4c2a9d93-c356-436e-bd4f-898a7b844bda";
 
+const WORKDIR = `plans/${new Date().toISOString().slice(0, 10)}/wip-4c2a9d93/`;
+
 function reply(status: number, value: unknown): HttpResponse {
   return { status, ok: status < 300, headers: {}, text: JSON.stringify(value) };
 }
@@ -159,16 +161,31 @@ describe("skill.prompt", () => {
     const first = await skill($, { skill: "vellum:plan", text: "skill text" }, skillText);
     const second = await skill($, { skill: "vellum:plan", text: "skill text" }, skillText);
     expect(first).toEqual({
-      text: "skill text\n\nWorking directory: plans/2026-09-15/wip-4c2a9d93/",
+      text: `skill text\n\nWorking directory: ${WORKDIR}`,
     });
     expect(second).toEqual(first);
     expect(calls.runs).toHaveLength(1);
     expect(calls.runs[0]?.slice(0, 3)).toEqual(["bun", "/plugin/src/cli.ts", "start"]);
     expect(calls.store.get(`session:${SESSION_ID}`)).toEqual({
       server: SERVER,
-      workdir: "plans/2026-09-15/wip-4c2a9d93/",
+      workdir: WORKDIR,
     });
     expect(calls.timers.some((timer) => timer.ms === 30_000)).toBe(true);
+  });
+
+  test("returns the skill text without a directory when the launcher cannot start", async () => {
+    const { hooks, calls } = load();
+    const $ = fakeEngine(LIVE, calls);
+    $.process.run = () => Promise.reject(new Error("ENOENT bun"));
+    const skill = hooks.get("skill.prompt");
+
+    if (skill === undefined) throw new Error("no skill.prompt hook");
+
+    const result = await skill($, { skill: "vellum:plan", text: "t" }, () =>
+      Promise.resolve({ text: "t" }),
+    );
+
+    expect(result).toEqual({ text: "t" });
   });
 
   test("restarts the server when the stored one is dead", async () => {
@@ -195,6 +212,57 @@ describe("classic.PermissionRequest on ExitPlanMode", () => {
       passed: {},
     });
     expect(await hook($, permissionEvent(), passed)).toMatchObject({ passed: {} });
+  });
+
+  test("a session restored from the store gets its heartbeat back", async () => {
+    const { hooks, calls } = load();
+    calls.ports.add(SERVER.port);
+    calls.store.set(`session:${SESSION_ID}`, { server: SERVER, workdir: WORKDIR });
+
+    const $ = fakeEngine({ ...LIVE, "/api/gate": () => reply(200, { version: 1 }) }, calls);
+    const hook = hooks.get("classic.PermissionRequest");
+
+    if (hook === undefined) throw new Error("no hook");
+    const denied = await hook($, permissionEvent(), () => null);
+    expect(denied).toMatchObject({ decision: { behavior: "deny" } });
+    expect(calls.timers.some((timer) => timer.ms === 30_000 && !timer.cancelled)).toBe(true);
+  });
+
+  test("a dropped prompt keeps the poll alive; the next tick retries", async () => {
+    const { hooks, calls } = load();
+    let drop = true;
+
+    const $ = fakeEngine(
+      {
+        ...LIVE,
+        "/api/gate": () => reply(200, { version: 1 }),
+        "/api/pending": () => reply(200, { kind: "approved", version: 1 }),
+      },
+      calls,
+    );
+
+    $.prompt.submit = (input: { text: string }) => {
+      if (drop) return Promise.resolve({ drop: "another plugin refused it" });
+      calls.prompts.push(input.text);
+
+      return Promise.resolve({ text: input.text });
+    };
+
+    const skill = hooks.get("skill.prompt");
+    const hook = hooks.get("classic.PermissionRequest");
+
+    if (skill === undefined || hook === undefined) throw new Error("no hook");
+    await skill($, { skill: "vellum:plan", text: "t" }, () => Promise.resolve({ text: "t" }));
+    await hook($, permissionEvent(), () => null);
+    await tick(calls);
+    await tick(calls);
+    expect(calls.prompts).toEqual([]);
+    expect(calls.status).toBe("plan v1 under review");
+    drop = false;
+    await tick(calls);
+    await tick(calls);
+    expect(calls.prompts).toHaveLength(1);
+    expect(calls.status).toBeUndefined();
   });
 
   test("gates, denies, polls, then submits one feedback prompt and stops polling", async () => {
@@ -229,12 +297,12 @@ describe("classic.PermissionRequest on ExitPlanMode", () => {
     pending = {
       kind: "feedback",
       version: 1,
-      path: "plans/2026-09-15/wip-4c2a9d93/.review/v1.feedback.md",
+      path: `${WORKDIR}.review/v1.feedback.md`,
     };
     await tick(calls);
     await tick(calls);
     expect(calls.prompts).toEqual([
-      "Plan review v1: changes requested. Read plans/2026-09-15/wip-4c2a9d93/.review/v1.feedback.md, revise the plan, then call ExitPlanMode.",
+      `Plan review v1: changes requested. Read ${WORKDIR}.review/v1.feedback.md, revise the plan, then call ExitPlanMode.`,
     ]);
     expect(
       calls.timers.filter((timer) => timer.ms === 1000).every((timer) => timer.cancelled),
