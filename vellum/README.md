@@ -1,4 +1,4 @@
-# plan-frontiers
+# vellum
 
 v1.0.0
 
@@ -8,7 +8,7 @@ Replaces `software-craft:thorough-plan`.
 
 ## Skill
 
-`plan-frontiers` triggers itself when a design choice is open, a change crosses several modules or interfaces, or a refactor reshapes a contract. Three moves:
+`vellum:plan` triggers itself when a design choice is open, a change crosses several modules or interfaces, or a refactor reshapes a contract. Three moves:
 
 1. Size the ceremony. A one-sentence diff gets no plan. A fuzzy idea gets a throwaway first, after the few questions that pin down what it must show.
 2. Settle the open choices in question rounds, each question with a recommended answer. Only a question whose answer changes the architecture, an interface or the scope is asked; the rest becomes a recorded assumption. `assume` closes a round.
