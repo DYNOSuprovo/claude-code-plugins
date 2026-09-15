@@ -39,6 +39,31 @@ function attributeName(property: string): string {
   return property.replaceAll(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
 }
 
+const SAFE_SCHEMES = new Set(["http:", "https:", "mailto:"]);
+
+/**
+ * A URL of the document, as the page may use it: a project-relative path becomes a files route
+ * and keeps its path in `data-path`; an absolute URL with a safe scheme stays; anything else
+ * (`javascript:`, `data:`) is dropped. Markdown is the model's text, not the reviewer's.
+ */
+function urlAttributes(value: string): readonly (readonly [string, string])[] {
+  const scheme = /^([a-z][a-z0-9+.-]*:)/iu.exec(value)?.[1]?.toLowerCase();
+
+  if (scheme !== undefined) {
+    return SAFE_SCHEMES.has(scheme) ? [["href", value]] : [];
+  }
+
+  if (value.startsWith("#")) return [["href", value]];
+  const path = parseProjectPath(value.split(/[#?]/u)[0] ?? "");
+
+  return path.ok
+    ? [
+        ["href", fileUrl(path.value)],
+        ["data-path", path.value],
+      ]
+    : [];
+}
+
 /** hast to preact, by hand: the JSX runtime adapters type against a global JSX namespace this page does not own. */
 function toVNode(node: RootContent, key: number): ComponentChild {
   if (node.type === "text") return node.value;
@@ -47,25 +72,35 @@ function toVNode(node: RootContent, key: number): ComponentChild {
 
   const attributes = Object.entries(node.properties).flatMap(([name, value]) => {
     if (value === undefined || value === null || value === false) return [];
+    const text = Array.isArray(value) ? value.join(" ") : value === true ? "" : String(value);
 
-    return [
-      [attributeName(name), Array.isArray(value) ? value.join(" ") : value === true ? "" : value],
-    ];
+    if (name === "href" || name === "src") {
+      return urlAttributes(text).map(([attribute, url]) => [
+        attribute === "href" ? name : attribute,
+        url,
+      ]);
+    }
+
+    return [[attributeName(name), text]];
   });
 
-  return h(node.tagName, { key, ...Object.fromEntries(attributes) }, ...node.children.map(toVNode));
+  const extra = node.tagName === "a" ? { target: "_blank", rel: "noopener" } : {};
+
+  return h(
+    node.tagName,
+    { key, ...extra, ...Object.fromEntries(attributes) },
+    ...node.children.map(toVNode),
+  );
 }
 
 type Draft = { readonly anchor: TextAnchor; readonly top: number; readonly left: number };
 
-/** A link to a listed document switches the view instead of leaving the page. */
+/** A link to a listed document switches the view; any other link opens in a new tab. */
 function onClick(event: MouseEvent): void {
   const link = event.target instanceof Element ? event.target.closest("a") : null;
-  const href = link?.getAttribute("href");
+  const wanted = link?.dataset.path;
 
-  if (href === null || href === undefined || /^[a-z][a-z0-9+.-]*:/iu.test(href)) return;
-  const direct = parseProjectPath(href.split(/[#?]/u)[0] ?? "");
-  const wanted = direct.ok ? direct.value : href;
+  if (wanted === undefined) return;
   const target = docs.value.find((doc) => doc.path === wanted || doc.path.endsWith(`/${wanted}`));
 
   if (target === undefined) return;
