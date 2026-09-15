@@ -114,6 +114,17 @@ export function targetAt(root: HTMLElement, from: Element, x: number, y: number)
     : { element, kind: pick.kind, label: labelOf(element) };
 }
 
+/** The box of `target` on screen; a list item's box widens over its marker, which sits in the list's padding. */
+export function boxOf(target: Target): DOMRect {
+  const rect = target.element.getBoundingClientRect();
+  const list = target.element.parentElement;
+
+  if (!(target.element instanceof HTMLLIElement) || list === null) return rect;
+  const left = list.getBoundingClientRect().left;
+
+  return new DOMRect(left, rect.top, rect.right - left, rect.height);
+}
+
 /** The text of `target` as a range; a list item stops before its nested list. */
 export function rangeOf(target: Target): Range | null {
   const { element } = target;

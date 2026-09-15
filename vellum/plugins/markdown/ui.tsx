@@ -16,7 +16,7 @@ import { paint } from "../../ui/highlights.ts";
 import { docs, inputMethod, select } from "../../ui/state.ts";
 import type { RendererProps, UiPlugin } from "../index.ts";
 import type { Target } from "./pinpoint.ts";
-import { rangeOf, targetAt } from "./pinpoint.ts";
+import { boxOf, rangeOf, targetAt } from "./pinpoint.ts";
 
 /** Every block element keeps its source lines as `data-lines="start-end"`. */
 function addLines(node: Root | RootContent): void {
@@ -194,7 +194,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
         : null;
 
     if (target?.element === wash?.target.element) return;
-    const rect = target?.element.getBoundingClientRect();
+    const rect = target === null ? undefined : boxOf(target);
     const at = root === null || rect === undefined ? null : inPane(root, rect);
 
     setWash(
@@ -219,7 +219,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     const anchor = range === null ? null : anchorFromRange(root, range);
 
     if (target === null || anchor === null) return;
-    setDraft(draftUnder(root, anchor, target.element.getBoundingClientRect()));
+    setDraft(draftUnder(root, anchor, boxOf(target)));
   };
 
   if (content === null) return <div class="waiting">Loading…</div>;
