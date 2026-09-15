@@ -116,26 +116,34 @@ export function targetAt(root: HTMLElement, from: Element, x: number, y: number)
 
 /** The box of `target` on screen; a list item's box widens over its marker, which sits in the list's padding. */
 export function boxOf(target: Target): DOMRect {
-  const rect = target.element.getBoundingClientRect();
-  const list = target.element.parentElement;
+  const { element } = target;
+  const rect = element.getBoundingClientRect();
+  const list = element.parentElement;
 
-  if (!(target.element instanceof HTMLLIElement) || list === null) return rect;
+  if (!(element instanceof HTMLLIElement) || list === null) return rect;
   const left = list.getBoundingClientRect().left;
+  const bottom = nestedListOf(element)?.getBoundingClientRect().top ?? rect.bottom;
 
-  return new DOMRect(left, rect.top, rect.right - left, rect.height);
+  return new DOMRect(left, rect.top, rect.right - left, bottom - rect.top);
 }
 
-/** The text of `target` as a range; a list item stops before its nested list. */
+function nestedListOf(element: HTMLElement): Element | null {
+  return element instanceof HTMLLIElement
+    ? element.querySelector(":scope > ul, :scope > ol")
+    : null;
+}
+
+/** The text of `target` as a range; a list item stops before its first nested list. */
 export function rangeOf(target: Target): Range | null {
   const { element } = target;
+  const nested = nestedListOf(element);
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
   const nodes: Node[] = [];
 
   for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
-    const nested =
-      element.tagName === "LI" && element.contains(node.parentElement?.closest("ul, ol") ?? null);
+    if (nested?.contains(node) === true) break;
 
-    if (!nested && (node.textContent ?? "").trim() !== "") nodes.push(node);
+    if ((node.textContent ?? "").trim() !== "") nodes.push(node);
   }
 
   const first = nodes[0];

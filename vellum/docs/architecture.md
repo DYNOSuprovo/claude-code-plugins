@@ -177,6 +177,7 @@ vellum/
     tools.tsx                  the controls row over the document: Select|Pinpoint, Beside the plan
     anchoring.ts, highlights.ts
   plugins/<kind>/{server.ts,ui.tsx}   one folder per document kind
+  plugins/markdown/tree.ts            Markdown to hast, every element with its source lines
   plugins/markdown/pinpoint.ts        the target under the pointer: pure choice, thin DOM adapter
   plugins/index.ts, plugins/server.ts two registries: one bundle is a browser's
 ```
