@@ -1,11 +1,7 @@
-import type { Root, RootContent } from "hast";
+import type { RootContent } from "hast";
 import type { ComponentChild } from "preact";
 import { h } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import remarkGfm from "remark-gfm";
-import remarkParse from "remark-parse";
-import remarkRehype from "remark-rehype";
-import { unified } from "unified";
 
 import { parseProjectPath } from "../../src/domain/paths.ts";
 import type { TextAnchor } from "../../ui/anchoring.ts";
@@ -17,24 +13,7 @@ import { docs, inputMethod, select } from "../../ui/state.ts";
 import type { RendererProps, UiPlugin } from "../index.ts";
 import type { Target } from "./pinpoint.ts";
 import { boxOf, rangeOf, targetAt } from "./pinpoint.ts";
-
-/** Every block element keeps its source lines as `data-lines="start-end"`. */
-function addLines(node: Root | RootContent): void {
-  if (node.type === "element" && node.position !== undefined) {
-    node.properties.dataLines = `${node.position.start.line}-${node.position.end.line}`;
-  }
-
-  if ("children" in node) for (const child of node.children) addLines(child);
-}
-
-const processor = unified().use(remarkParse).use(remarkGfm).use(remarkRehype);
-
-function toTree(text: string): Root {
-  const tree = processor.runSync(processor.parse(text));
-  addLines(tree);
-
-  return tree;
-}
+import { toTree } from "./tree.ts";
 
 function attributeName(property: string): string {
   if (property === "className") return "class";

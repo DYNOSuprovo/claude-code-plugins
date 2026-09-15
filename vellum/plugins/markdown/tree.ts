@@ -1,0 +1,39 @@
+import type { Element, Root, RootContent } from "hast";
+import remarkGfm from "remark-gfm";
+import remarkParse from "remark-parse";
+import remarkRehype from "remark-rehype";
+import { unified } from "unified";
+
+function isList(node: RootContent): boolean {
+  return node.type === "element" && (node.tagName === "ul" || node.tagName === "ol");
+}
+
+/** A list item's own lines end with its last child before its first nested list. */
+function endLine(element: Element, start: number, end: number): number {
+  const nested = element.tagName === "li" ? element.children.findIndex(isList) : -1;
+
+  if (nested === -1) return end;
+  const own = element.children.slice(0, nested).findLast((child) => child.position !== undefined);
+
+  return own?.position?.end.line ?? start;
+}
+
+/** Every block element keeps its source lines as `data-lines="start-end"`. */
+function addLines(node: Root | RootContent): void {
+  if (node.type === "element" && node.position !== undefined) {
+    const { start, end } = node.position;
+    node.properties.dataLines = `${start.line}-${endLine(node, start.line, end.line)}`;
+  }
+
+  if ("children" in node) for (const child of node.children) addLines(child);
+}
+
+const processor = unified().use(remarkParse).use(remarkGfm).use(remarkRehype);
+
+/** The Markdown `text` as hast, every element carrying its source lines. */
+export function toTree(text: string): Root {
+  const tree = processor.runSync(processor.parse(text));
+  addLines(tree);
+
+  return tree;
+}
