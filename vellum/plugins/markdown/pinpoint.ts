@@ -22,15 +22,36 @@ const BLOCKS: ReadonlyMap<string, string> = new Map([
   ["blockquote", "quote"],
 ]);
 
+const INLINES: ReadonlyMap<string, string> = new Map([
+  ["strong", "bold"],
+  ["em", "italic"],
+  ["a", "link"],
+  ["code", "code"],
+]);
+
 /** `tags`: lower-case tag names from the pointer's element up to the article, innermost first, the article excluded. */
 export function pickTarget(tags: readonly string[], _edge: TableEdge): Pick | null {
+  const pre = tags.indexOf("pre");
+
+  if (pre !== -1) return { index: pre, kind: "code" };
+  const inline = tags.findIndex((tag) => INLINES.has(tag));
+
+  if (inline !== -1) return { index: inline, kind: "inline" };
   const block = tags.findIndex((tag) => BLOCKS.has(tag));
 
   return block === -1 ? null : { index: block, kind: "block" };
 }
 
 function labelOf(element: HTMLElement): string {
-  return BLOCKS.get(element.tagName.toLowerCase()) ?? "";
+  const tag = element.tagName.toLowerCase();
+
+  if (tag === "pre") {
+    const language = /language-(\S+)/u.exec(element.querySelector("code")?.className ?? "")?.[1];
+
+    return language === undefined ? "code block" : `code block (${language})`;
+  }
+
+  return INLINES.get(tag) ?? BLOCKS.get(tag) ?? "";
 }
 
 /** The target under the pointer: `from` is the event's element, `root` the article. */
@@ -73,7 +94,7 @@ export function rangeOf(target: Target): Range | null {
   if (first === undefined || last === undefined) return null;
   const range = document.createRange();
   range.setStart(first, 0);
-  range.setEnd(last, last.textContent?.length ?? 0);
+  range.setEnd(last, last.textContent?.trimEnd().length ?? 0);
 
   return range;
 }
