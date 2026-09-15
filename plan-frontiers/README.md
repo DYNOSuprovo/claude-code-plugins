@@ -29,6 +29,8 @@ Read in this order and stop where a section is wrong:
 3. Slices. Is each check something you would run?
 4. The verdict, yours or the reviewer's: overengineered, underengineered or right.
 
+During implementation, send one to three slices at a time. Read the result at each slice when the code matters; skim the check and move on when it does not. Re-steering after one slice costs less than after the whole plan.
+
 Skip the mechanics unless a slice touches something you cannot recover. Before the pull request, read the implementation notes for deviations. For a change that matters, ask the implementer to quiz you on it and merge only when you pass.
 
 ## Sources

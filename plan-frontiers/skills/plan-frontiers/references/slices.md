@@ -4,7 +4,7 @@ A slice connects only the parts needed for one observable result, end to end. It
 
 ## The order
 
-Left to itself, a model builds horizontally: migrations, then services, then API, then UI. Nothing is checkable before the end. Build vertically instead:
+Horizontal order (migrations, then services, then API, then UI) leaves nothing checkable before the end. Build vertically:
 
 1. The contract, serving fixed data. Check with curl or a test.
 2. The consumer on that fixed data: UI, CLI output, caller. Iterate on what the reviewer sees.
@@ -23,7 +23,5 @@ A change without a UI keeps the same idea: first the seam that proves the shape,
 - Setup, configuration and documentation ride with the slice that needs them.
 
 ## During implementation
-
-Send one to three slices at a time. Read the result at each slice when the code matters; skim the check and move on when it does not. Re-steering after one slice costs less than after the whole plan.
 
 Deviations from the plan go in a short implementation-notes file next to it, one line each: what the plan said, what was done, why. The reviewer reads it before the pull request.

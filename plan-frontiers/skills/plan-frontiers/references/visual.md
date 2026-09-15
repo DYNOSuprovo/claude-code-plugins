@@ -12,7 +12,7 @@ A sequence with more than three actors, or a state machine, can be a Mermaid blo
 
 ## What stays text
 
-Program design: types, signatures, call stacks, file trees. Diagrams for these have been tried and abandoned as exhausting to read; the pseudocode formats in `program-design.md` are lighter and precise.
+Program design: types, signatures, call stacks, file trees. Diagrams for these are exhausting to read; the pseudocode formats in `program-design.md` are lighter and precise.
 
 ## Rendering
 

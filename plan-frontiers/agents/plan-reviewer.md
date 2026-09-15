@@ -16,7 +16,7 @@ Input: the path of a plan, and the request or issue it answers when the caller g
 4. Consistency. A type, function, file or flag named in one section carries the same name in every other section.
 5. Slices. Each one ends with something the reviewer can run, see or query, and names the check. A slice whose check is "verify it works" has none.
 6. Assumptions. Each one is a real default the implementer could take, not an open question in disguise. An assumption that changes the architecture, an interface or the scope should have been a question.
-7. Size. Decide whether the plan is overengineered, underengineered or right for the request, and say why in two sentences.
+7. Size. Decide whether the plan is overengineered, underengineered or right for the request, and say why.
 
 ## Calibration
 
