@@ -1,7 +1,7 @@
 import type { Root, RootContent } from "hast";
 import type { ComponentChild } from "preact";
 import { h } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
@@ -9,12 +9,14 @@ import { unified } from "unified";
 
 import { parseProjectPath } from "../../src/domain/paths.ts";
 import type { TextAnchor } from "../../ui/anchoring.ts";
-import { anchorFromSelection, rangeFor } from "../../ui/anchoring.ts";
+import { anchorFromRange, anchorFromSelection, rangeFor } from "../../ui/anchoring.ts";
 import { fileUrl } from "../../ui/api.ts";
 import { Composer } from "../../ui/composer.tsx";
 import { paint } from "../../ui/highlights.ts";
-import { docs, select } from "../../ui/state.ts";
+import { docs, inputMethod, select } from "../../ui/state.ts";
 import type { RendererProps, UiPlugin } from "../index.ts";
+import type { Target } from "./pinpoint.ts";
+import { rangeOf, targetAt } from "./pinpoint.ts";
 
 /** Every block element keeps its source lines as `data-lines="start-end"`. */
 function addLines(node: Root | RootContent): void {
@@ -96,8 +98,33 @@ function toVNode(node: RootContent, key: number): ComponentChild {
 
 type Draft = { readonly anchor: TextAnchor; readonly top: number; readonly left: number };
 
+type Wash = {
+  readonly target: Target;
+  readonly top: number;
+  readonly left: number;
+  readonly width: number;
+  readonly height: number;
+};
+
+/** `rect`, from the viewport into the scrolled content of the pane around `root`. */
+function inPane(root: HTMLElement, rect: DOMRect): { top: number; left: number } | null {
+  const pane = root.parentElement;
+
+  if (pane === null) return null;
+  const paneRect = pane.getBoundingClientRect();
+
+  return { top: rect.top - paneRect.top + pane.scrollTop, left: rect.left - paneRect.left };
+}
+
+function draftUnder(root: HTMLElement, anchor: TextAnchor, rect: DOMRect): Draft | null {
+  const at = inPane(root, rect);
+
+  return at === null ? null : { anchor, top: at.top + rect.height + 8, left: Math.max(8, at.left) };
+}
+
 /** A link to a listed document switches the view; any other link opens in a new tab. */
 function onClick(event: MouseEvent): void {
+  if (inputMethod.value === "pinpoint") return;
   const link = event.target instanceof Element ? event.target.closest("a") : null;
   const wanted = link?.dataset.path;
 
@@ -112,7 +139,13 @@ function onClick(event: MouseEvent): void {
 function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const [text, setText] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [wash, setWash] = useState<Wash | null>(null);
   const container = useRef<HTMLElement>(null);
+
+  const content = useMemo(
+    () => (text === null ? null : toTree(text).children.map(toVNode)),
+    [text],
+  );
 
   useEffect(() => {
     void fetch(fileUrl(props.doc.path))
@@ -144,31 +177,79 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const onMouseUp = (): void => {
     const root = container.current;
 
-    if (root === null) return;
+    if (root === null || inputMethod.value !== "select") return;
     const anchor = anchorFromSelection(root);
+    const rect = document.getSelection()?.getRangeAt(0).getBoundingClientRect();
 
-    if (anchor === null) return;
-    const selection = document.getSelection();
-    const rect = selection?.getRangeAt(0).getBoundingClientRect();
-    const pane = root.parentElement;
-    const paneRect = pane?.getBoundingClientRect();
-
-    if (rect === undefined || pane === null || paneRect === undefined) return;
-
-    setDraft({
-      anchor,
-      top: rect.bottom - paneRect.top + pane.scrollTop + 8,
-      left: Math.max(8, rect.left - paneRect.left),
-    });
+    if (anchor === null || rect === undefined) return;
+    setDraft(draftUnder(root, anchor, rect));
   };
 
-  if (text === null) return <div class="waiting">Loading…</div>;
+  const onPointerMove = (event: PointerEvent): void => {
+    const root = container.current;
+
+    const target =
+      root !== null && inputMethod.value === "pinpoint" && event.target instanceof Element
+        ? targetAt(root, event.target)
+        : null;
+
+    if (target?.element === wash?.target.element) return;
+    const rect = target?.element.getBoundingClientRect();
+    const at = root === null || rect === undefined ? null : inPane(root, rect);
+
+    setWash(
+      target === null || rect === undefined || at === null
+        ? null
+        : { target, ...at, width: rect.width, height: rect.height },
+    );
+  };
+
+  const onClickCapture = (event: MouseEvent): void => {
+    const root = container.current;
+
+    if (root === null || inputMethod.value !== "pinpoint") return;
+    event.preventDefault();
+
+    if (!(event.target instanceof Element) || document.getSelection()?.isCollapsed === false) {
+      return;
+    }
+
+    const target = targetAt(root, event.target);
+    const range = target === null ? null : rangeOf(target);
+    const anchor = range === null ? null : anchorFromRange(root, range);
+
+    if (target === null || anchor === null) return;
+    setDraft(draftUnder(root, anchor, target.element.getBoundingClientRect()));
+  };
+
+  if (content === null) return <div class="waiting">Loading…</div>;
 
   return (
     <>
-      <article class="plan" ref={container} onMouseUp={onMouseUp} onClick={onClick}>
-        {toTree(text).children.map(toVNode)}
+      <article
+        class="plan"
+        ref={container}
+        onMouseUp={onMouseUp}
+        onClick={onClick}
+        onClickCapture={onClickCapture}
+        onPointerMove={onPointerMove}
+        onPointerLeave={() => setWash(null)}
+      >
+        {content}
       </article>
+      {wash !== null && (
+        <div
+          class="wash"
+          style={{
+            top: `${wash.top}px`,
+            left: `${wash.left}px`,
+            width: `${wash.width}px`,
+            height: `${wash.height}px`,
+          }}
+        >
+          <span class="wash-label">{wash.target.label}</span>
+        </div>
+      )}
       {draft !== null && (
         <Composer
           anchor={draft.anchor}

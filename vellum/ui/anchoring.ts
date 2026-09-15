@@ -25,8 +25,12 @@ export function anchorFromSelection(container: Element): TextAnchor | null {
   const selection = document.getSelection();
 
   if (selection === null || selection.rangeCount === 0 || selection.isCollapsed) return null;
-  const range = selection.getRangeAt(0);
 
+  return anchorFromRange(container, selection.getRangeAt(0));
+}
+
+/** `range` inside `container`, as a quote with its context and source lines; `null` when empty or outside. */
+export function anchorFromRange(container: Element, range: Range): TextAnchor | null {
   if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
     return null;
   }

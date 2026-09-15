@@ -13,6 +13,10 @@ export const current = signal<ProjectPath | null>(null);
 
 export const split = signal(false);
 
+export type InputMethod = "select" | "pinpoint";
+
+export const inputMethod = signal<InputMethod>("select");
+
 export const error = signal<string | null>(null);
 
 export const planDoc = computed<DocRef | null>(() => {

@@ -16,6 +16,7 @@ import {
   split,
   step,
 } from "./state.ts";
+import { Tools } from "./tools.tsx";
 
 function Doc(props: { readonly doc: DocRef }): preact.JSX.Element {
   const { doc } = props;
@@ -56,20 +57,8 @@ function Panes(): preact.JSX.Element {
     <div class="docs">
       <div class="doc-head">
         <span class="path">{doc.path}</span>
-        <span class="spacer" />
-        {beside && (
-          <label class="toggle">
-            <input
-              type="checkbox"
-              checked={split.value}
-              onChange={(event) => {
-                split.value = event.currentTarget.checked;
-              }}
-            />{" "}
-            Beside the plan
-          </label>
-        )}
       </div>
+      <Tools />
       <div class="panes">
         {beside && split.value && <Doc doc={plan} />}
         <Doc doc={doc} />
