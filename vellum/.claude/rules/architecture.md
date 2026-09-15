@@ -1,30 +1,40 @@
 # Architecture
 
-## Layers
+## Shape
+
+Hexagonal with a functional core: two hexagons (the hooks module, the server) and a page.
+The domain is pure functions over immutable data; one application module orchestrates;
+the adapters are plain modules, no interface, no injection.
 
 ```
-hooks/register.ts      the hooks module: one file, imports types only, talks to the engine through `$`
+hooks/register.ts        the engine adapter: one file, types from `claude-code` only, one State union, `$` is its port
         │ HTTP, token header
-src/server/routes.ts   the boundary: parses bodies and paths, answers status codes, nothing else
-src/server/review.ts   reads the directory, calls transitions.ts, applies: files, memory, listeners
-src/server/transitions.ts   the decisions, pure functions of plain values
-src/workspace/*        branded paths, versions, slug, rename, link rewrite; parsers and file operations
-src/feedback/*         the text Claude reads
-src/protocol.ts        the types both sides of HTTP share; everything in it is JSON
-ui/*, plugins/*/ui.tsx the page (Preact + signals) and its renderers; never imported by src/
-plugins/server.ts, plugins/*/server.ts   server-side plugins, pure: candidates in, the server filters
+src/adapters/http/       routes.ts parses bodies and paths and answers status codes; serve.ts binds and bundles the page
+src/adapters/fs.ts       every read and write under the project root: listing, versions, feedback, rename and rewrite
+src/adapters/browser.ts  opens the page
+src/app/review.ts        the use case: reads through the adapter, calls the domain, applies files, memory, listeners
+src/domain/              pure, no IO: paths (brands, parsers), workspace (states, memory, pending), review (decisions),
+                         feedback (anchors, the text Claude reads), slug, links
+src/protocol.ts          what crosses HTTP and a plugin boundary; JSON; re-exports the domain types it carries
+src/cli.ts               the entry point: `start` spawns `serve` detached
+ui/api.ts, ui/state.ts   the page's client and its store; ui/*.tsx the components; anchoring and highlights
+plugins/<kind>/          one document kind: server.ts (pure, candidates in) and ui.tsx (the renderer)
+plugins/index.ts, plugins/server.ts   the two registries: one bundle is a browser's
 ```
 
-Dependencies point down the list. `hooks/` imports nothing from `src/`; `ui/` and `plugins/index.ts` never import `node:*`; `src/` never imports `ui/`.
+Dependencies point toward `src/domain/`, held by `src/boundaries.test.ts`: `domain/` imports
+no `node:*`, `bun`, adapter, app or page; `hooks/register.ts` imports `claude-code` only;
+`ui/` and `plugins/` never import `src/app` or `src/adapters`; `src/` never imports `ui/`
+beyond `index.html`.
 
 ## Rules
 
 - **State is one union, never several nullables.** The hooks module holds one `State`
   (`idle | drafting | reviewing | approved`); the server derives what is pending from the
-  workspace (`pendingOf`) instead of keeping a second variable. A new feature adds a
+  workspace (`domain/workspace.ts`, `pendingOf`) instead of keeping a second variable. A new feature adds a
   variant, not a flag. Before writing `let x: T | null`, name the state `null` stands for.
 - **Decide, then apply.** Read everything first, take the decision as a pure function of
-  plain values in `transitions.ts`, then write files, timers and prompts. The pure part is
+  plain values in `src/domain/`, then write files, timers and prompts through `src/adapters/`. The pure part is
   tested with plain calls; the applying part with a temp directory or the fake `$`.
 - **Parse at the boundary, once, into a branded type.** `parseWipDir`, `parseVersion`,
   `parseProjectPath` grant `WipDir`, `Version`, `ProjectPath`; the hooks module's parsers
@@ -42,5 +52,5 @@ Dependencies point down the list. `hooks/` imports nothing from `src/`; `ui/` an
 ## Not adopted
 
 - File and function length thresholds: the pedantic oxlint and the anti-slop pack are the mechanical backstop.
-- Controller / use case / port layering: `routes.ts` → `Review` → pure modules is that shape already.
+- Ports as interfaces with a fake each: `adapters/fs.ts` has one implementation and the file system is fast; the port is extracted the day a second one exists.
 - A contract test between the fake `$` and the engine: `claude plugin test` cannot raise `classic.*` events.
