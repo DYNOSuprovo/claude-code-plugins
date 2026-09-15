@@ -5,7 +5,8 @@ module opens the plan and its artifacts in the browser, and the reviewer's answe
 Claude as a prompt. Function hooks, early access: `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`.
 
 Layers, dependency direction and the rules of the code: `.claude/rules/architecture.md`,
-loaded with this file.
+loaded with this file. The drawings, the assessment and the proposed shape for the next
+phases, for the people who change the tree: `docs/architecture.md`.
 
 ## Commands
 
