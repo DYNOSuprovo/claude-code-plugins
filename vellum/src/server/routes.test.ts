@@ -33,7 +33,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  started.server.stop(true);
+  started.stop();
 });
 
 describe("routes", () => {
@@ -82,6 +82,14 @@ describe("routes", () => {
     });
 
     expect(bad.status).toBe(400);
+
+    const badAgain = await fetch(url("/api/finalize"), {
+      method: "POST",
+      headers: headers(),
+      body: "not json",
+    });
+
+    expect(badAgain.status).toBe(400);
 
     const early = await fetch(url("/api/finalize"), {
       method: "POST",

@@ -12,6 +12,13 @@ describe("slugFromTitle", () => {
     });
   });
 
+  test("a wip- prefix is dropped: the final directory never looks like a working one", () => {
+    expect(slugFromTitle("# WIP: notifications")).toEqual({
+      ok: true,
+      value: "notifications" as never,
+    });
+  });
+
   test("no heading is an error", () => {
     expect(slugFromTitle("no heading here").ok).toBe(false);
   });
