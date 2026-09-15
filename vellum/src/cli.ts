@@ -2,6 +2,9 @@
 
 import { parseArgs } from "node:util";
 
+import { startServer } from "./server/serve.ts";
+import { parseWipDir } from "./workspace/paths.ts";
+
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
@@ -23,44 +26,23 @@ if (session === undefined || project === undefined || workdir === undefined) {
   process.exit(2);
 }
 
-const HEARTBEAT_GRACE_MS = 90_000;
-
 if (command === "serve") {
-  const token = crypto.randomUUID();
-  let lastHeartbeat = Date.now();
+  const dir = parseWipDir(workdir);
 
-  const server = Bun.serve({
-    hostname: "127.0.0.1",
+  if (!dir.ok) {
+    console.error(dir.error);
+    process.exit(2);
+  }
+
+  const started = await startServer({
+    project,
+    workdir: dir.value,
     port: Number(values.port ?? 0),
-    idleTimeout: 0,
-    fetch(request) {
-      const url = new URL(request.url);
-
-      if (url.pathname.startsWith("/api/")) {
-        if (request.headers.get("x-vellum-token") !== token) {
-          return new Response("unauthorized", { status: 401 });
-        }
-
-        if (url.pathname === "/api/heartbeat") {
-          lastHeartbeat = Date.now();
-
-          return new Response(null, { status: 204 });
-        }
-
-        if (url.pathname === "/api/review") {
-          return Response.json({ workspace: { kind: "drafting", dir: workdir }, session });
-        }
-      }
-
-      return new Response("not found", { status: 404 });
-    },
   });
 
-  setInterval(() => {
-    if (Date.now() - lastHeartbeat > HEARTBEAT_GRACE_MS) process.exit(0);
-  }, 5_000);
-
-  console.log(JSON.stringify({ port: server.port, token, pid: process.pid }));
+  console.log(
+    JSON.stringify({ port: started.server.port, token: started.token, pid: process.pid }),
+  );
 } else if (command === "start") {
   const child = Bun.spawn(["bun", import.meta.path, "serve", ...process.argv.slice(3)], {
     stdio: ["ignore", "pipe", "ignore"],

@@ -1,152 +1,308 @@
-import type { EngineInterface, Register } from "claude-code";
+import type { EngineInterface, HttpInit, HttpResponse, Register, Timer } from "claude-code";
 
 type ServerInfo = { readonly port: number; readonly token: string; readonly pid: number };
 
+/** What `$.store` keeps under `session:<id>`, so a reloaded module finds its server again. */
+type Session = { readonly server: ServerInfo; readonly workdir: string };
+
+type Pending =
+  | { readonly kind: "none" }
+  | { readonly kind: "feedback"; readonly version: number; readonly path: string }
+  | { readonly kind: "approved"; readonly version: number };
+
 type PlanInput = { readonly plan: string; readonly planFilePath: string };
 
-const SPIKE_LOG = "vellum-spike.log";
+const SKILL = "vellum:plan";
 
-const FEEDBACK_DELAY_MS = 20_000;
+const POLL_MS = 1_000;
 
-let server: ServerInfo | null = null;
+const HEARTBEAT_MS = 30_000;
 
-let workdir: string | null = null;
+const START_TIMEOUT_MS = 10_000;
 
-let version = 0;
+let session: Session | null = null;
 
-let approved = false;
+let review: { readonly version: number; readonly poll: Timer } | null = null;
 
-async function log($: EngineInterface, line: string): Promise<void> {
-  const previous = (await $.fs.exists(SPIKE_LOG)) ? await $.fs.read(SPIKE_LOG) : "";
-  await $.fs.write(SPIKE_LOG, `${previous}${new Date().toISOString()} ${line}\n`);
+let approved: number | null = null;
+
+let heartbeat: Timer | null = null;
+
+/* oxlint-disable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type, anti-slop/no-unknown-returns, anti-slop/no-known-value-widening -- the block below IS the boundary parser the rules ask for: `tool_input`, `$.store` values and the server's JSON arrive as `unknown`, and there is no earlier place to parse them. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
-/* oxlint-disable anti-slop/no-runtime-typeof -- this IS the boundary parser the rule asks for: `tool_input` arrives as `unknown` from the engine, and there is no earlier place to parse it. */
 function isPlanInput(input: unknown): input is PlanInput {
   return (
-    typeof input === "object" &&
-    input !== null &&
-    "plan" in input &&
-    typeof input.plan === "string" &&
-    "planFilePath" in input &&
-    typeof input.planFilePath === "string"
+    isRecord(input) && typeof input.plan === "string" && typeof input.planFilePath === "string"
   );
 }
-/* oxlint-enable anti-slop/no-runtime-typeof */
+
+function parseServerInfo(value: unknown): ServerInfo | null {
+  return isRecord(value) &&
+    typeof value.port === "number" &&
+    typeof value.token === "string" &&
+    typeof value.pid === "number"
+    ? { port: value.port, token: value.token, pid: value.pid }
+    : null;
+}
+
+function parseSession(value: unknown): Session | null {
+  const server = isRecord(value) ? parseServerInfo(value.server) : null;
+
+  return server !== null && isRecord(value) && typeof value.workdir === "string"
+    ? { server, workdir: value.workdir }
+    : null;
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function parsePending(text: string): Pending {
+  const value = parseJson(text);
+
+  if (!isRecord(value) || typeof value.version !== "number") return { kind: "none" };
+
+  if (value.kind === "approved") return { kind: "approved", version: value.version };
+
+  if (value.kind === "feedback" && typeof value.path === "string") {
+    return { kind: "feedback", version: value.version, path: value.path };
+  }
+
+  return { kind: "none" };
+}
+
+function parseVersion(text: string): number | null {
+  const value = parseJson(text);
+
+  return isRecord(value) && typeof value.version === "number" ? value.version : null;
+}
+
+function parseFinalized(text: string): string | null {
+  const value = parseJson(text);
+
+  return isRecord(value) && typeof value.plan === "string" ? value.plan : null;
+}
+
+function parseFinalizeError(text: string): string {
+  const value = parseJson(text);
+  const workspace = isRecord(value) ? value.workspace : null;
+
+  return isRecord(workspace) && typeof workspace.finalizeError === "string"
+    ? workspace.finalizeError
+    : "the plan was not approved in the browser";
+}
+/* oxlint-enable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type, anti-slop/no-unknown-returns, anti-slop/no-known-value-widening */
+
+function api(
+  $: EngineInterface,
+  server: ServerInfo,
+  path: string,
+  init?: HttpInit,
+): Promise<HttpResponse> {
+  return $.http.fetch(`http://127.0.0.1:${server.port}${path}`, {
+    ...init,
+    headers: { "x-vellum-token": server.token, "content-type": "application/json" },
+  });
+}
+
+async function alive($: EngineInterface, server: ServerInfo): Promise<boolean> {
+  try {
+    return (await api($, server, "/api/review")).ok;
+  } catch {
+    return false;
+  }
+}
+
+function startHeartbeat($: EngineInterface, server: ServerInfo): void {
+  heartbeat?.cancel();
+
+  heartbeat = $.clock.every(HEARTBEAT_MS, () => {
+    void api($, server, "/api/heartbeat", { method: "POST" }).catch(() => {});
+  });
+}
+
+async function startServer(
+  $: EngineInterface,
+  id: string,
+  workdir: string,
+): Promise<ServerInfo | null> {
+  const run = await $.process.run(
+    [
+      "bun",
+      `${$.plugin.root}/src/cli.ts`,
+      "start",
+      "--session",
+      id,
+      "--project",
+      await $.session.cwd(),
+      "--workdir",
+      workdir,
+    ],
+    { timeoutMs: START_TIMEOUT_MS },
+  );
+
+  if (run.exitCode !== 0) {
+    $.ui.log(`vellum: the review server did not start: ${run.stderr.trim()}`);
+
+    return null;
+  }
+
+  return parseServerInfo(parseJson(run.stdout));
+}
+
+async function storedSession($: EngineInterface, id: string): Promise<Session | null> {
+  const stored = parseSession(await $.store.get(`session:${id}`));
+
+  return stored !== null && (await alive($, stored.server)) ? stored : null;
+}
+
+/** The session's server and working directory: in memory, else from `$.store`, else started now. */
+async function ensureSession($: EngineInterface): Promise<Session | null> {
+  const id = await $.session.id();
+
+  if (session !== null && (await alive($, session.server))) return session;
+  const stored = await storedSession($, id);
+
+  if (stored !== null) {
+    session = stored;
+    startHeartbeat($, stored.server);
+
+    return stored;
+  }
+
+  const date = new Date().toISOString().slice(0, 10);
+  const workdir = session?.workdir ?? `plans/${date}/wip-${id.slice(0, 8)}/`;
+  const server = await startServer($, id, workdir);
+
+  if (server === null) return null;
+  session = { server, workdir };
+  await $.store.set(`session:${id}`, session);
+  startHeartbeat($, server);
+
+  return session;
+}
+
+async function closeSession($: EngineInterface): Promise<void> {
+  const id = await $.session.id();
+  await $.store.delete(`session:${id}`);
+  session = null;
+  approved = null;
+  review?.poll.cancel();
+  review = null;
+  heartbeat?.cancel();
+  heartbeat = null;
+  $.ui.status(undefined);
+}
+
+function feedbackPrompt(pending: Extract<Pending, { kind: "feedback" }>): string {
+  return `Plan review v${pending.version}: changes requested. Read ${pending.path}, revise the plan, then call ExitPlanMode.`;
+}
+
+function approvedPrompt(version: number): string {
+  return `Plan v${version} was approved in the browser. Call ExitPlanMode again with the same plan.`;
+}
+
+/** Polls the server once a second until the browser decides, then submits one prompt. */
+function watch($: EngineInterface, server: ServerInfo, version: number): void {
+  review?.poll.cancel();
+
+  const poll = $.clock.every(POLL_MS, () => {
+    void api($, server, "/api/pending")
+      .then((response) => {
+        const pending = parsePending(response.text);
+
+        if (pending.kind === "none") return;
+        review?.poll.cancel();
+        review = null;
+        $.ui.status(undefined);
+
+        if (pending.kind === "approved") approved = pending.version;
+
+        return $.prompt.submit({
+          text:
+            pending.kind === "approved" ? approvedPrompt(pending.version) : feedbackPrompt(pending),
+        });
+      })
+      .catch(() => {});
+  });
+
+  review = { version, poll };
+  $.ui.status(`plan v${version} under review`);
+}
 
 export const register: Register = (on) => {
-  on("skill.prompt", async ($, e, next) => {
-    await log($, `skill.prompt skill=${JSON.stringify(e.skill)}`);
-
-    if (e.skill !== "vellum:plan" && e.skill !== "plan") return next(e);
-
-    const id = await $.session.id();
-    const date = new Date().toISOString().slice(0, 10);
-    workdir = `plans/${date}/wip-${id.slice(0, 8)}/`;
-    await $.fs.write(`${workdir}.review/.keep`, "");
-
-    const startedAt = await $.clock.now();
-
-    const run = await $.process.run(
-      [
-        "bun",
-        `${$.plugin.root}/src/cli.ts`,
-        "start",
-        "--session",
-        id,
-        "--project",
-        await $.session.cwd(),
-        "--workdir",
-        workdir,
-      ],
-      { timeoutMs: 10_000 },
-    );
-
-    const elapsed = (await $.clock.now()) - startedAt;
-    await log(
-      $,
-      `process.run start exit=${run.exitCode} elapsed=${elapsed}ms stdout=${run.stdout.trim()} stderr=${run.stderr.trim()}`,
-    );
-
-    if (run.exitCode === 0) {
-      // SAFETY: `start` relays the one line `serve` prints, `{ port, token, pid }`; exit 0 means it printed one.
-      server = JSON.parse(run.stdout) as ServerInfo;
-      await $.store.set(`session:${id}`, server);
-
-      const probe = await $.http.fetch(`http://127.0.0.1:${server.port}/api/review`, {
-        headers: { "x-vellum-token": server.token },
-      });
-
-      await log($, `http.fetch /api/review status=${probe.status} text=${probe.text}`);
-      $.clock.every(30_000, () => {
-        if (server === null) return;
-        void $.http.fetch(`http://127.0.0.1:${server.port}/api/heartbeat`, {
-          method: "POST",
-          headers: { "x-vellum-token": server.token },
-        });
-      });
-    }
-
+  on("skill.prompt", { skill: SKILL }, async ($, e, next) => {
+    const current = await ensureSession($);
     const result = await next(e);
 
-    return { text: `${result.text}\n\nWorking directory: ${workdir}` };
+    if (current === null) return result;
+
+    if (review !== null) void api($, current.server, "/api/open", { method: "POST" });
+
+    return { text: `${result.text}\n\nWorking directory: ${current.workdir}` };
   });
 
   on("classic.PermissionRequest", { tool_name: "ExitPlanMode" }, async ($, e, next) => {
-    await log($, `PermissionRequest agent_id=${e.agent_id ?? "-"} workdir=${workdir ?? "-"}`);
+    if (e.agent_id !== undefined || !isPlanInput(e.tool_input)) return next(e);
+    const current = session ?? (await storedSession($, await $.session.id()));
 
-    if (e.agent_id !== undefined || workdir === null || !isPlanInput(e.tool_input)) {
-      return next(e);
-    }
+    if (current === null) return next(e);
+    session = current;
 
-    if (approved) {
-      await log($, `allow v${version} with updatedInput and setMode default`);
-      $.ui.status(undefined);
+    if (approved !== null) {
+      const response = await api($, current.server, "/api/finalize", {
+        method: "POST",
+        body: JSON.stringify({ version: approved }),
+      });
+
+      const plan = response.ok ? parseFinalized(response.text) : null;
+
+      if (plan === null) {
+        const error = parseFinalizeError(response.text);
+        const version = approved;
+        approved = null;
+        watch($, current.server, version);
+
+        return {
+          decision: {
+            behavior: "deny",
+            message: `Vellum could not finalize the plan: ${error}. The review stays open in the browser; end your turn.`,
+          },
+        };
+      }
+
+      await closeSession($);
 
       return {
         decision: {
           behavior: "allow",
-          updatedInput: {
-            ...e.tool_input,
-            plan: `${e.tool_input.plan}\n\nVELLUM-APPROVED-MARKER v${version}\n`,
-          },
+          updatedInput: { ...e.tool_input, plan },
           updatedPermissions: [{ type: "setMode", mode: "default", destination: "session" }],
         },
       };
     }
 
-    version += 1;
-    const current = version;
-    await $.fs.write(`${workdir}.review/v${current}.md`, e.tool_input.plan);
-    $.ui.status(`plan v${current} under review`);
+    const gated = await api($, current.server, "/api/gate", {
+      method: "POST",
+      body: JSON.stringify({ plan: e.tool_input.plan, planFilePath: e.tool_input.planFilePath }),
+    }).catch((): HttpResponse => ({ status: 0, ok: false, headers: {}, text: "" }));
 
-    $.clock.after(FEEDBACK_DELAY_MS, () => {
-      if (current === 1) {
-        void $.fs
-          .write(
-            `${workdir}.review/v${current}.feedback.md`,
-            `# Plan review: changes requested (v${current})\n\n1. \`plan\`, general\n   Step 3 says "verify" without saying how. Name the command that reads the file back and the exact content it must show.\n`,
-          )
-          .then(() =>
-            $.prompt.submit({
-              text: `Plan review v${current}: changes requested. Read ${workdir}.review/v${current}.feedback.md, revise the plan, then call ExitPlanMode.`,
-            }),
-          )
-          .then((result) => log($, `prompt.submit feedback result=${JSON.stringify(result)}`));
-      } else {
-        approved = true;
-        void $.prompt
-          .submit({
-            text: `Plan v${current} was approved in the browser. Call ExitPlanMode again with the same plan.`,
-          })
-          .then((result) => log($, `prompt.submit approved result=${JSON.stringify(result)}`));
-      }
-    });
+    const version = gated.ok ? parseVersion(gated.text) : null;
+
+    if (version === null) return next(e);
+    watch($, current.server, version);
 
     return {
       decision: {
         behavior: "deny",
-        message: `Plan v${current} is open for review in the browser. End your turn; the review arrives as a new prompt.`,
+        message: `Plan v${version} is open for review in the browser. End your turn; the review arrives as a new prompt.`,
       },
     };
   });
