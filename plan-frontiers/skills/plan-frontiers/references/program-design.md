@@ -1,6 +1,6 @@
 # Program design formats
 
-The shape of the code before any body: what a reviewer validates in a minute and an implementer cannot get wrong. Pick the formats the change calls for; a plan rarely needs more than two. Every block is plain text in a fenced code block, no diagram.
+The shape of the code before any body: what a reviewer validates in a minute and an implementer cannot get wrong. Pick the formats the change calls for; a plan rarely needs more than two. Every block is plain text in a fenced code block.
 
 ## Types and signatures
 

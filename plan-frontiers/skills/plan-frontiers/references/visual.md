@@ -1,6 +1,6 @@
 # Visual artifacts
 
-A plan is Markdown. A picture earns its place only where words fail: a screen the reviewer must see, a flow with several actors, a state machine. Then it is a file next to the plan, listed in the plan by path, kept after implementation for verification.
+A plan is Markdown. A diagram earns its place when it shows several layers, interactions or states faster than text would: an architecture, a sequence, a state machine. Not on every section, and never as the only place a fact lives. Mermaid in the plan for diagrams; an HTML file next to the plan for a screen, listed in the plan by path and kept after implementation for verification.
 
 ## Mockups
 
@@ -12,7 +12,7 @@ A sequence with more than three actors, or a state machine, can be a Mermaid blo
 
 ## What stays text
 
-Program design: types, signatures, call stacks, file trees. Diagrams for these are exhausting to read; the pseudocode formats in `program-design.md` are lighter and precise.
+Program design defaults to pseudocode (types, signatures, call stacks, file trees, the formats in `program-design.md`) because it is precise and diffable. Add a diagram on top when the interaction between components is the point; keep the signatures next to it.
 
 ## Rendering
 

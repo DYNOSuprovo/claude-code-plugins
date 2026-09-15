@@ -36,7 +36,7 @@ A fact sits next to the decision it fixes, never in a preamble. The plan opens w
 
 Omit what a competent implementer derives: branch-by-branch logic, repeated invariants, lists of unaffected behavior, unless one prevents a likely implementation mistake. No length target. Expand when asked.
 
-A mockup or a flow worth showing is an artifact next to the plan: `references/visual.md`
+A diagram or a mockup worth showing: `references/visual.md`
 
 ## 4. Hand off
 
