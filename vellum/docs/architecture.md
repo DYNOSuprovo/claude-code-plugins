@@ -1,9 +1,9 @@
 # Vellum: the map, and where it goes next
 
 For the people who change the tree. The rules an agent holds to are in
-[`.claude/rules/architecture.md`](../.claude/rules/architecture.md); this file draws what
-that text describes, names the shape, says what moved to reach it, and where phases 2 and 3
-land in it.
+[`.claude/rules/`](../.claude/rules/), one file per zone (hooks, server, page, tests); this
+file draws what those texts describe, names the shape, says what moved to reach it, and
+where phases 2 and 3 land in it.
 
 ## Three runtimes, one contract
 
@@ -191,3 +191,12 @@ Two other shapes were weighed and left:
 - **Vertical slices by feature** (`gate/`, `decision/`, `finalize/`, `docs/`). Wrong here:
   the features share one state machine and one directory layout; slicing them splits the
   union across folders, and the first review's bugs were exactly cross-feature state.
+
+Also weighed and left, for now:
+
+- File and function length thresholds: the pedantic oxlint and the anti-slop pack are the
+  mechanical backstop.
+- Ports as interfaces with a fake each: `adapters/fs.ts` has one implementation and the file
+  system is fast; the port is extracted the day a second one exists.
+- A contract test between the fake `$` and the engine: `claude plugin test` cannot raise
+  `classic.*` events.
