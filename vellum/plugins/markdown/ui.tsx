@@ -190,7 +190,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
 
     const target =
       root !== null && inputMethod.value === "pinpoint" && event.target instanceof Element
-        ? targetAt(root, event.target)
+        ? targetAt(root, event.target, event.clientX, event.clientY)
         : null;
 
     if (target?.element === wash?.target.element) return;
@@ -214,7 +214,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       return;
     }
 
-    const target = targetAt(root, event.target);
+    const target = targetAt(root, event.target, event.clientX, event.clientY);
     const range = target === null ? null : rangeOf(target);
     const anchor = range === null ? null : anchorFromRange(root, range);
 
