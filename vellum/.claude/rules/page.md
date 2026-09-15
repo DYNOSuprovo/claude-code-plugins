@@ -19,3 +19,6 @@ is a browser's: `Bun.serve` builds it from `ui/index.html` at run time, no build
   first.
 - A new document kind is one folder with both halves and two registry lines, not a branch in
   an existing renderer.
+- A kind folder may hold a helper beside `ui.tsx` (`markdown/pinpoint.ts`): its choice is a
+  pure function tested with `bun test`, its DOM part a thin adapter. The page has no DOM
+  implementation to test against.

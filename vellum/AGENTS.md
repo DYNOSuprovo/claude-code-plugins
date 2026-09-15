@@ -31,13 +31,15 @@ bun test vellum                                                     # every suit
 bun test vellum/src/domain/slug.test.ts                             # one suite; `-t <pattern>` filters by test name
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum   # what the hooks module hooks and calls
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 command claude --permission-mode default --plugin-dir vellum   # a live session from source
-bun vellum/src/cli.ts serve --session <id> --project <dir> --workdir plans/<date>/wip-<sid8>       # the server alone, for page work
+bun vellum/src/cli.ts serve --session <id> --project <dir> --workdir plans/<date>/wip-<sid8>/      # the server alone, for page work; the trailing slash is required
 claude -p --setting-sources project "/plugin-types vellum/types"    # regenerate types/claude-code.d.ts after a Claude Code update; keep claude-code.d.ts only
 ```
 
 Every command runs from the repository root; lint, types and format are the repository's
 gates, listed in its `AGENTS.md`. The server alone prints port and token and serves the page
 at `http://127.0.0.1:<port>/t/<token>/`; it exits 90 s after its last `POST /api/heartbeat`.
+Only the hooks module posts the heartbeat, the page does not: alone, post it in a loop with
+the header `x-vellum-token: <token>`.
 
 A live session, the browser, and the facts measured on Claude Code: `docs/plugin-testing.md`
 at the repository root, § Testing a hooks module, and `plans/2026-09-15/plan-review-rewrite/`.

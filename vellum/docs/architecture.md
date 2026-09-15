@@ -174,8 +174,10 @@ vellum/
   ui/
     api.ts                     the client: token, routes, SSE
     state.ts, app.tsx, …       the store and the components
+    tools.tsx                  the controls row over the document: Select|Pinpoint, Beside the plan
     anchoring.ts, highlights.ts
   plugins/<kind>/{server.ts,ui.tsx}   one folder per document kind
+  plugins/markdown/pinpoint.ts        the target under the pointer: pure choice, thin DOM adapter
   plugins/index.ts, plugins/server.ts two registries: one bundle is a browser's
 ```
 
