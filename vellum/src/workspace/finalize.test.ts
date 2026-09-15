@@ -1,6 +1,13 @@
 /* oxlint-disable anti-slop/require-safety-comment-for-type-assertion -- fixtures and expectations here are branded values (Version, ProjectPath, WipDir) written as literals: the brand is the parser's to grant, and the test is what checks the parser. */
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -53,6 +60,15 @@ describe("finalize", () => {
     mkdirSync(join(root, "plans/2026-09-15/notification-2"));
     const result = await run(root);
     expect(result).toEqual({ ok: true, value: "plans/2026-09-15/notification-3/" as never });
+  });
+
+  test("a file that cannot be rewritten fails before the rename, so a retry finds the directory", async () => {
+    const root = fixture();
+    chmodSync(join(root, WIP, "mockup.html"), 0o444);
+    const result = await run(root);
+    expect(result.ok).toBe(false);
+    expect(existsSync(join(root, WIP))).toBe(true);
+    expect(existsSync(join(root, "plans/2026-09-15/notification"))).toBe(false);
   });
 
   test("a missing working directory is an error, not a throw", async () => {

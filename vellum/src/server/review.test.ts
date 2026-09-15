@@ -41,6 +41,27 @@ describe("Review", () => {
     expect(readFileSync(join(root, WIP, ".review/v2.md"), "utf8")).toBe(`${PLAN}more\n`);
   });
 
+  test("the same text after a feedback is a new version, and the old pending is gone", async () => {
+    const { review } = setup();
+    await review.gate({ plan: PLAN, planFilePath: "plans/p.md" });
+    await review.decide({ kind: "feedback", annotations: [] });
+    expect(review.pendingNow().kind).toBe("feedback");
+    expect(await review.gate({ plan: PLAN, planFilePath: "plans/p.md" })).toBe(2 as never);
+    expect(review.pendingNow()).toEqual({ kind: "none" });
+    expect((await review.workspace()).kind).toBe("inReview");
+  });
+
+  test("a failed finalize clears the pending approval until the reviewer retries", async () => {
+    const { review } = setup();
+    await review.gate({ plan: "???\n", planFilePath: "plans/???.md" });
+    await review.decide({ kind: "approve" });
+    const result = await review.finalize(1 as never);
+    expect(result.ok).toBe(false);
+    expect(result.workspace).toMatchObject({ kind: "inReview", finalizeError: expect.any(String) });
+    expect(review.pendingNow()).toEqual({ kind: "none" });
+    expect((await review.decide({ kind: "approve" })).workspace.kind).toBe("approvedPending");
+  });
+
   test("view lists the plan and the linked docs that exist", async () => {
     const { review } = setup();
     await review.gate({ plan: PLAN, planFilePath: "plans/p.md" });

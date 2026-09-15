@@ -14,7 +14,8 @@ export function slugFromTitle(plan: string): ParseResult<Slug> {
     .replaceAll(/[^a-z0-9]+/gu, "-")
     .replaceAll(/^-+|-+$/gu, "")
     .slice(0, MAX_SLUG_LENGTH)
-    .replace(/-+$/u, "");
+    .replace(/-+$/u, "")
+    .replace(/^(?:wip-)+/u, "");
 
   // SAFETY: the brand is granted by the non-empty check on the line below; the characters are [a-z0-9-] by construction.
   return slug === ""

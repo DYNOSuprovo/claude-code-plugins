@@ -117,13 +117,23 @@ export class Review {
     for (const listener of this.listeners) listener(workspace);
   }
 
-  /** Records the submitted plan as the next version; the same text as the latest version keeps its number. */
+  /**
+   * Records the submitted plan as the next version. The same text as a version still under review
+   * keeps its number (a repeated call, or the approval's second call); after a feedback the
+   * resubmission is a new round, artifacts may have changed while the text did not.
+   */
   public async gate(input: GateInput): Promise<Version> {
     const workspace = await this.workspace();
     const latest = this.latestVersion(workspace);
     this.planFilePath = input.planFilePath;
 
-    if (latest !== null && (await this.planText(latest)) === input.plan) return latest;
+    if (
+      latest !== null &&
+      workspace.kind !== "changesRequested" &&
+      (await this.planText(latest)) === input.plan
+    ) {
+      return latest;
+    }
 
     const next = parseVersion((latest ?? 0) + 1);
 
@@ -173,21 +183,10 @@ export class Review {
       ? slugFromTitle(plan)
       : slugFromFileName(this.planFilePath ?? "plan.md");
 
-    if (!slug.ok) {
-      this.memory = { kind: "finalizeError", version, error: slug.error };
-      await this.notify();
-
-      return { ok: false, workspace: await this.workspace() };
-    }
-
+    if (!slug.ok) return this.failFinalize(version, slug.error);
     const renamed = await renameWorkspace(this.options.project, before.dir, slug.value);
 
-    if (!renamed.ok) {
-      this.memory = { kind: "finalizeError", version, error: renamed.error };
-      await this.notify();
-
-      return { ok: false, workspace: await this.workspace() };
-    }
+    if (!renamed.ok) return this.failFinalize(version, renamed.error);
 
     this.memory = { kind: "approved", version, dir: renamed.value };
     this.pending = { kind: "none" };
@@ -198,6 +197,15 @@ export class Review {
       workspace: await this.workspace(),
       plan: rewriteLinks(plan, before.dir, renamed.value),
     };
+  }
+
+  /** The reviewer sees the error and retries from the page; until then nothing is pending. */
+  private async failFinalize(version: Version, error: string): Promise<FinalizeResult> {
+    this.memory = { kind: "finalizeError", version, error };
+    this.pending = { kind: "none" };
+    await this.notify();
+
+    return { ok: false, workspace: await this.workspace() };
   }
 
   public async view(): Promise<ReviewView> {

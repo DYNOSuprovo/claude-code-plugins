@@ -91,7 +91,9 @@ async function parseFinalize(request: Request): Promise<number | null> {
 }
 /* oxlint-enable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type */
 
-const BAD_REQUEST = new Response("bad request", { status: 400 });
+function badRequest(): Response {
+  return new Response("bad request", { status: 400 });
+}
 
 async function serveFile(project: string, rawPath: string): Promise<Response> {
   let decoded: string;
@@ -175,7 +177,7 @@ async function api(context: RouteContext, request: Request, route: string): Prom
   if (route === "POST /api/gate") {
     const input = await parseGate(request);
 
-    if (input === null) return BAD_REQUEST;
+    if (input === null) return badRequest();
     const version = await review.gate(input);
 
     if (review.listenerCount === 0) context.openBrowser();
@@ -186,7 +188,7 @@ async function api(context: RouteContext, request: Request, route: string): Prom
   if (route === "POST /api/decision") {
     const decision = await parseDecision(request);
 
-    if (decision === null) return BAD_REQUEST;
+    if (decision === null) return badRequest();
     const result = await review.decide(decision);
 
     return Response.json({ workspace: result.workspace }, { status: result.ok ? 200 : 409 });
@@ -196,7 +198,7 @@ async function api(context: RouteContext, request: Request, route: string): Prom
     const raw = await parseFinalize(request);
     const version = raw === null ? null : parseVersion(raw);
 
-    if (version?.ok !== true) return BAD_REQUEST;
+    if (version?.ok !== true) return badRequest();
     const result = await review.finalize(version.value);
 
     return result.ok

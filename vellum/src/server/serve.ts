@@ -18,16 +18,23 @@ export type Started = {
   readonly server: Bun.Server<undefined>;
   readonly token: string;
   readonly url: string;
+  /** Stops the server and its watchdog; for tests, which share one process. */
+  readonly stop: () => void;
 };
 
 export const HEARTBEAT_GRACE_MS = 90_000;
 
 const WATCHDOG_PERIOD_MS = 5_000;
 
+/** Best effort: the URL is also logged in the session, for a host with no opener or no display. */
 function openInBrowser(url: string): void {
   const opener = process.platform === "darwin" ? "open" : "xdg-open";
 
-  Bun.spawn([opener, url], { stdio: ["ignore", "ignore", "ignore"], detached: true }).unref();
+  try {
+    Bun.spawn([opener, url], { stdio: ["ignore", "ignore", "ignore"], detached: true }).unref();
+  } catch (cause) {
+    console.error(`vellum: could not open the browser with ${opener}: ${String(cause)}`);
+  }
 }
 
 export async function startServer(options: ServeOptions): Promise<Started> {
@@ -64,9 +71,17 @@ export async function startServer(options: ServeOptions): Promise<Started> {
 
   url = `http://127.0.0.1:${server.port}/t/${token}/`;
 
-  setInterval(() => {
+  const watchdog = setInterval(() => {
     if (Date.now() - lastHeartbeat > HEARTBEAT_GRACE_MS) process.exit(0);
   }, WATCHDOG_PERIOD_MS);
 
-  return { server, token, url };
+  return {
+    server,
+    token,
+    url,
+    stop: () => {
+      clearInterval(watchdog);
+      server.stop(true);
+    },
+  };
 }

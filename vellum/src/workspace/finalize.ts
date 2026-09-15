@@ -7,19 +7,24 @@ import { dateOf, parseFinalDir } from "./paths.ts";
 
 const TEXT_PROBE_BYTES = 8192;
 
-async function freeTarget(project: string, from: WipDir, slug: Slug): Promise<FinalDir> {
+async function freeTarget(
+  project: string,
+  from: WipDir,
+  slug: Slug,
+): Promise<ParseResult<FinalDir>> {
   const base = `plans/${dateOf(from)}/${slug}`;
 
   for (let n = 1; ; n += 1) {
     const candidate = n === 1 ? `${base}/` : `${base}-${n}/`;
+    const parsed = parseFinalDir(candidate);
+
+    if (!parsed.ok) return parsed;
 
     if (
       !(await Bun.file(join(project, candidate)).exists()) &&
       !(await isDir(project, candidate))
     ) {
-      const parsed = parseFinalDir(candidate);
-
-      if (parsed.ok) return parsed.value;
+      return parsed;
     }
   }
 }
@@ -47,22 +52,33 @@ async function rewriteTree(root: string, from: WipDir, to: FinalDir): Promise<vo
   }
 }
 
-/** Renames the working directory to its slug (`-2`, `-3` on collision) and rewrites its links in every text file. */
+/**
+ * Rewrites the links of every text file to the slug's directory (`-2`, `-3` on collision), then
+ * renames the working directory. Links first: a rewrite that fails leaves the directory where the
+ * review can still read it, and a second attempt rewrites nothing twice.
+ */
 export async function finalize(
   project: string,
   from: WipDir,
   slug: Slug,
 ): Promise<ParseResult<FinalDir>> {
   if (!(await isDir(project, from))) return { ok: false, error: `${from} is not a directory` };
-  const to = await freeTarget(project, from, slug);
+  const target = await freeTarget(project, from, slug);
+
+  if (!target.ok) return target;
+  const to = target.value;
+
+  try {
+    await rewriteTree(join(project, from), from, to);
+  } catch (cause) {
+    return { ok: false, error: `rewriting links in ${from} failed: ${String(cause)}` };
+  }
 
   try {
     await rename(join(project, from), join(project, to));
   } catch (cause) {
     return { ok: false, error: `rename ${from} → ${to} failed: ${String(cause)}` };
   }
-
-  await rewriteTree(join(project, to), from, to);
 
   return { ok: true, value: to };
 }
