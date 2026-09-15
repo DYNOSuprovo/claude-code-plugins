@@ -8,7 +8,7 @@ description: >
 
 Planning writes the plan and its artifacts, nothing else. No code edit until the reviewer approves the plan. The throwaway of step 1 is built before planning starts and is not kept.
 
-Three moves in order: explore or prototype, settle the choices, then plan. The plan is written in the harness's plan mode. Load one reference at a time, when its step starts.
+Three moves in order: explore or prototype, settle the choices, then plan. The plan is written in the harness's plan mode. Its artifacts live in `plans/<date>/<slug>/` from the repository root unless the project names another place. Load one reference at a time, when its step starts.
 
 ## 1. Size the ceremony
 

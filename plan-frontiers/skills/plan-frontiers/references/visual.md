@@ -4,7 +4,7 @@ A plan is Markdown. A diagram earns its place when it shows several layers, inte
 
 ## Mockups
 
-A rough HTML page of the actual screen settles what three paragraphs would only prolong. Plain HTML and CSS, no framework, real labels, the states that matter (empty, loading, error). One file per screen or per option when the reviewer chooses between options.
+A rough HTML page of the actual screen settles what three paragraphs would only prolong. Plain HTML and CSS, no framework, real labels, the states that matter (empty, loading, error). One file per screen; when the reviewer chooses between options, the options sit side by side in that file.
 
 ## Flows and states
 
