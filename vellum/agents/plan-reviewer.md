@@ -1,6 +1,6 @@
 ---
 name: plan-reviewer
-description: Reviews a plan before implementation, read-only. Checks that the plan answers the request, leads with decisions and interfaces, hides no choice in its mechanics, carries no placeholder, keeps names consistent across sections, closes every slice with a check, and states whether it is overengineered, underengineered or right. Spawned by plan-frontiers for a large change or a plan no human will read.
+description: Reviews a plan before implementation, read-only. Checks that the plan answers the request, leads with decisions and interfaces, hides no choice in its mechanics, carries no placeholder, keeps names consistent across sections, closes every slice with a check, and states whether it is overengineered, underengineered or right. Spawned by vellum:plan for a large change or a plan no human will read.
 tools: Read, Grep, Glob
 ---
 

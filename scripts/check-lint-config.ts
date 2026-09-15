@@ -58,6 +58,7 @@ const ALLOWED_IGNORE_PATTERNS = new Set([
   "archive/**",
   "node_modules/**",
   "tools/oxlint/anti-slop/**",
+  "vellum/types/**",
 ]);
 
 const ANTI_SLOP_PREFIX = "anti-slop/";
