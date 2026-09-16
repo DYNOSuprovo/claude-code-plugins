@@ -18,6 +18,9 @@ import {
   STOP_PROMPT,
   storedSession,
   tick,
+  TURN_ABORTED,
+  TURN_ANSWERED,
+  TURN_OF_AGENT,
   typedCommand,
   WORKDIR,
   world,
@@ -286,6 +289,76 @@ describe("tool.call mcp__vellum__submit", () => {
     expect(await $.tool.call({ tool: submit })).toEqual({
       deny: "the vellum review server is not answering; run /vellum:start again",
     });
+  });
+});
+
+describe("turn.complete", () => {
+  test("a turn that answers while live submits plan.md, and keeps an unchanged text", async ($, on) => {
+    const bodies: (string | undefined)[] = [];
+
+    const seen = world(on, {
+      routes: {
+        "/api/gate": (body) => {
+          bodies.push(body);
+
+          return reply(200, { version: 1, kept: false });
+        },
+      },
+    });
+
+    on("turn.complete", (_, e) => ({ text: e.answer }));
+    await $.skill.prompt(START_PROMPT);
+
+    expect(await $.turn.complete(TURN_ANSWERED)).toEqual({ text: "done" });
+    expect(bodies).toEqual([JSON.stringify({ unchanged: "keep" })]);
+    expect(seen.statuses.at(-1)).toBe("plan v1 under review");
+    expect(seen.logs).toEqual(["plan v1 is under review in the browser"]);
+  });
+
+  test("a version the gate kept says nothing", async ($, on) => {
+    const seen = world(on, {
+      routes: { "/api/gate": () => reply(200, { version: 1, kept: true }) },
+    });
+
+    on("turn.complete", (_, e) => ({ text: e.answer }));
+    await $.skill.prompt(START_PROMPT);
+    await $.turn.complete(TURN_ANSWERED);
+
+    expect(seen.statuses.at(-1)).toBe("planning");
+    expect(seen.logs).toEqual([]);
+  });
+
+  test("an aborted turn, a subagent's turn, and an idle session submit nothing", async ($, on) => {
+    const seen = world(on);
+    on("turn.complete", (_, e) => ({ text: e.answer }));
+    await $.turn.complete(TURN_ANSWERED);
+    await $.skill.prompt(START_PROMPT);
+    await $.turn.complete(TURN_ABORTED);
+    await $.turn.complete(TURN_OF_AGENT);
+
+    expect(seen.paths).not.toContain("/api/gate");
+  });
+
+  test("before plan.md exists, the turn's end says nothing the reviewer must act on", async ($, on) => {
+    const seen = world(on, {
+      routes: { "/api/gate": () => reply(409, { error: `write plan.md in ${WORKDIR} first` }) },
+    });
+
+    on("turn.complete", (_, e) => ({ text: e.answer }));
+    await $.skill.prompt(START_PROMPT);
+    await $.turn.complete(TURN_ANSWERED);
+
+    expect(seen.paths).toContain("/api/gate");
+    expect(seen.statuses.at(-1)).toBe("planning");
+    expect(seen.logs).toEqual([]);
+  });
+
+  test("a server that does not answer at the turn's end is no failure of the turn", async ($, on) => {
+    world(on, { routes: { "/api/gate": () => null } });
+    on("turn.complete", (_, e) => ({ text: e.answer }));
+    await $.skill.prompt(START_PROMPT);
+
+    expect(await $.turn.complete(TURN_ANSWERED)).toEqual({ text: "done" });
   });
 });
 

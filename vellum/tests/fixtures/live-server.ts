@@ -3,8 +3,10 @@ import type { HttpResponse, On } from "claude-code";
 import { reply } from "./reply.ts";
 import { SERVER } from "./server.ts";
 
-/** What a route answers; `null` is a server that does not answer that call. */
-export type Route = () => HttpResponse | null | Promise<HttpResponse | null>;
+/** What a route answers to a request's body; `null` is a server that does not answer that call. */
+export type Route = (
+  body: string | undefined,
+) => HttpResponse | null | Promise<HttpResponse | null>;
 
 const LIVE = {
   "/api/review": () => reply(200, { workspace: { kind: "drafting" } }),
@@ -21,7 +23,9 @@ export function liveServer(on: On, routes: Record<string, Route> = {}): string[]
   on("http.fetch", async (_, e) => {
     const { pathname, port } = new URL(e.url);
     paths.push(pathname);
-    const answer = Number(port) === SERVER.port ? ((await served.get(pathname)?.()) ?? null) : null;
+
+    const answer =
+      Number(port) === SERVER.port ? ((await served.get(pathname)?.(e.init?.body)) ?? null) : null;
 
     return answer === null ? { deny: `ECONNREFUSED ${e.url}` } : { value: answer };
   });

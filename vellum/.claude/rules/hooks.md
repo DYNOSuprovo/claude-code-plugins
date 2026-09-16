@@ -60,6 +60,12 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
 - The poll closes the mode from inside a tick through `settle`, which `register.ts` honours
   only while the state the tick entered is still the current one: an approval that lands
   during a new way in leaves the new mode and its timers alone.
+- The turn's end submits: a `turn.complete` hook, after `next(e)`, gates `plan.md` while
+  `live` when the main loop answered (`reason === "answer"`, no `agentId`), with
+  `{ unchanged: "keep" }` so a text the page already shows opens no version, after a feedback
+  included. A recorded version sets the status and one log line; a kept one, a refusal (no
+  `plan.md` yet, the plan approved) and a server that does not answer say nothing. The explicit
+  tool stays the model's mid-turn signal and records a new version after a feedback.
 - Every transition is an engine event or an answer from the server, never a reflex of the
   model. What is under review lives on the server's disk; the module keeps no copy of it.
 - Parse at the boundary, once: `tool_input`, `$.store` values and the server's JSON arrive as

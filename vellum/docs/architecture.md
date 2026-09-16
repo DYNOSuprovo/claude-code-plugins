@@ -12,7 +12,7 @@ flowchart LR
   subgraph engine["Claude Code (the engine)"]
     CC["the session<br/>/vellum:start · mcp__vellum__submit · /vellum:stop"]
     M["hooks/<br/>register.ts · mode.ts: idle · live"]
-    CC -- "session.start · skill.prompt<br/>tool.check · tool.call" --> M
+    CC -- "session.start · skill.prompt · command.run<br/>tool.check · tool.call · turn.complete" --> M
     M -- "$.prompt.submit<br/>deny / result / text" --> CC
   end
   subgraph server["vellum serve (one Bun process per session)"]
@@ -48,7 +48,7 @@ plain modules with no interface and no injection).
 
 | Part | Shape | Driving side | Driven side |
 |---|---|---|---|
-| Hooks module | ports and adapters, `Host` the port | the engine's events (`session.start`, `skill.prompt`, `command.run`, `tool.check`, `tool.call`) | the engine's `$` (clock, store, http, process, prompt, tool), answered by the kit in tests |
+| Hooks module | ports and adapters, `Host` the port | the engine's events (`session.start`, `skill.prompt`, `command.run`, `tool.check`, `tool.call`, `turn.complete`) | the engine's `$` (clock, store, http, process, prompt, tool), answered by the kit in tests |
 | Server | ports and adapters, domain / app / adapters | `adapters/http/routes.ts` | the file system through `adapters/fs.ts`, real in tests (a temp directory) |
 | Page | a store of signals and components | the reviewer's clicks | `/api`, the files route, SSE |
 | `plugins/<kind>/` | feature slices: one document kind = one folder with its server half and its UI half | | |
@@ -91,9 +91,9 @@ sequenceDiagram
   loop every tool call while live
     CC->>M: tool.check → allow inside the working directory, deny outside it
   end
-  CC->>M: tool.call mcp__vellum__submit
-  M->>S: POST /api/gate → reads plan.md, writes .review/vN.md, opens the browser once
-  M-->>CC: result "Plan vN is under review. End your turn."
+  CC->>M: turn.complete (the main loop answered), or tool.call mcp__vellum__submit
+  M->>S: POST /api/gate → reads plan.md, writes .review/vN.md, opens the browser once; an unchanged text is kept
+  M-->>CC: status "plan vN under review" (and the tool's result: "End your turn.")
   loop every second
     M->>S: GET /api/pending
   end

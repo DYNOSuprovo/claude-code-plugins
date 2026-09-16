@@ -4,7 +4,7 @@ import type { Host } from "./host.ts";
 import { checkVerdict, lockFailed, lockVerdict } from "./lock.ts";
 import { close, connect, restore, type Settle, type State, suspend } from "./mode.ts";
 import { editedPath, type GateWire, sessionId } from "./parse.ts";
-import { submitResult } from "./relay.ts";
+import { submitPlan, submitResult } from "./relay.ts";
 
 const START_SKILL = "vellum:start";
 
@@ -120,10 +120,20 @@ export const register: Register = (on) => {
 
   on("tool.call", { tool: "mcp__vellum__submit" }, async ($) => {
     if (state.kind === "idle") return { deny: "no vellum planning in progress; run /vellum:start" };
-    const gate = await state.live.server.gate().catch(() => UNREACHABLE);
 
-    if (!("error" in gate)) $.ui.status(`plan v${gate.version} under review`);
+    return submitResult(await submitPlan(hostOf($), state.live, "record").catch(() => UNREACHABLE));
+  });
 
-    return submitResult(gate);
+  // The turn's end is the deterministic submit: the reviewer sees each new plan.md the moment
+  // Claude hands back, and never has to ask for one. An unchanged text is kept, even after a
+  // feedback, so a turn that answered a question opens no version; the explicit tool does.
+  on("turn.complete", async ($, e, next) => {
+    const result = await next(e);
+
+    if (state.kind === "live" && e.reason === "answer" && e.agentId === undefined) {
+      await submitPlan(hostOf($), state.live, "keep").catch(() => UNREACHABLE);
+    }
+
+    return result;
   });
 };
