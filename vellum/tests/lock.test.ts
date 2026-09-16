@@ -26,9 +26,9 @@ describe("lockVerdict", () => {
     expect(verdict("Write", { file_path: `${CWD}/src/cli.ts` })).toEqual(DENIED);
   });
 
-  test("a file outside the project is allowed: the session's scratchpad is no change", () => {
+  test("a file outside the project is the session's to decide", () => {
     const scratchpad = "/tmp/claude-1000/project/session/scratchpad/issue.md";
-    expect(verdict("Write", { file_path: scratchpad })).toEqual({ kind: "allow" });
+    expect(verdict("Write", { file_path: scratchpad })).toEqual({ kind: "check" });
   });
 
   test("a relative path is resolved against the session's directory", () => {
