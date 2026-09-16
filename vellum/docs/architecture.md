@@ -11,7 +11,7 @@ where phases 2 and 3 land in it.
 flowchart LR
   subgraph engine["Claude Code (the engine)"]
     CC["the session<br/>/vellum:plan · mcp__vellum__submit · /vellum:stop"]
-    M["hooks/register.ts<br/>State: idle · live"]
+    M["hooks/<br/>register.ts · mode.ts: idle · live"]
     CC -- "session.start · skill.prompt<br/>tool.check · tool.call" --> M
     M -- "$.prompt.submit<br/>deny / result / text" --> CC
   end
@@ -48,7 +48,7 @@ plain modules with no interface and no injection).
 
 | Part | Shape | Driving side | Driven side |
 |---|---|---|---|
-| Hooks module | ports and adapters, one file | the engine's events (`session.start`, `skill.prompt`, `tool.check`, `tool.call`) | the engine's `$` (clock, store, http, process, prompt, tool), faked in tests |
+| Hooks module | ports and adapters, `Host` the port | the engine's events (`session.start`, `skill.prompt`, `tool.check`, `tool.call`) | the engine's `$` (clock, store, http, process, prompt, tool), answered by the kit in tests |
 | Server | ports and adapters, domain / app / adapters | `adapters/http/routes.ts` | the file system through `adapters/fs.ts`, real in tests (a temp directory) |
 | Page | a store of signals and components | the reviewer's clicks | `/api`, the files route, SSE |
 | `plugins/<kind>/` | feature slices: one document kind = one folder with its server half and its UI half | | |
@@ -158,7 +158,12 @@ a renderer's own choice stays beside its `ui.tsx`.
 
 ```
 vellum/
-  hooks/register.ts            the engine adapter, one file (the contract wants it self-contained)
+  hooks/
+    register.ts                the one `let state`, one hook per event, and `hostOf($)`
+    host.ts                    `Host`: one member per `$` call the module makes
+    mode.ts                    State, Session, Live, and the transitions
+    lock.ts, relay.ts          the write policy and the poll's prompts, pure where they can be
+    server.ts, parse.ts        the review server's client, and the boundary parser
   skills/plan/, skills/stop/   the way in and the way out, both `vellum:`-namespaced
   src/
     domain/                    pure, no IO, no Bun, no node:*

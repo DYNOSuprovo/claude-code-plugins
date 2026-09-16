@@ -1,4 +1,4 @@
-import type { ProjectPath } from "./domain/paths.ts";
+import type { ProjectPath, Version } from "./domain/paths.ts";
 import type { PlanWorkspace } from "./domain/workspace.ts";
 
 /**
@@ -12,6 +12,11 @@ export type { Anchor, Annotation, ElementRef, Passage } from "./domain/feedback.
 export type { Decision } from "./domain/review.ts";
 
 export type { Pending, PlanWorkspace } from "./domain/workspace.ts";
+
+/** What `POST /api/gate` answers: the version the browser shows, or why it shows none. */
+export type GateAnswer =
+  | { readonly version: Version; readonly kept: boolean }
+  | { readonly error: string };
 
 export type MediaType = "text/markdown" | "text/html" | `image/${string}`;
 

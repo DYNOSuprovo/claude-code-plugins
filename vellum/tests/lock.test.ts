@@ -1,6 +1,7 @@
 import { describe, expect, test, tier } from "claude-code/testing";
 
-import { lockVerdict, submitResult, type Verdict } from "../hooks/register.ts";
+import { lockVerdict, type Verdict } from "../hooks/lock.ts";
+import { submitResult } from "../hooks/relay.ts";
 import { CWD, WORKDIR } from "./fixtures/index.ts";
 
 tier("user");
@@ -11,7 +12,7 @@ const DENIED = {
 };
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- `input` is the call's arguments as `tool.check` hands them over, which is what `lockVerdict` takes.
-const verdict = (tool: string, input: unknown, cwd = CWD): Verdict =>
+const verdict = (tool: string, input: unknown, cwd: string = CWD): Verdict =>
   lockVerdict(tool, input, cwd, CWD, WORKDIR);
 
 describe("lockVerdict", () => {

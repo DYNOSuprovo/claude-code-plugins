@@ -1,0 +1,62 @@
+import type { ResultOf } from "claude-code";
+
+import { editedPath, type ProjectDir, type Workdir } from "./parse.ts";
+
+/**
+ * `allow` runs the call whatever the session's mode, `check` hands it to the session's own
+ * permission flow, `deny` refuses it with the reason the model reads.
+ */
+export type Verdict =
+  | { readonly kind: "allow" }
+  | { readonly kind: "check" }
+  | { readonly kind: "deny"; readonly reason: string };
+
+/** Absolute, `.` and `..` folded: a relative path resolves against the session's directory. */
+function resolvePath(cwd: string, path: string): string {
+  const segments: string[] = [];
+
+  for (const segment of (path.startsWith("/") ? path : `${cwd}/${path}`).split("/")) {
+    if (segment === "" || segment === ".") continue;
+
+    if (segment === "..") segments.pop();
+    else segments.push(segment);
+  }
+
+  return `/${segments.join("/")}`;
+}
+
+/**
+ * While vellum plans, the files a call may write are the working directory's, and it writes
+ * them outright, since the directory is vellum's own and the page shows every file in it.
+ * Every other tool goes to the session's own flow, so exploration and reads are untouched.
+ */
+export function lockVerdict(
+  tool: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- `input` is the call's arguments as `tool.check` hands them over (`ToolCheckInput.input: unknown`); `editedPath`, in the boundary parser, is what reads them.
+  input: unknown,
+  cwd: string,
+  project: ProjectDir,
+  workdir: Workdir,
+): Verdict {
+  const path = editedPath(tool, input);
+
+  if (path === null) return { kind: "check" };
+
+  return resolvePath(cwd, path).startsWith(`${resolvePath(project, workdir)}/`)
+    ? { kind: "allow" }
+    : {
+        kind: "deny",
+        reason: `vellum is planning: files outside ${workdir} change after the plan is approved`,
+      };
+}
+
+/**
+ * A settings allow rule (`Bash(mkdir:*)`) would let a file-modifying command past the lock, as
+ * the native plan mode never does: the person decides it instead. The built-in read-only set
+ * carries no rule, so `git log` and `ls` still pass.
+ */
+export function checkVerdict(tool: string, engine: ResultOf["tool.check"]): ResultOf["tool.check"] {
+  return tool === "Bash" && engine.decision === "allow" && engine.rule !== undefined
+    ? { ...engine, decision: "ask" }
+    : engine;
+}

@@ -1,0 +1,108 @@
+import type { Host } from "./host.ts";
+import type { Live } from "./mode.ts";
+import type { GateWire, PendingWire, SessionId, Workdir } from "./parse.ts";
+
+const SUBMIT_TOOL = "mcp__vellum__submit";
+
+/**
+ * What `$.store` keeps under `relayed:<id>`: how many drafting batches and which feedback
+ * version the poll already named, for one working directory. Batch numbers restart with the
+ * directory, so a count kept for another one is worth nothing.
+ */
+export type Relayed = {
+  readonly workdir: Workdir;
+  readonly drafts: number;
+  readonly version: number;
+};
+
+/** What one poll settled: what has been named now, and whether the plan was approved. */
+export type Ticked = { readonly relayed: Relayed; readonly approved: boolean };
+
+export function relayedKey(id: SessionId): string {
+  return `relayed:${id}`;
+}
+
+function draftsPrompt(batches: Extract<PendingWire, { kind: "drafts" }>["batches"]): string {
+  const paths = batches.map((batch) => batch.path).join(", ");
+
+  return `Drafting feedback from the vellum review page: read ${paths}, revise the files they name, then continue the plan.`;
+}
+
+function feedbackPrompt(pending: Extract<PendingWire, { kind: "feedback" }>): string {
+  return `Plan review v${pending.version}: changes requested. Read ${pending.path}, revise plan.md and the files it names, then call ${SUBMIT_TOOL} again.`;
+}
+
+function approvedPrompt(pending: Extract<PendingWire, { kind: "approved" }>): string {
+  return `Plan v${pending.version} approved. It lives at ${pending.dir}. Implement it here or in a fresh session.`;
+}
+
+/** What the model reads from `submit`: `kept` means the browser already shows this very text. */
+export function submitResult(gate: GateWire): { result: string } | { deny: string } {
+  if ("error" in gate) return { deny: gate.error };
+  const held = gate.kept ? "is already under review" : "is under review";
+
+  return {
+    result: `Plan v${gate.version} ${held} in the browser. End your turn; the review arrives as a prompt.`,
+  };
+}
+
+/** Hands the session a prompt; `false` when another plugin dropped it, so the next tick retries. */
+async function submitPrompt(host: Host, text: string): Promise<boolean> {
+  const result = await host.submitPrompt(text);
+
+  if (result.drop === undefined) return true;
+  host.log(`vellum: the review prompt was dropped: ${result.drop}`);
+
+  return false;
+}
+
+async function remember(host: Host, id: SessionId, next: Relayed): Promise<Relayed> {
+  await host.storeSet(relayedKey(id), next);
+
+  return next;
+}
+
+/**
+ * One poll. Each drafting batch is named once and each feedback version once, remembered in
+ * `$.store` so a reload or a restarted server repeats neither; an approval once, and then the
+ * record goes, since the next plan starts a directory of its own.
+ */
+export async function tick(host: Host, live: Live, relayed: Relayed): Promise<Ticked> {
+  const pending = await live.server.pending();
+  const { id } = live.session;
+  const kept: Ticked = { relayed, approved: false };
+
+  if (pending.kind === "drafts") {
+    const fresh = pending.batches.filter((batch) => batch.batch > relayed.drafts);
+    const last = fresh.at(-1);
+
+    if (last === undefined || !(await submitPrompt(host, draftsPrompt(fresh)))) return kept;
+
+    return {
+      relayed: await remember(host, id, { ...relayed, drafts: last.batch }),
+      approved: false,
+    };
+  }
+
+  if (pending.kind === "feedback") {
+    if (
+      pending.version === relayed.version ||
+      !(await submitPrompt(host, feedbackPrompt(pending)))
+    ) {
+      return kept;
+    }
+
+    const next = await remember(host, id, { ...relayed, version: pending.version });
+    host.status("planning");
+
+    return { relayed: next, approved: false };
+  }
+
+  if (pending.kind === "approved" && (await submitPrompt(host, approvedPrompt(pending)))) {
+    await host.storeDelete(relayedKey(id));
+
+    return { relayed, approved: true };
+  }
+
+  return kept;
+}
