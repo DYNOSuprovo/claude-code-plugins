@@ -14,9 +14,12 @@ paths:
   version, the path, the text the case turns on stay in the test.
 - Before the code of a slice, its tests are listed one line each and agreed, written first,
   seen failing for the right reason.
-- Fakes at the ports, nothing else faked: the engine's `$` answered from memory in
-  `hooks/register.test.ts`; the server's file system is a temp directory through the real
-  adapter; `adapters/http` starts the server on port 0. No module mocking, no spy on an
-  internal call.
+- Fakes at the ports, nothing else faked: the hooks module runs under the engine's own `$`,
+  with the world beneath it answered by `mock.clock` and the `on(...)` hooks of
+  `tests/fixtures/`; the server's file system is a temp directory through the real adapter;
+  `adapters/http` starts the server on port 0. No module mocking, no spy on an internal call.
+- The kit cannot raise one case: the lock's overrun. `mock.clock` lets a wait held past a
+  hook's budget go, and a test's own budget is shorter still, so a hook that outruns the
+  dispatch is measured in a live session instead (`docs/plugin-testing.md`).
 - `src/boundaries.spec.ts` holds the dependency direction; an import that fails it is in the
   wrong layer, not a test to loosen.

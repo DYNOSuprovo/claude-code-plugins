@@ -39,5 +39,6 @@ loop. `/vellum:plan` enters it, Approve in the page or `/vellum:stop` leaves it.
   was already named (the drafting count, the feedback version) goes to `$.store` under the
   working directory it belongs to, so nothing is said twice across a reload or a restarted
   server, and an approval drops the record: the next plan's batches count from one again.
-- Tests answer `$` from memory (`register.test.ts`): `bun test` cannot host the engine's
-  environment. Nothing else is faked.
+- Tests run under the engine's own `$` (`claude plugin test vellum`, files in `tests/`):
+  `bun test` cannot host that environment. The world beneath the module is answered by the
+  kit's `mock.clock` and the `on(...)` hooks of `tests/fixtures/`. Nothing else is faked.
