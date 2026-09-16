@@ -1,19 +1,18 @@
 import { useState } from "preact/hooks";
 
-import type { TextAnchor } from "./anchoring.ts";
+import type { Passage } from "../src/protocol.ts";
 
 export type ComposerProps = {
-  readonly anchor: TextAnchor;
+  readonly passages: readonly Passage[];
   readonly top: number;
   readonly left: number;
   readonly onSubmit: (body: string) => void;
   readonly onCancel: () => void;
 };
 
-/** The popover under a selection: the quote, a textarea, Cancel and Add comment. */
+/** The popover under a selection: every chosen quote, a textarea, Cancel and Add comment. */
 export function Composer(props: ComposerProps): preact.JSX.Element {
   const [body, setBody] = useState("");
-  const { anchor } = props;
 
   return (
     <div
@@ -22,9 +21,11 @@ export function Composer(props: ComposerProps): preact.JSX.Element {
       aria-label="New comment"
       style={{ top: `${props.top}px`, left: `${props.left}px` }}
     >
-      <div class="quote">
-        “{anchor.quote}” · lines {anchor.lines[0]}–{anchor.lines[1]}
-      </div>
+      {props.passages.map((passage) => (
+        <div class="quote" key={`${passage.lines[0]}-${passage.quote}`}>
+          “{passage.quote}” · lines {passage.lines[0]}–{passage.lines[1]}
+        </div>
+      ))}
       <textarea
         rows={3}
         aria-label="Comment"

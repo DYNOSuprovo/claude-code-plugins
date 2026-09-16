@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { pickTarget, tableEdge } from "./pinpoint.ts";
+import { nextSelection, pickTarget, tableEdge } from "./pinpoint.ts";
 
 describe("pickTarget", () => {
   test("a paragraph is a block at 0", () => {
@@ -66,6 +66,20 @@ describe("pickTarget", () => {
 
   test("a row without a cell under the pointer is the table", () => {
     expect(pickTarget(["tr", "tbody", "table"], "inside")).toEqual({ index: 2, kind: "table" });
+  });
+});
+
+describe("nextSelection", () => {
+  test("a Ctrl+click on a chosen target removes it", () => {
+    expect(nextSelection(["separate", "same"])).toEqual({ keep: [0], add: false });
+  });
+
+  test("a Ctrl+click inside a chosen target replaces it", () => {
+    expect(nextSelection(["overlapping"])).toEqual({ keep: [], add: true });
+  });
+
+  test("a Ctrl+click elsewhere joins the set", () => {
+    expect(nextSelection(["separate"])).toEqual({ keep: [0], add: true });
   });
 });
 

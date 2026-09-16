@@ -27,6 +27,55 @@ export type Target = {
   readonly label: string;
 };
 
+/** How a clicked target sits against one already chosen. */
+export type Relation = "same" | "overlapping" | "separate";
+
+/** Which chosen targets survive a Ctrl+click, and whether the clicked one joins them. */
+export type SelectionUpdate = { readonly keep: readonly number[]; readonly add: boolean };
+
+/** A Ctrl+click: the same target leaves the set, an overlapping one is replaced, anything else joins. */
+export function nextSelection(relations: readonly Relation[]): SelectionUpdate {
+  return {
+    keep: relations.flatMap((relation, index) => (relation === "separate" ? [index] : [])),
+    add: !relations.includes("same"),
+  };
+}
+
+/**
+ * Two targets overlap when their texts do, which their elements do not tell: a list item
+ * holds its nested items in the DOM, and stops before them in its text.
+ */
+function relationTo(chosen: HTMLElement, element: HTMLElement): Relation {
+  if (chosen === element) return "same";
+  const a = rangeOf(chosen);
+  const b = rangeOf(element);
+
+  if (a === null || b === null) return "separate";
+
+  return a.compareBoundaryPoints(Range.START_TO_END, b) === 1 &&
+    a.compareBoundaryPoints(Range.END_TO_START, b) === -1
+    ? "overlapping"
+    : "separate";
+}
+
+/** The set after a Ctrl+click on `one`, in document order. */
+export function toggled<T extends { readonly element: HTMLElement }>(
+  chosen: readonly T[],
+  one: T,
+): readonly T[] {
+  const { keep, add } = nextSelection(
+    chosen.map((other) => relationTo(other.element, one.element)),
+  );
+
+  const next = chosen.filter((_, index) => keep.includes(index));
+
+  return [...next, ...(add ? [one] : [])].toSorted((a, b) =>
+    (a.element.compareDocumentPosition(b.element) & Node.DOCUMENT_POSITION_FOLLOWING) === 0
+      ? 1
+      : -1,
+  );
+}
+
 const BLOCKS: ReadonlyMap<string, string> = new Map([
   ["p", "paragraph"],
   ["h1", "heading"],
@@ -133,9 +182,8 @@ function nestedListOf(element: HTMLElement): Element | null {
     : null;
 }
 
-/** The text of `target` as a range; a list item stops before its first nested list. */
-export function rangeOf(target: Target): Range | null {
-  const { element } = target;
+/** The text of `element` as a range; a list item stops before its first nested list. */
+export function rangeOf(element: HTMLElement): Range | null {
   const nested = nestedListOf(element);
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
   const nodes: Node[] = [];
