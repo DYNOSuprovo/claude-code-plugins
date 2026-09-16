@@ -8,11 +8,11 @@ description: >
 
 Planning writes the plan and its artifacts, nothing else. No code edit until the reviewer approves the plan. The throwaway of step 1 is built before planning starts and is not kept.
 
-Three moves in order: explore or prototype, settle the choices, then plan. The plan is written in the harness's plan mode. Its artifacts live in the working directory named by the `Working directory:` line at the end of this skill when there is one; otherwise in `plans/<date>/<slug>/` from the repository root unless the project names another place. Load one reference at a time, when its step starts.
+Three moves in order: explore or prototype, settle the choices, then plan. The plan is written to `plan.md` at the root of the working directory named by the `Working directory:` line at the end of this skill, and its artifacts live beside it; without that line, both go to `plans/<date>/<slug>/` from the repository root unless the project names another place. Load one reference at a time, when its step starts.
 
 ## 1. Size the ceremony
 
-- One sentence describes the diff: no plan. Say so and implement.
+- One sentence describes the diff: no plan. Say so, propose `/vellum:stop`, and implement once the reviewer runs it.
 - The idea is still fuzzy: ask the few questions that pin down the goal and what the throwaway must show, then build it without a plan. Look at what it got wrong or right, then plan in a fresh session from what it taught.
 - The idea is clear and choices are open: settle them, step 2.
 
@@ -24,8 +24,8 @@ Ask in rounds: every question whose prerequisites are settled, numbered, each wi
 
 ## 3. Write the plan, ordered by probability of revision
 
-Enter plan mode. What the reviewer is most likely to change comes first, mechanical work last.
-A fact sits next to the decision it fixes, never in a preamble. The plan opens with the artifacts it relies on, by path: mockup, throwaway, research note.
+What the reviewer is most likely to change comes first, mechanical work last.
+A fact sits next to the decision it fixes, never in a preamble. The first line is the plan's `# Title`, which names the approved directory. The plan then opens with the artifacts it relies on, by path: mockup, throwaway, research note.
 
 1. Decisions taken, each with its fact. Assumptions taken in the reviewer's place. Questions still open.
 2. Interfaces, in code blocks: types, signatures, CLI, schemas, result codes. Formats: `references/program-design.md`
@@ -42,6 +42,8 @@ A diagram or a mockup worth showing: `references/visual.md`
 
 Iterate on the plan with the reviewer until it is approved. A large change, or a plan no human will read, goes through the `plan-reviewer` agent first.
 
-With a working directory, `ExitPlanMode` opens the plan and its artifacts in the reviewer's browser and is refused for now: end your turn. The review comes back as a prompt from the vellum plugin. "Changes requested" names a feedback file: read it, revise the plan, call `ExitPlanMode` again. "Approved" asks for `ExitPlanMode` again with the same plan; that call is allowed, and the working directory is renamed to the plan's slug, links included.
+With a working directory, the plan is `plan.md` at its root. Once the plan and its artifacts are ready, call `mcp__vellum__submit` and end your turn: it opens them in the reviewer's browser, and the review comes back as a prompt from the vellum plugin. "Changes requested" names a feedback file: read it, revise `plan.md` and the files it names, call `mcp__vellum__submit` again. "Approved" names the final directory the plan now lives in.
+
+While the review runs, files under the working directory are yours to write and files outside it are locked: the codebase changes after the plan is approved.
 
 Implementation starts in a fresh session, with the plan as the prompt.

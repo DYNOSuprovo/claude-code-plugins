@@ -19,10 +19,6 @@ function statusOf(workspace: PlanWorkspace): Status {
         : { label: "In review", tone: "err" };
     case "changesRequested":
       return { label: "Feedback sent", tone: "sent" };
-    case "approvedPending":
-      return { label: "Approved, waiting for Claude", tone: "ok" };
-    case "finalizing":
-      return { label: "Approved, renaming", tone: "ok" };
     case "approved":
       return { label: "Approved", tone: "ok" };
   }
@@ -44,13 +40,6 @@ function bannerOf(workspace: PlanWorkspace): Banner | null {
       return {
         text: "Feedback sent to Claude. Waiting for the next version of the plan.",
         tone: "sent",
-        retry: false,
-      };
-    case "approvedPending":
-    case "finalizing":
-      return {
-        text: "Approved. Waiting for Claude to leave plan mode.",
-        tone: "ok",
         retry: false,
       };
     case "approved":

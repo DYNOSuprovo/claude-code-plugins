@@ -2,8 +2,8 @@ import type { Annotation } from "./feedback.ts";
 import type { ParseResult, ProjectPath, Slug, Version } from "./paths.ts";
 import { parseVersion } from "./paths.ts";
 import { slugFromFileName, slugFromTitle } from "./slug.ts";
-import type { Memory, PlanWorkspace } from "./workspace.ts";
-import { feedbackFile, projectPath } from "./workspace.ts";
+import type { PlanWorkspace } from "./workspace.ts";
+import { feedbackFile, PLAN_FILE, projectPath } from "./workspace.ts";
 
 /**
  * The decisions of a review, as pure functions of plain values. The application reads the
@@ -20,10 +20,9 @@ export type Gated =
   | { readonly kind: "recorded"; readonly version: Version };
 
 /**
- * Which version a submitted plan is. The latest version, still under review or already
- * approved in the browser, keeps its number when the text is the same (a repeated call, or
- * the approval's second call); after a feedback the resubmission is a new round, since the
- * artifacts may have changed while the text did not.
+ * Which version a submitted plan is: the one under review keeps its number when the text is
+ * the same. After a feedback the submission is a new version even with the same text: the
+ * page stays locked until one arrives, and an artifact revised alone must reopen the review.
  */
 export function gateVersion(
   workspace: PlanWorkspace,
@@ -43,16 +42,14 @@ export function gateVersion(
 
 export type Decided =
   | { readonly kind: "refused" }
-  | { readonly kind: "approve"; readonly memory: Memory }
+  | { readonly kind: "approve"; readonly version: Version }
   | { readonly kind: "feedback"; readonly path: ProjectPath; readonly version: Version };
 
 /** A decision is taken on a plan under review and on nothing else. */
 export function decideOn(workspace: PlanWorkspace, decision: Decision): Decided {
   if (workspace.kind !== "inReview") return { kind: "refused" };
 
-  if (decision.kind === "approve") {
-    return { kind: "approve", memory: { kind: "approvedPending", version: workspace.version } };
-  }
+  if (decision.kind === "approve") return { kind: "approve", version: workspace.version };
 
   return {
     kind: "feedback",
@@ -61,9 +58,9 @@ export function decideOn(workspace: PlanWorkspace, decision: Decision): Decided 
   };
 }
 
-/** The final directory's name: the plan's title, else the plan file's name. */
-export function slugFor(plan: string, planFilePath: string | null): ParseResult<Slug> {
+/** The final directory's name: the plan's title, else the plan file's own name. */
+export function slugFor(plan: string): ParseResult<Slug> {
   const fromTitle = slugFromTitle(plan);
 
-  return fromTitle.ok ? fromTitle : slugFromFileName(planFilePath ?? "plan.md");
+  return fromTitle.ok ? fromTitle : slugFromFileName(PLAN_FILE);
 }

@@ -23,8 +23,6 @@ export type ReviewView = {
   readonly docs: readonly DocRef[];
 };
 
-export type GateInput = { readonly plan: string; readonly planFilePath: string };
-
 export type LinkRoots = { readonly project: string; readonly planDir: string };
 
 /** A server plugin proposes documents linked from the plan; the server keeps those that exist. */

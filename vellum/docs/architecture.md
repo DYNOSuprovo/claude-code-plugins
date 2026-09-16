@@ -10,10 +10,10 @@ where phases 2 and 3 land in it.
 ```mermaid
 flowchart LR
   subgraph engine["Claude Code (the engine)"]
-    CC[plan mode<br/>ExitPlanMode]
-    M["hooks/register.ts<br/>State: idle · drafting · reviewing · approved"]
-    CC -- "skill.prompt<br/>classic.PermissionRequest" --> M
-    M -- "$.prompt.submit<br/>deny / allow" --> CC
+    CC["the session<br/>/vellum:plan · mcp__vellum__submit · /vellum:stop"]
+    M["hooks/register.ts<br/>State: idle · live"]
+    CC -- "session.start · skill.prompt<br/>tool.check · tool.call" --> M
+    M -- "$.prompt.submit<br/>deny / result / text" --> CC
   end
   subgraph server["vellum serve (one Bun process per session)"]
     R["src/adapters/http/routes.ts<br/>token, status codes"]
@@ -31,7 +31,7 @@ flowchart LR
   M -- "HTTP /api/*<br/>x-vellum-token" --> R
   U -- "HTTP /api/*, /t/&lt;token&gt;/files, SSE" --> R
   A -. "plugins/*/server.ts<br/>linkedDocs, pure" .-> A
-  F[("plans/&lt;date&gt;/wip-&lt;sid8&gt;/<br/>.review/vN.md, vN.feedback.md")]
+  F[("plans/&lt;date&gt;/wip-&lt;sid8&gt;/<br/>plan.md, .review/vN.md, vN.feedback.md")]
   W --> F
 ```
 
@@ -48,7 +48,7 @@ plain modules with no interface and no injection).
 
 | Part | Shape | Driving side | Driven side |
 |---|---|---|---|
-| Hooks module | ports and adapters, one file | the engine's events (`skill.prompt`, `classic.PermissionRequest`) | the engine's `$` (clock, store, http, process, prompt), faked in tests |
+| Hooks module | ports and adapters, one file | the engine's events (`session.start`, `skill.prompt`, `tool.check`, `tool.call`) | the engine's `$` (clock, store, http, process, prompt, tool), faked in tests |
 | Server | ports and adapters, domain / app / adapters | `adapters/http/routes.ts` | the file system through `adapters/fs.ts`, real in tests (a temp directory) |
 | Page | a store of signals and components | the reviewer's clicks | `/api`, the files route, SSE |
 | `plugins/<kind>/` | feature slices: one document kind = one folder with its server half and its UI half | | |
@@ -87,18 +87,18 @@ sequenceDiagram
   CC->>M: skill.prompt vellum:plan
   M->>S: start (detached), GET /api/review
   M-->>CC: skill text + "Working directory: plans/<date>/wip-<sid8>/"
-  CC->>M: PermissionRequest ExitPlanMode (plan vN)
-  M->>S: POST /api/gate → writes .review/vN.md, opens the browser once
-  M-->>CC: deny "Plan vN is open for review"
+  loop every tool call while live
+    CC->>M: tool.check → allow inside the working directory, deny outside it
+  end
+  CC->>M: tool.call mcp__vellum__submit
+  M->>S: POST /api/gate → reads plan.md, writes .review/vN.md, opens the browser once
+  M-->>CC: result "Plan vN is under review. End your turn."
   loop every second
     M->>S: GET /api/pending
   end
-  B->>S: POST /api/decision (feedback | approve)
+  B->>S: POST /api/decision (feedback | approve → links rewritten, directory renamed)
   S-->>B: SSE workspace
-  M->>CC: $.prompt.submit (feedback file path | "call ExitPlanMode again")
-  CC->>M: PermissionRequest ExitPlanMode (vN, approved)
-  M->>S: POST /api/finalize → links rewritten, directory renamed to the slug
-  M-->>CC: allow + updatedInput.plan + setMode default
+  M->>CC: $.prompt.submit (feedback file path | "Plan vN approved. It lives at <dir>.")
 ```
 
 ## The two state machines
@@ -108,32 +108,32 @@ The hooks module, in memory, one union:
 ```mermaid
 stateDiagram-v2
   [*] --> idle
-  idle --> drafting: skill.prompt, server reached
-  drafting --> reviewing: ExitPlanMode, POST /api/gate
-  reviewing --> drafting: feedback prompt entered
-  reviewing --> approved: approval prompt entered
-  approved --> idle: ExitPlanMode, finalize ok, allow
-  approved --> reviewing: finalize failed, deny
-  reviewing --> drafting: server gone, restarted
-  drafting --> idle: nothing starts
+  idle --> live: skill.prompt, server reached
+  idle --> live: session.start, the stored server answers
+  live --> live: another session id, server restarted
+  live --> idle: approval prompt entered
+  live --> idle: skill.prompt vellum:stop
+  idle --> idle: nothing starts
 ```
+
+`live` allows the file tools inside the working directory and denies them outside it, serves
+`mcp__vellum__submit`, and polls `GET /api/pending` once a second until it closes.
 
 The server, derived from the directory plus a memory overlay (`src/domain/workspace.ts`, `workspaceOf`):
 
 ```mermaid
 stateDiagram-v2
   [*] --> drafting: wip-<sid8>/, no vN.md
-  drafting --> inReview: vN.md written
+  drafting --> inReview: plan.md gated, vN.md written
   inReview --> changesRequested: vN.feedback.md written
   changesRequested --> inReview: vN+1.md written
-  inReview --> approvedPending: Approve (memory)
-  approvedPending --> approved: rename ok (memory)
-  approvedPending --> inReview: rename failed, finalizeError (memory)
-  inReview --> approvedPending: Retry approval
+  inReview --> approved: Approve, links rewritten, renamed (memory)
+  inReview --> inReview: rename failed, finalizeError (memory)
+  inReview --> inReview: Retry approval
 ```
 
 What the hooks module must relay is read off that state (`pendingOf`): `changesRequested`
-means a feedback file to name, `approvedPending` an approval to announce, anything else
+means a feedback file to name, `approved` the final directory to announce, anything else
 nothing. No second variable.
 
 ## Where phases 2 and 3 land
@@ -141,8 +141,7 @@ nothing. No second variable.
 | Feature | Pure part | Adapter part | Page part |
 |---|---|---|---|
 | Comment on an HTML element (#105) | an `Anchor` variant `element` and its line in the feedback text | a script injected into `text/html` responses, `postMessage` across the sandbox | the HTML renderer listens |
-| Feedback while drafting (#105) | a `Pending` variant `draft`, `v0.feedback-<n>.md` naming | the module polls from `drafting` too | the page lists the directory when there is no plan |
-| `$.tool.call` + `consent` (#105) | the module's `approved` state may disappear | | |
+| Feedback while drafting (#105) | a `Pending` variant `drafts`, `v0.feedback-<n>.md` naming | the module counts the batches it relayed | the page lists the directory when there is no plan |
 | Diff `vN-1` / `vN` (#106) | a line diff over two texts | `/api/review` returns the previous text | a toggle |
 | Direct edit (#106) | the edited text is the version to finalize | a field on the decision or on finalize | an editor |
 | Approval notes (#106) | `vN.notes.md` naming, the note in the prompt or the consent | | a textarea on Approve |
@@ -155,11 +154,12 @@ Six of seven add a pure part first; `src/domain/` is where it goes.
 ```
 vellum/
   hooks/register.ts            the engine adapter, one file (the contract wants it self-contained)
+  skills/plan/, skills/stop/   the way in and the way out, both `vellum:`-namespaced
   src/
     domain/                    pure, no IO, no Bun, no node:*
       paths.ts                 brands and parsers
       slug.ts, links.ts
-      workspace.ts             DiskWorkspace from a listing, PlanWorkspace, Memory, Pending, workspaceOf, pendingOf
+      workspace.ts             PlanWorkspace from a listing, Memory, Pending, workspaceOf, pendingOf
       review.ts                Decision, gateVersion, decideOn, slugFor
       feedback.ts              Anchor, Annotation, formatFeedback
     app/
@@ -201,5 +201,5 @@ Also weighed and left, for now:
   mechanical backstop.
 - Ports as interfaces with a fake each: `adapters/fs.ts` has one implementation and the file
   system is fast; the port is extracted the day a second one exists.
-- A contract test between the fake `$` and the engine: `claude plugin test` cannot raise
-  `classic.*` events.
+- A contract test between the fake `$` and the engine: `claude plugin test` runs in the
+  engine's environment, and `bun test` at the repository root fails on its import.

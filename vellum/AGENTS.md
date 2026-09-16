@@ -1,8 +1,9 @@
 # Vellum
 
-A Claude Code plugin: the `/vellum:plan` skill writes a plan; at `ExitPlanMode` a hooks
-module opens the plan and its artifacts in the browser, and the reviewer's answer reaches
-Claude as a prompt. Function hooks, early access: `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`.
+A Claude Code plugin: `/vellum:plan` enters a mode the hooks module holds, where Claude
+writes `plan.md` and calls `mcp__vellum__submit`; the plan and its artifacts open in the
+browser, and the reviewer's answer reaches Claude as a prompt. `/vellum:stop` leaves the mode.
+Function hooks, early access: `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`.
 
 ## Shape
 
@@ -10,6 +11,7 @@ Hexagonal with a functional core: two hexagons (the hooks module, the server) an
 
 ```
 hooks/register.ts        the engine adapter: one file, types from `claude-code` only, `$` is its port
+skills/plan, skills/stop the way in and the way out
         │ HTTP, token header
 src/adapters/            http/routes.ts, http/serve.ts, fs.ts, browser.ts: every IO
 src/app/review.ts        the use case: read, decide, apply
