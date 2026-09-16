@@ -132,6 +132,9 @@ function draftUnder(
   return at === null ? null : { chosen, top: at.top + rect.height + 8, left: Math.max(8, at.left) };
 }
 
+/** Mermaid removes any element carrying the id it renders under: one counter for the whole page, not one per pane. */
+let diagrams = 0;
+
 /** Mermaid draws in the page after the mount; its bundle loads on the first diagram only. */
 async function drawDiagrams(root: HTMLElement): Promise<void> {
   const figures = [...root.querySelectorAll<HTMLElement>("figure.mermaid")];
@@ -145,11 +148,12 @@ async function drawDiagrams(root: HTMLElement): Promise<void> {
     theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default",
   });
 
-  for (const [index, figure] of figures.entries()) {
+  for (const figure of figures) {
     const source = figure.dataset.source ?? "";
+    diagrams += 1;
 
     try {
-      const { svg } = await mermaid.render(`vellum-diagram-${index}`, source);
+      const { svg } = await mermaid.render(`vellum-diagram-${diagrams}`, source);
 
       if (figure.dataset.source === source) figure.innerHTML = svg;
     } catch (cause) {
