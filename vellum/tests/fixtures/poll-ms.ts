@@ -1,1 +1,1 @@
-export const POLL_MS = 1_000;
+export { POLL_MS } from "../../hooks/mode.ts";

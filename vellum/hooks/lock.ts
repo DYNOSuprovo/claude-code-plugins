@@ -1,6 +1,6 @@
 import type { HookFailure, ResultOf } from "claude-code";
 
-import { editedPath, type ProjectDir, type Workdir } from "./parse.ts";
+import type { ProjectDir, Workdir } from "./parse.ts";
 
 /**
  * `allow` runs the call whatever the session's mode, `check` hands it to the session's own
@@ -10,6 +10,13 @@ export type Verdict =
   | { readonly kind: "allow" }
   | { readonly kind: "check" }
   | { readonly kind: "deny"; readonly reason: string };
+
+/** The project's prefix; a project at `/` owns every path. */
+function projectPrefix(project: ProjectDir): string {
+  const root = resolvePath("/", project);
+
+  return root === "/" ? "/" : `${root}/`;
+}
 
 /** Absolute, `.` and `..` folded: a relative path resolves against the session's directory. */
 function resolvePath(cwd: string, path: string): string {
@@ -34,19 +41,14 @@ function resolvePath(cwd: string, path: string): string {
  * untouched.
  */
 export function lockVerdict(
-  tool: string,
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- `input` is the call's arguments as `tool.check` hands them over (`ToolCheckInput.input: unknown`); `editedPath`, in the boundary parser, is what reads them.
-  input: unknown,
+  path: string,
   cwd: string,
   project: ProjectDir,
   workdir: Workdir,
 ): Verdict {
-  const path = editedPath(tool, input);
-
-  if (path === null) return { kind: "check" };
   const resolved = resolvePath(cwd, path);
 
-  if (!resolved.startsWith(`${resolvePath("/", project)}/`)) return { kind: "check" };
+  if (!resolved.startsWith(projectPrefix(project))) return { kind: "check" };
 
   return resolved.startsWith(`${resolvePath(project, workdir)}/`)
     ? { kind: "allow" }

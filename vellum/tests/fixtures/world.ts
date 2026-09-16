@@ -14,12 +14,14 @@ import { store } from "./store.ts";
 /**
  * What the module finds beneath it, and what it did there. `id` is what
  * `$.session.id()` answers, so assigning it is a `/clear`; `drop` is the reason
- * another plugin refuses the next prompt, and `refuseCwd` the reason `$.session.cwd()` fails.
+ * another plugin refuses the next prompt, `refuseCwd` the reason `$.session.cwd()` fails, and
+ * `refuseStore` the reason a store write fails.
  */
 export type World = {
   id: string;
   drop: string | undefined;
   refuseCwd: string | undefined;
+  refuseStore: string | undefined;
   readonly clock: MockClock;
   readonly paths: string[];
   readonly runs: (readonly string[])[];
@@ -46,6 +48,7 @@ export function world(on: On, options: WorldOptions = {}): World {
     id: SESSION_ID,
     drop: undefined,
     refuseCwd: undefined,
+    refuseStore: undefined,
     clock: mock.clock(on),
     paths: liveServer(on, options.routes),
     runs: launcher(on, options.launch),
@@ -54,7 +57,7 @@ export function world(on: On, options: WorldOptions = {}): World {
     logs: logs(on),
     tools,
     commands,
-    store: store(on, options.stored),
+    store: store(on, options.stored, () => built.refuseStore),
   };
 
   skillText(on);

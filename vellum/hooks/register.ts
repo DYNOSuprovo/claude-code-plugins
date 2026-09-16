@@ -2,15 +2,13 @@ import type { EngineInterface, Register } from "claude-code";
 
 import type { Host } from "./host.ts";
 import { checkVerdict, lockFailed, lockVerdict } from "./lock.ts";
-import { close, connect, restore, type Settle, type State } from "./mode.ts";
-import type { GateWire } from "./parse.ts";
+import { close, connect, restore, type Settle, type State, suspend } from "./mode.ts";
+import { editedPath, type GateWire, sessionId } from "./parse.ts";
 import { submitResult } from "./relay.ts";
 
 const START_SKILL = "vellum:start";
 
 const STOP_SKILL = "vellum:stop";
-
-const SUBMIT_TOOL = "mcp__vellum__submit";
 
 const SUBMIT = {
   name: "submit",
@@ -47,8 +45,8 @@ function hostOf($: EngineInterface): Host {
 export const register: Register = (on) => {
   let state: State = { kind: "idle" };
 
-  const settle: Settle = (next) => {
-    state = next;
+  const settle: Settle = async (host, from) => {
+    if (state === from) state = await close(host, from);
   };
 
   on("session.start", async ($, e, next) => {
@@ -91,26 +89,36 @@ export const register: Register = (on) => {
   // session id, so the old poll and heartbeat would run on until the next way in noticed.
   on("command.run", { command: ["clear", "resume"] }, async ($, e, next) => {
     const result = await next(e);
-    state = await close(hostOf($), state);
+
+    if (state.kind === "idle") return result;
+    const host = hostOf($);
+
+    const left =
+      e.command === "clear" || sessionId(await host.sessionId()) !== state.live.session.id;
+
+    if (left) state = suspend(host, state);
 
     return result;
   });
 
   on("tool.check", async ($, e, next) => {
     if (state.kind === "idle") return next(e);
-    const { project, workdir } = state.live.session;
     // ponytail: the lock reads the file tools only, so a shell command the session's own flow
     // approves still writes anywhere; a command classifier is the upgrade if that ever bites.
-    const verdict = lockVerdict(e.tool, e.input, await $.session.cwd(), project, workdir);
+    const path = editedPath(e.tool, e.input);
+
+    if (path === null) return checkVerdict(e.tool, await next(e));
+    const { project, workdir } = state.live.session;
+    const verdict = lockVerdict(path, await $.session.cwd(), project, workdir);
 
     if (verdict.kind === "deny") return { decision: "deny", reason: verdict.reason };
 
     if (verdict.kind === "allow") return { decision: "allow" };
 
     return checkVerdict(e.tool, await next(e));
-  }).catch((_, _e, next) => lockFailed(next.error.kind));
+  }).catch((_, e, next) => (state.kind === "idle" ? next(e) : lockFailed(next.error.kind)));
 
-  on("tool.call", { tool: SUBMIT_TOOL }, async ($) => {
+  on("tool.call", { tool: "mcp__vellum__submit" }, async ($) => {
     if (state.kind === "idle") return { deny: "no vellum planning in progress; run /vellum:start" };
     const gate = await state.live.server.gate().catch(() => UNREACHABLE);
 

@@ -1,6 +1,7 @@
 import { describe, expect, test, tier } from "claude-code/testing";
 
 import { lockVerdict, type Verdict } from "../hooks/lock.ts";
+import { editedPath, projectDir } from "../hooks/parse.ts";
 import { submitResult } from "../hooks/relay.ts";
 import { CWD, WORKDIR } from "./fixtures/index.ts";
 
@@ -11,9 +12,12 @@ const DENIED = {
   reason: `vellum is planning: files outside ${WORKDIR} change after the plan is approved`,
 };
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- `input` is the call's arguments as `tool.check` hands them over, which is what `lockVerdict` takes.
-const verdict = (tool: string, input: unknown, cwd: string = CWD): Verdict =>
-  lockVerdict(tool, input, cwd, CWD, WORKDIR);
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- `input` is the call's arguments as `tool.check` hands them over, which is what `editedPath` reads.
+function verdict(tool: string, input: unknown, cwd: string = CWD): Verdict | { kind: "check" } {
+  const path = editedPath(tool, input);
+
+  return path === null ? { kind: "check" } : lockVerdict(path, cwd, CWD, WORKDIR);
+}
 
 describe("lockVerdict", () => {
   test("a file under the working directory is allowed outright", () => {
@@ -29,6 +33,13 @@ describe("lockVerdict", () => {
   test("a file outside the project is the session's to decide", () => {
     const scratchpad = "/tmp/claude-1000/project/session/scratchpad/issue.md";
     expect(verdict("Write", { file_path: scratchpad })).toEqual({ kind: "check" });
+  });
+
+  test("a project at the root of the file system still holds the lock", () => {
+    expect(lockVerdict("/etc/hosts", "/", CWD, WORKDIR)).toEqual({ kind: "check" });
+    expect(lockVerdict("/etc/hosts", "/", projectDir("/"), WORKDIR)).toMatchObject({
+      kind: "deny",
+    });
   });
 
   test("a relative path is resolved against the session's directory", () => {

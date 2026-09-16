@@ -15,9 +15,9 @@ import {
 import { type Relayed, relayedKey, tick } from "./relay.ts";
 import { reach, type ReviewServer, start } from "./server.ts";
 
-const POLL_MS = 1_000;
+export const POLL_MS = 1_000;
 
-const HEARTBEAT_MS = 30_000;
+export const HEARTBEAT_MS = 30_000;
 
 export type ServerInfo = { readonly port: number; readonly token: Token; readonly pid: number };
 
@@ -50,8 +50,16 @@ export type State =
   | { readonly kind: "idle" }
   | { readonly kind: "live"; readonly live: Live; readonly poll: Timer };
 
-/** How a poll closes the mode from inside a tick: `register.ts` owns the one `state`. */
-export type Settle = (state: State) => void;
+/**
+ * How a poll closes the mode from inside a tick: `register.ts` owns the one `state`, and
+ * closes `from` only while it is still the current one, so a tick that lands after a new way
+ * in leaves the new mode and its timers alone.
+ */
+export type Settle = (host: Host, from: State) => Promise<void>;
+
+export function sessionKey(id: SessionId): string {
+  return `session:${id}`;
+}
 
 function keepAlive(host: Host, session: Session, server: ReviewServer): Live {
   // oxlint-disable-next-line unicorn/no-array-callback-reference -- `host.every` is `$.clock.every`, a timer, not `Array.prototype.every`.
@@ -63,13 +71,11 @@ function keepAlive(host: Host, session: Session, server: ReviewServer): Live {
 }
 
 function storedSession(host: Host, id: SessionId): Promise<Session | null> {
-  return host.storeGet(`session:${id}`).then(parseSession);
+  return host.storeGet(sessionKey(id)).then(parseSession);
 }
 
 /** The session `$.store` kept across a module reload, when its server still answers. */
-async function restored(host: Host, id: SessionId): Promise<Live | null> {
-  const stored = await storedSession(host, id);
-
+async function restored(host: Host, stored: Session | null): Promise<Live | null> {
   if (stored === null) return null;
   const server = reach(host, stored.server);
 
@@ -86,7 +92,7 @@ async function started(
 
   if (server === null) return null;
   const session = { id, server: server.info, project, workdir };
-  await host.storeSet(`session:${id}`, session);
+  await host.storeSet(sessionKey(id), session);
 
   return keepAlive(host, session, server);
 }
@@ -98,9 +104,7 @@ function stopTimers(state: State): void {
 }
 
 /** Enters the mode: one poll a second until it closes. A failed poll is logged and retried. */
-async function enter(host: Host, state: State, live: Live, settle: Settle): Promise<State> {
-  if (state.kind === "live") state.poll.cancel();
-
+async function enter(host: Host, live: Live, settle: Settle): Promise<State> {
   let relayed: Relayed = parseRelayed(
     await host.storeGet(relayedKey(live.session.id)),
     live.session.workdir,
@@ -117,7 +121,7 @@ async function enter(host: Host, state: State, live: Live, settle: Settle): Prom
       .then(async (ticked) => {
         relayed = ticked.relayed;
 
-        if (ticked.approved) settle(await close(host, { kind: "live", live, poll }));
+        if (ticked.approved) await settle(host, entered);
       })
       .catch((cause: unknown) => {
         host.log(`the review poll failed: ${String(cause)}`);
@@ -127,9 +131,22 @@ async function enter(host: Host, state: State, live: Live, settle: Settle): Prom
       });
   });
 
+  const entered: State = { kind: "live", live, poll };
   host.status("planning");
 
-  return { kind: "live", live, poll };
+  return entered;
+}
+
+/**
+ * Stops the mode's timers and forgets nothing: the session's record stays, so a `/resume` of
+ * that session later finds its directory and its server, or restarts one on the directory.
+ */
+export function suspend(host: Host, state: State): State {
+  if (state.kind === "idle") return state;
+  stopTimers(state);
+  host.status(undefined);
+
+  return { kind: "idle" };
 }
 
 /**
@@ -138,18 +155,17 @@ async function enter(host: Host, state: State, live: Live, settle: Settle): Prom
  */
 export async function close(host: Host, state: State): Promise<State> {
   if (state.kind === "idle") return state;
-  await host.storeDelete(`session:${state.live.session.id}`);
-  stopTimers(state);
-  host.status(undefined);
+  await host.storeDelete(sessionKey(state.live.session.id));
 
-  return { kind: "idle" };
+  return suspend(host, state);
 }
 
 /** `session.start`: the module reloaded, so pick the mode back up when the server still answers. */
 export async function restore(host: Host, state: State, settle: Settle): Promise<State> {
-  const live = await restored(host, sessionId(await host.sessionId()));
+  const id = sessionId(await host.sessionId());
+  const live = await restored(host, await storedSession(host, id));
 
-  return live === null ? state : enter(host, state, live, settle);
+  return live === null ? state : enter(host, live, settle);
 }
 
 /**
@@ -168,9 +184,9 @@ export async function connect(host: Host, state: State, settle: Settle): Promise
   const date = new Date().toISOString().slice(0, 10);
   const project = stored?.project ?? projectDir(await host.cwd());
   const workdir = stored?.workdir ?? workdirOf(id, date);
-  const live = (await restored(host, id)) ?? (await started(host, id, project, workdir));
+  const live = (await restored(host, stored)) ?? (await started(host, id, project, workdir));
 
   if (live === null) return { kind: "idle" };
 
-  return enter(host, state, live, settle);
+  return enter(host, live, settle);
 }

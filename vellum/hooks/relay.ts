@@ -2,6 +2,8 @@ import type { Host } from "./host.ts";
 import type { Live } from "./mode.ts";
 import type { GateWire, PendingWire, SessionId, Workdir } from "./parse.ts";
 
+// Named here for the feedback prompt; `register.ts` writes the matcher as a literal, since the
+// loader reads matchers from that file's source and cannot follow an import.
 const SUBMIT_TOOL = "mcp__vellum__submit";
 
 /**
@@ -56,8 +58,11 @@ async function submitPrompt(host: Host, text: string): Promise<boolean> {
   return false;
 }
 
+/** A store that refuses the record is logged, not obeyed: the prompt went out, once. */
 async function remember(host: Host, id: SessionId, next: Relayed): Promise<Relayed> {
-  await host.storeSet(relayedKey(id), next);
+  await host.storeSet(relayedKey(id), next).catch((cause: unknown) => {
+    host.log(`the relayed record was not kept: ${String(cause)}`);
+  });
 
   return next;
 }
@@ -99,7 +104,9 @@ export async function tick(host: Host, live: Live, relayed: Relayed): Promise<Ti
   }
 
   if (pending.kind === "approved" && (await submitPrompt(host, approvedPrompt(pending)))) {
-    await host.storeDelete(relayedKey(id));
+    await host.storeDelete(relayedKey(id)).catch((cause: unknown) => {
+      host.log(`the relayed record was not dropped: ${String(cause)}`);
+    });
 
     return { relayed, approved: true };
   }

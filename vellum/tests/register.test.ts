@@ -8,6 +8,7 @@ import {
   HEARTBEAT_MS,
   OTHER_ID,
   OTHER_WORKDIR,
+  POLL_MS,
   START_PROMPT,
   relayed,
   reply,
@@ -190,6 +191,39 @@ describe("tool.check", () => {
     );
   });
 
+  test("in the mode a failing session directory leaves a tool that writes no file to the engine", async ($, on) => {
+    const seen = world(on);
+    on("tool.check", () => ENGINE);
+    await $.skill.prompt(START_PROMPT);
+    seen.refuseCwd = "boom";
+
+    expect(await $.tool.check({ tool: "Read", input: { file_path: `${CWD}/src/cli.ts` } })).toEqual(
+      ENGINE,
+    );
+  });
+
+  test("in the mode a failure beneath the lock is a deny", async ($, on) => {
+    world(on);
+    on("tool.check", () => {
+      throw new Error("the chain beneath broke");
+    });
+    await $.skill.prompt(START_PROMPT);
+
+    expect(await $.tool.check({ tool: "Bash", input: { command: "ls" } })).toEqual({
+      decision: "deny",
+      reason: "the lock failed (throw); retry the call",
+    });
+  });
+
+  test("outside the mode a failure beneath is not vellum's deny", async ($, on) => {
+    world(on);
+    on("tool.check", () => {
+      throw new Error("the chain beneath broke");
+    });
+
+    await expect($.tool.check({ tool: "Bash", input: { command: "ls" } })).rejects.toThrow();
+  });
+
   test("in the mode a write outside the project follows the session's own flow", async ($, on) => {
     world(on);
     on("tool.check", () => ENGINE);
@@ -292,7 +326,7 @@ describe("skill.prompt vellum:stop", () => {
 });
 
 describe("command.run", () => {
-  test("/clear closes the mode it finds live", async ($, on) => {
+  test("/clear stops the mode's timers and keeps the session's record", async ($, on) => {
     const seen = world(on);
     on("command.run", () => ({}));
     await $.skill.prompt(START_PROMPT);
@@ -301,19 +335,41 @@ describe("command.run", () => {
     const from = seen.paths.length;
     await seen.clock.advance(HEARTBEAT_MS);
 
-    expect(seen.store.has(`session:${SESSION_ID}`)).toBe(false);
+    expect(seen.store.has(`session:${SESSION_ID}`), "a later /resume finds its directory").toBe(
+      true,
+    );
     expect(seen.statuses.at(-1)).toBeUndefined();
     expect(seen.paths.slice(from), "no poll and no heartbeat after a clear").toEqual([]);
   });
 
-  test("/resume closes it the same way", async ($, on) => {
+  test("/resume to another session stops the timers the same way", async ($, on) => {
+    const seen = world(on);
+    on("command.run", () => {
+      seen.id = OTHER_ID;
+
+      return {};
+    });
+    await $.skill.prompt(START_PROMPT);
+    await $.command.run(typedCommand("resume"));
+
+    const from = seen.paths.length;
+    await seen.clock.advance(HEARTBEAT_MS);
+
+    expect(seen.statuses.at(-1)).toBeUndefined();
+    expect(seen.paths.slice(from)).toEqual([]);
+  });
+
+  test("/resume that keeps the session leaves the mode live", async ($, on) => {
     const seen = world(on);
     on("command.run", () => ({}));
     await $.skill.prompt(START_PROMPT);
     await $.command.run(typedCommand("resume"));
 
-    expect(seen.store.has(`session:${SESSION_ID}`)).toBe(false);
-    expect(seen.statuses.at(-1)).toBeUndefined();
+    const from = seen.paths.length;
+    await tick(seen);
+
+    expect(seen.statuses.at(-1)).toBe("planning");
+    expect(seen.paths.slice(from), "the poll still runs").toEqual(["/api/pending"]);
   });
 
   test("outside the mode a /clear runs and touches nothing", async ($, on) => {
@@ -438,6 +494,49 @@ describe("the decision comes back as a prompt", () => {
     await tick(seen);
 
     expect(seen.store.has(`relayed:${SESSION_ID}`)).toBe(false);
+  });
+
+  test("a store that refuses the record does not name a batch twice", async ($, on) => {
+    const seen = world(on, {
+      routes: { "/api/pending": () => reply(200, { kind: "drafts", batches: [batch(1)] }) },
+    });
+
+    await $.skill.prompt(START_PROMPT);
+    seen.refuseStore = "disk full";
+    await tick(seen);
+    await tick(seen);
+
+    expect(seen.prompts).toEqual([draftsPrompt(1)]);
+    expect(seen.logs.at(-1)).toContain("disk full");
+  });
+
+  test("an approval that lands during a new way in leaves the new mode live", async ($, on) => {
+    let answered = false;
+
+    const seen = world(on, {
+      routes: {
+        "/api/pending": async () => {
+          if (answered) return reply(200, { kind: "none" });
+          answered = true;
+          await seen.clock.sleep(POLL_MS / 2);
+
+          return reply(200, { kind: "approved", version: 1, dir: FINAL });
+        },
+      },
+    });
+
+    await $.skill.prompt(START_PROMPT);
+    await seen.clock.advance(POLL_MS);
+    seen.id = OTHER_ID;
+    await $.skill.prompt(START_PROMPT);
+    await seen.clock.advance(POLL_MS / 2);
+
+    expect(seen.prompts, "the old mode's approval was relayed").toHaveLength(1);
+    const from = seen.paths.length;
+    await tick(seen);
+
+    expect(seen.paths.slice(from), "the new poll still runs").toContain("/api/pending");
+    expect(seen.store.has(`session:${OTHER_ID}`)).toBe(true);
   });
 
   test("a dropped prompt keeps the poll alive; the next tick retries", async ($, on) => {
