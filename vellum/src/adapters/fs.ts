@@ -1,11 +1,13 @@
 import { readdir, rename, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import { rewriteLinks } from "../domain/links.ts";
 import type { FinalDir, ParseResult, ProjectPath, Slug, WipDir } from "../domain/paths.ts";
 import { dateOf, parseFinalDir } from "../domain/paths.ts";
 import type { PlanWorkspace } from "../domain/workspace.ts";
-import { PLAN_FILE, REVIEW_DIR, workspaceFromListing } from "../domain/workspace.ts";
+import { PLAN_FILE, projectPath, REVIEW_DIR, workspaceFromListing } from "../domain/workspace.ts";
+import type { DocRef } from "../protocol.ts";
+import { mediaTypeOf } from "../protocol.ts";
 
 /** The file system under the project root: every read and write of the review lives here. */
 
@@ -18,6 +20,26 @@ export async function readWorkspace(
   const names = await readdir(join(project, dir, REVIEW_DIR)).catch((): string[] => []);
 
   return workspaceFromListing(dir, new Set(names));
+}
+
+/**
+ * Every file of the working directory the page can render, `.review/` left out, sorted. The
+ * page lists these in all states, so the reviewer can comment before the first version.
+ */
+export async function listFiles(project: string, workdir: WipDir): Promise<DocRef[]> {
+  const root = join(project, workdir);
+  const entries = await readdir(root, { withFileTypes: true, recursive: true }).catch(() => []);
+  const docs: DocRef[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const path = relative(project, join(entry.parentPath, entry.name));
+    const mediaType = path.split("/").includes(REVIEW_DIR) ? null : mediaTypeOf(path);
+
+    if (mediaType !== null) docs.push({ path: projectPath(path), mediaType });
+  }
+
+  return docs.toSorted((a, b) => a.path.localeCompare(b.path));
 }
 
 /** The plan the model writes at the working directory's root; `null` when it wrote none yet. */

@@ -19,7 +19,7 @@ test("formatFeedback numbers the comments, quotes text anchors, names general on
     { id: "b", doc: DOC, anchor: { kind: "global" }, body: "Slice 2 needs an empty state." },
   ];
 
-  expect(formatFeedback(annotations, 2 as never)).toBe(
+  expect(formatFeedback(annotations, { kind: "review", version: 2 as never })).toBe(
     [
       "# Plan review: changes requested (v2)",
       "",
@@ -48,7 +48,7 @@ test("formatFeedback lists the passages of a comment that points to several plac
     body: "These two say the same thing.",
   };
 
-  expect(formatFeedback([annotation], 2 as never)).toBe(
+  expect(formatFeedback([annotation], { kind: "review", version: 2 as never })).toBe(
     [
       "# Plan review: changes requested (v2)",
       "",
@@ -58,5 +58,18 @@ test("formatFeedback lists the passages of a comment that points to several plac
       "   These two say the same thing.",
       "",
     ].join("\n"),
+  );
+});
+
+test("a drafting batch is headed by its number, not by a version", () => {
+  const annotation: Annotation = {
+    id: "a",
+    doc: `${DOC}` as never,
+    anchor: { kind: "global" },
+    body: "The empty state is missing.",
+  };
+
+  expect(formatFeedback([annotation], { kind: "draft", batch: 3 })).toStartWith(
+    "# Drafting feedback 3\n\n1. ",
   );
 });

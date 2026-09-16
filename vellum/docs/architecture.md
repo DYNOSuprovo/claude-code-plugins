@@ -85,7 +85,8 @@ sequenceDiagram
   participant S as vellum serve
   participant B as page
   CC->>M: skill.prompt vellum:plan
-  M->>S: start (detached), GET /api/review
+  M->>S: start (detached), GET /api/review, POST /api/open
+  S-->>B: the page opens on the working directory's files
   M-->>CC: skill text + "Working directory: plans/<date>/wip-<sid8>/"
   loop every tool call while live
     CC->>M: tool.check → allow inside the working directory, deny outside it
@@ -117,13 +118,15 @@ stateDiagram-v2
 ```
 
 `live` allows the file tools inside the working directory and denies them outside it, serves
-`mcp__vellum__submit`, and polls `GET /api/pending` once a second until it closes.
+`mcp__vellum__submit`, and polls `GET /api/pending` once a second until it closes: drafting
+batches, then the review's decision, each relayed as a prompt.
 
 The server, derived from the directory plus a memory overlay (`src/domain/workspace.ts`, `workspaceOf`):
 
 ```mermaid
 stateDiagram-v2
   [*] --> drafting: wip-<sid8>/, no vN.md
+  drafting --> drafting: v0.feedback-<n>.md written, batches + 1
   drafting --> inReview: plan.md gated, vN.md written
   inReview --> changesRequested: vN.feedback.md written
   changesRequested --> inReview: vN+1.md written
@@ -132,16 +135,16 @@ stateDiagram-v2
   inReview --> inReview: Retry approval
 ```
 
-What the hooks module must relay is read off that state (`pendingOf`): `changesRequested`
-means a feedback file to name, `approved` the final directory to announce, anything else
-nothing. No second variable.
+What the hooks module must relay is read off that state (`pendingOf`): `drafting` with
+batches means the drafting files to name, `changesRequested` a feedback file, `approved` the
+final directory, anything else nothing. No second variable. The module keeps one number of
+its own, in `$.store`: how many batches it already named, so a reload never repeats one.
 
 ## Where phases 2 and 3 land
 
 | Feature | Pure part | Adapter part | Page part |
 |---|---|---|---|
 | Comment on an HTML element (#105) | an `Anchor` variant `element` and its line in the feedback text | a script injected into `text/html` responses, `postMessage` across the sandbox | the HTML renderer listens |
-| Feedback while drafting (#105) | a `Pending` variant `drafts`, `v0.feedback-<n>.md` naming | the module counts the batches it relayed | the page lists the directory when there is no plan |
 | Diff `vN-1` / `vN` (#106) | a line diff over two texts | `/api/review` returns the previous text | a toggle |
 | Direct edit (#106) | the edited text is the version to finalize | a field on the decision or on finalize | an editor |
 | Approval notes (#106) | `vN.notes.md` naming, the note in the prompt or the consent | | a textarea on Approve |
@@ -161,11 +164,11 @@ vellum/
       slug.ts, links.ts
       workspace.ts             PlanWorkspace from a listing, Memory, Pending, workspaceOf, pendingOf
       review.ts                Decision, gateVersion, decideOn, slugFor
-      feedback.ts              Anchor, Annotation, formatFeedback
+      feedback.ts              Anchor, Annotation, FeedbackHeading, formatFeedback
     app/
       review.ts                the use case: read the directory, decide, apply
     adapters/
-      fs.ts                    the listing, the reads and writes, the rename and rewrite
+      fs.ts                    the listings, the reads and writes, the rename and rewrite
       http/routes.ts, http/serve.ts
       browser.ts               open the page
     protocol.ts                the JSON contract; re-exports the domain types it carries

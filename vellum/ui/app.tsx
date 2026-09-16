@@ -43,15 +43,15 @@ function Panes(): preact.JSX.Element {
   const plan = planDoc.value;
   const doc = currentDoc.value;
 
-  if (plan === null || doc === null) {
+  if (doc === null) {
     return (
       <div class="docs">
-        <div class="waiting">Waiting for the plan. It appears at ExitPlanMode.</div>
+        <div class="waiting">Nothing to show yet. The working directory's files appear here.</div>
       </div>
     );
   }
 
-  const beside = doc.path !== plan.path;
+  const beside = plan !== null && doc.path !== plan.path;
 
   return (
     <div class="docs">
@@ -60,7 +60,7 @@ function Panes(): preact.JSX.Element {
       </div>
       <Tools />
       <div class="panes">
-        {beside && split.value && <Doc doc={plan} />}
+        {beside && split.value && plan !== null && <Doc doc={plan} />}
         <Doc doc={doc} />
       </div>
     </div>

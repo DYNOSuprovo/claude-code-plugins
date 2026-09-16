@@ -111,11 +111,43 @@ describe("Review", () => {
     expect(await review.pending()).toEqual({ kind: "none" });
   });
 
-  test("view lists the plan and the linked docs that exist", async () => {
+  test("view lists the working directory's files and the linked docs that exist", async () => {
     const { review } = await gated();
     const view = await review.view();
     expect(view.workspace.kind).toBe("inReview");
     expect(view.plan?.doc).toBe(`${WIP}.review/v1.md` as never);
-    expect(view.docs).toEqual([{ path: `${WIP}mockup.html` as never, mediaType: "text/html" }]);
+    expect(view.docs).toEqual([
+      { path: `${WIP}mockup.html` as never, mediaType: "text/html" },
+      { path: `${WIP}plan.md` as never, mediaType: "text/markdown" },
+    ]);
+  });
+
+  test("view while drafting lists the renderable files, sorted, without .review/", async () => {
+    const { review, root } = setup();
+    writeFileSync(join(root, WIP, ".review", "v0.feedback-1.md"), "# Drafting feedback 1\n");
+    writeFileSync(join(root, WIP, "notes.bin"), "not renderable");
+    mkdirSync(join(root, WIP, "sub"));
+    writeFileSync(join(root, WIP, "sub", "a.md"), "# A\n");
+    const view = await review.view();
+    expect(view.plan).toBeNull();
+    expect(view.docs.map((doc) => doc.path)).toEqual([
+      `${WIP}mockup.html` as never,
+      `${WIP}sub/a.md` as never,
+    ]);
+  });
+
+  test("a feedback while drafting writes the next batch and leaves it pending", async () => {
+    const { review, root } = setup();
+    const first = await review.decide({ kind: "feedback", annotations: [GENERAL_NO] });
+    expect(first).toMatchObject({ ok: true, workspace: { kind: "drafting", batches: 1 } });
+    expect(read(root, `${WIP}.review/v0.feedback-1.md`)).toStartWith("# Drafting feedback 1");
+    await review.decide({ kind: "feedback", annotations: [GENERAL_NO] });
+    expect(await review.pending()).toEqual({
+      kind: "drafts",
+      batches: [
+        { batch: 1, path: `${WIP}.review/v0.feedback-1.md` as never },
+        { batch: 2, path: `${WIP}.review/v0.feedback-2.md` as never },
+      ],
+    });
   });
 });

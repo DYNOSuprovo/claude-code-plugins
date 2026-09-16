@@ -10,7 +10,7 @@ const FINAL = "plans/2026-09-15/notification/" as never;
 
 const V1 = 1 as never;
 
-const drafting: PlanWorkspace = { kind: "drafting", dir: DIR };
+const drafting: PlanWorkspace = { kind: "drafting", dir: DIR, batches: 0 };
 
 const inReview: PlanWorkspace = { kind: "inReview", dir: DIR, version: V1, finalizeError: null };
 
@@ -23,8 +23,13 @@ function listing(...names: string[]): ReadonlySet<string> {
 }
 
 describe("workspaceFromListing", () => {
-  test("no version is drafting", () => {
+  test("no version is drafting, and the drafting feedback files are counted", () => {
     expect(workspaceFromListing(DIR, listing())).toEqual({ ok: true, value: drafting });
+
+    expect(workspaceFromListing(DIR, listing("v0.feedback-1.md", "v0.feedback-2.md"))).toEqual({
+      ok: true,
+      value: { ...drafting, batches: 2 },
+    });
   });
 
   test("the latest version without its feedback is inReview", () => {
@@ -81,6 +86,17 @@ describe("workspaceOf", () => {
 describe("pendingOf", () => {
   test.each([
     [drafting, { kind: "none" }],
+    [
+      { ...drafting, batches: 3 },
+      {
+        kind: "drafts",
+        batches: [
+          { batch: 1, path: `${DIR}.review/v0.feedback-1.md` },
+          { batch: 2, path: `${DIR}.review/v0.feedback-2.md` },
+          { batch: 3, path: `${DIR}.review/v0.feedback-3.md` },
+        ],
+      },
+    ],
     [inReview, { kind: "none" }],
     [changesRequested, { kind: "feedback", version: V1, path: `${DIR}.review/v1.feedback.md` }],
     [approved, { kind: "approved", version: V1, dir: FINAL }],

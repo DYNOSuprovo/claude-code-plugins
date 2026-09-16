@@ -8,7 +8,7 @@ const DIR = "plans/2026-09-15/wip-4c2a9d93/" as never;
 
 const V1 = 1 as never;
 
-const drafting: PlanWorkspace = { kind: "drafting", dir: DIR };
+const drafting: PlanWorkspace = { kind: "drafting", dir: DIR, batches: 2 };
 
 const inReview: PlanWorkspace = { kind: "inReview", dir: DIR, version: V1, finalizeError: null };
 
@@ -53,7 +53,15 @@ describe("decideOn", () => {
     });
   });
 
-  test.each([drafting, changesRequested, approved])("is refused on $kind", (workspace) => {
+  test("a feedback while drafting is the next batch", () => {
+    expect(decideOn(drafting, { kind: "feedback", annotations: [] })).toEqual({
+      kind: "draftFeedback",
+      batch: 3,
+      path: `${DIR}.review/v0.feedback-3.md` as never,
+    });
+  });
+
+  test.each([drafting, changesRequested, approved])("approve is refused on $kind", (workspace) => {
     expect(decideOn(workspace, { kind: "approve" })).toEqual({ kind: "refused" });
   });
 });

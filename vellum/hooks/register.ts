@@ -8,8 +8,11 @@ type Session = { readonly id: string; readonly server: ServerInfo; readonly work
 /** A reachable review server and the timer that keeps it alive. */
 type Live = { readonly session: Session; readonly heartbeat: Timer };
 
+type DraftBatch = { readonly batch: number; readonly path: string };
+
 type Pending =
   | { readonly kind: "none" }
+  | { readonly kind: "drafts"; readonly batches: readonly DraftBatch[] }
   | { readonly kind: "feedback"; readonly version: number; readonly path: string }
   | { readonly kind: "approved"; readonly version: number; readonly dir: string };
 
@@ -102,10 +105,29 @@ function parseJson(text: string): unknown {
   }
 }
 
+function parseBatch(value: unknown): DraftBatch | null {
+  return isRecord(value) && typeof value.batch === "number" && typeof value.path === "string"
+    ? { batch: value.batch, path: value.path }
+    : null;
+}
+
+/** A count the store kept across a reload; anything else reads as nothing relayed yet. */
+function parseRelayed(value: unknown): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : 0;
+}
+
 function parsePending(text: string): Pending {
   const value = parseJson(text);
 
-  if (!isRecord(value) || typeof value.version !== "number") return { kind: "none" };
+  if (!isRecord(value)) return { kind: "none" };
+
+  if (value.kind === "drafts" && Array.isArray(value.batches)) {
+    const batches = value.batches.map(parseBatch).filter((batch) => batch !== null);
+
+    return batches.length === 0 ? { kind: "none" } : { kind: "drafts", batches };
+  }
+
+  if (typeof value.version !== "number") return { kind: "none" };
 
   if (value.kind === "approved" && typeof value.dir === "string") {
     return { kind: "approved", version: value.version, dir: value.dir };
@@ -178,10 +200,28 @@ export function submitResult(gate: Gate): { result: string } | { deny: string } 
   };
 }
 
-function promptFor(pending: Exclude<Pending, { kind: "none" }>): string {
-  return pending.kind === "feedback"
-    ? `Plan review v${pending.version}: changes requested. Read ${pending.path}, revise plan.md and the files it names, then call ${SUBMIT_TOOL} again.`
-    : `Plan v${pending.version} approved. It lives at ${pending.dir}. Implement it here or in a fresh session.`;
+function draftsPrompt(batches: readonly DraftBatch[]): string {
+  const paths = batches.map((batch) => batch.path).join(", ");
+
+  return `Drafting feedback from the vellum review page: read ${paths}, revise the files they name, then continue the plan.`;
+}
+
+function feedbackPrompt(pending: Extract<Pending, { kind: "feedback" }>): string {
+  return `Plan review v${pending.version}: changes requested. Read ${pending.path}, revise plan.md and the files it names, then call ${SUBMIT_TOOL} again.`;
+}
+
+function approvedPrompt(pending: Extract<Pending, { kind: "approved" }>): string {
+  return `Plan v${pending.version} approved. It lives at ${pending.dir}. Implement it here or in a fresh session.`;
+}
+
+/** Hands the session a prompt; `false` when another plugin dropped it, so the next tick retries. */
+async function submitPrompt($: EngineInterface, text: string): Promise<boolean> {
+  const result = await $.prompt.submit({ text });
+
+  if (result.drop === undefined) return true;
+  $.ui.log(`vellum: the review prompt was dropped: ${result.drop}`);
+
+  return false;
 }
 
 function api(
@@ -268,46 +308,66 @@ function stopTimers(): void {
   state.poll.cancel();
 }
 
+function relayedKey(id: string): string {
+  return `relayed:${id}`;
+}
+
 async function close($: EngineInterface): Promise<void> {
-  if (state.kind === "live") await $.store.delete(`session:${state.live.session.id}`);
+  if (state.kind === "live") {
+    const { id } = state.live.session;
+    await Promise.all([$.store.delete(`session:${id}`), $.store.delete(relayedKey(id))]);
+  }
+
   stopTimers();
   state = { kind: "idle" };
   $.ui.status(undefined);
 }
 
 /**
- * Enters the mode: one poll a second until it closes. A feedback is relayed once per version,
- * an approval once and then the mode closes. A prompt another plugin dropped, or a poll that
- * failed, is logged and retried on the next tick.
+ * Enters the mode: one poll a second until it closes. Each drafting batch is named once and
+ * the count survives a reload in `$.store`; a feedback is relayed once per version; an
+ * approval once, and then the mode closes. A dropped prompt or a failed poll is logged and
+ * retried on the next tick.
  */
-function enter($: EngineInterface, live: Live): void {
+async function enter($: EngineInterface, live: Live): Promise<void> {
   if (state.kind === "live") state.poll.cancel();
+  const { id, server } = live.session;
   let relaying = false;
-  let relayed = 0;
+  let drafts = parseRelayed(await $.store.get(relayedKey(id)));
+  let version = 0;
 
   const poll = $.clock.every(POLL_MS, () => {
     if (relaying) return;
     relaying = true;
 
-    void api($, live.session.server, "/api/pending")
+    void api($, server, "/api/pending")
       .then(async (response) => {
         const pending = parsePending(response.text);
 
-        if (pending.kind === "none") return;
+        if (pending.kind === "drafts") {
+          const fresh = pending.batches.filter((batch) => batch.batch > drafts);
+          const last = fresh.at(-1);
 
-        if (pending.kind === "feedback" && pending.version === relayed) return;
-        const result = await $.prompt.submit({ text: promptFor(pending) });
-
-        if (result.drop !== undefined) {
-          $.ui.log(`vellum: the review prompt was dropped: ${result.drop}`);
+          if (last === undefined || !(await submitPrompt($, draftsPrompt(fresh)))) return;
+          drafts = last.batch;
+          await $.store.set(relayedKey(id), drafts);
 
           return;
         }
 
-        if (pending.kind === "approved") await close($);
-        else {
-          relayed = pending.version;
+        if (pending.kind === "feedback") {
+          if (pending.version === version || !(await submitPrompt($, feedbackPrompt(pending)))) {
+            return;
+          }
+
+          version = pending.version;
           $.ui.status("planning");
+
+          return;
+        }
+
+        if (pending.kind === "approved" && (await submitPrompt($, approvedPrompt(pending)))) {
+          await close($);
         }
       })
       .catch((cause: unknown) => {
@@ -343,7 +403,7 @@ async function connect($: EngineInterface): Promise<Live | null> {
     return null;
   }
 
-  enter($, live);
+  await enter($, live);
   $.ui.log(`vellum: planning in ${live.session.workdir}, ${reviewUrl(live.session.server)}`);
 
   return live;
@@ -357,7 +417,7 @@ export const register: Register = (on) => {
     await $.tool.register(SUBMIT);
     const live = await restored($, await $.session.id());
 
-    if (live !== null) enter($, live);
+    if (live !== null) await enter($, live);
 
     return next(e);
   });
@@ -366,9 +426,11 @@ export const register: Register = (on) => {
     const live = await connect($);
     const result = await next(e);
 
-    return live === null
-      ? result
-      : { text: `${result.text}\n\nWorking directory: ${live.session.workdir}` };
+    if (live === null) return result;
+    // The page opens on the way in, so the reviewer can comment on the artifacts before v1.
+    void api($, live.session.server, "/api/open", { method: "POST" }).catch(() => {});
+
+    return { text: `${result.text}\n\nWorking directory: ${live.session.workdir}` };
   });
 
   // The way out is a skill, not `$.command.register`: a registered command takes the global

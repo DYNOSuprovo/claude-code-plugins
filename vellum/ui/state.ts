@@ -29,19 +29,30 @@ export const planDoc = computed<DocRef | null>(() => {
 
 export const docs = computed<readonly DocRef[]>(() => {
   const plan = planDoc.value;
+  const listed = review.value?.docs ?? [];
 
-  return plan === null ? [] : [plan, ...(review.value?.docs ?? [])];
+  return plan === null ? listed : [plan, ...listed];
 });
 
-export const currentDoc = computed<DocRef | null>(
-  () => docs.value.find((doc) => doc.path === (current.value ?? planDoc.value?.path)) ?? null,
-);
+export const currentDoc = computed<DocRef | null>(() => {
+  const list = docs.value;
+  const wanted = current.value ?? planDoc.value?.path ?? list[0]?.path;
 
-/** Decisions are taken on `inReview` only; every other state locks the page. */
-export const locked = computed(() => review.value?.workspace.kind !== "inReview");
+  return list.find((doc) => doc.path === wanted) ?? null;
+});
 
-function versionOf(workspace: PlanWorkspace | undefined): number | null {
-  return workspace === undefined || workspace.kind === "drafting" ? null : workspace.version;
+/** Comments are taken on a plan under review and while drafting; every other state locks the page. */
+export const locked = computed(() => {
+  const kind = review.value?.workspace.kind;
+
+  return kind !== "inReview" && kind !== "drafting";
+});
+
+/** The round the comments belong to: a version, or the batches already sent while drafting. */
+function roundOf(workspace: PlanWorkspace | undefined): string {
+  if (workspace === undefined) return "";
+
+  return workspace.kind === "drafting" ? `drafts ${workspace.batches}` : `v${workspace.version}`;
 }
 
 export async function loadReview(): Promise<void> {
@@ -56,7 +67,7 @@ export async function loadReview(): Promise<void> {
   const previous = review.value?.workspace;
   review.value = fetched.value;
 
-  if (versionOf(previous) !== versionOf(fetched.value.workspace)) annotations.value = [];
+  if (roundOf(previous) !== roundOf(fetched.value.workspace)) annotations.value = [];
 }
 
 export async function decide(decision: Decision): Promise<void> {

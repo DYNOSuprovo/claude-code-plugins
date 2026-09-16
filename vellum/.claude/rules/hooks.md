@@ -35,5 +35,8 @@ loop. `/vellum:plan` enters it, Approve in the page or `/vellum:stop` leaves it.
 - A hook answers within its dispatch's budget, about ten seconds. What waits for a person is
   polled by `$.clock.every` and handed to the session by `$.prompt.submit`, which runs once
   the session is idle.
+- One poll relays everything the reviewer sends: the drafting batches, then the decision. What
+  was already named is remembered so nothing is said twice, and the drafting count goes to
+  `$.store`, since a reload must not repeat a batch the model has read.
 - Tests answer `$` from memory (`register.test.ts`): `bun test` cannot host the engine's
   environment. Nothing else is faked.
