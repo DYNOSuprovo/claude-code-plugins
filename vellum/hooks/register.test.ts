@@ -205,6 +205,24 @@ function draftsPrompt(...batches: number[]): string {
   return `Drafting feedback from the vellum review page: read ${paths}, revise the files they name, then continue the plan.`;
 }
 
+function relayed(drafts: number, version = 0, workdir = WORKDIR): unknown {
+  return { workdir, drafts, version };
+}
+
+/** A module reloaded over the live server the store kept. */
+async function reloaded(h: Harness): Promise<Harness> {
+  h.ports.add(SERVER.port);
+  h.store.set(`session:${SESSION_ID}`, {
+    id: SESSION_ID,
+    server: SERVER,
+    project: CWD,
+    workdir: WORKDIR,
+  });
+  await call(h, "session.start", { cwd: CWD });
+
+  return h;
+}
+
 function polling(h: Harness): boolean {
   return h.timers.some((timer) => timer.ms === 1000 && !timer.cancelled);
 }
@@ -282,15 +300,7 @@ describe("session.start", () => {
   });
 
   test("a reload finds the live server the store kept and polls again", async () => {
-    const h = harness(LIVE);
-    h.ports.add(SERVER.port);
-    h.store.set(`session:${SESSION_ID}`, {
-      id: SESSION_ID,
-      server: SERVER,
-      project: CWD,
-      workdir: WORKDIR,
-    });
-    await call(h, "session.start", { cwd: CWD });
+    const h = await reloaded(harness(LIVE));
     expect(polling(h)).toBe(true);
     expect(beating(h)).toBe(true);
   });
@@ -441,11 +451,11 @@ describe("skill.prompt vellum:stop", () => {
     expect(h.status).toBeUndefined();
   });
 
-  test("keeps the relayed count, so a plan after a stop names no batch twice", async () => {
+  test("keeps the relayed record, so a plan after a stop names no batch twice", async () => {
     const h = await planning();
-    h.store.set(`relayed:${SESSION_ID}`, 2);
+    h.store.set(`relayed:${SESSION_ID}`, relayed(2));
     await stop(h);
-    expect(h.store.get(`relayed:${SESSION_ID}`)).toBe(2);
+    expect(h.store.get(`relayed:${SESSION_ID}`)).toEqual(relayed(2));
   });
 
   test("outside the mode it says so and starts nothing", async () => {
@@ -495,7 +505,7 @@ describe("the decision comes back as a prompt", () => {
     batches = [batch(1), batch(2), batch(3)];
     await tick(h);
     expect(h.prompts).toEqual([draftsPrompt(1), draftsPrompt(2, 3)]);
-    expect(h.store.get(`relayed:${SESSION_ID}`)).toBe(3);
+    expect(h.store.get(`relayed:${SESSION_ID}`)).toEqual(relayed(3));
   });
 
   test("a batch the store says was relayed is not named again after a reload", async () => {
@@ -504,17 +514,40 @@ describe("the decision comes back as a prompt", () => {
       "/api/pending": () => reply(200, { kind: "drafts", batches: [batch(1)] }),
     });
 
-    h.ports.add(SERVER.port);
-    h.store.set(`session:${SESSION_ID}`, {
-      id: SESSION_ID,
-      server: SERVER,
-      project: CWD,
-      workdir: WORKDIR,
-    });
-    h.store.set(`relayed:${SESSION_ID}`, 1);
-    await call(h, "session.start", { cwd: CWD });
+    h.store.set(`relayed:${SESSION_ID}`, relayed(1));
+    await reloaded(h);
     await tick(h);
     expect(h.prompts).toEqual([]);
+  });
+
+  test("a feedback the store says was relayed is not named again after a reload", async () => {
+    const path = `${WORKDIR}.review/v1.feedback.md`;
+    const feedback = (): HttpResponse => reply(200, { kind: "feedback", version: 1, path });
+    const h = harness({ ...LIVE, "/api/pending": feedback });
+    h.store.set(`relayed:${SESSION_ID}`, relayed(0, 1));
+    await reloaded(h);
+    await tick(h);
+    expect(h.prompts).toEqual([]);
+  });
+
+  test("a record kept for another working directory counts for nothing", async () => {
+    const h = harness({
+      ...LIVE,
+      "/api/pending": () => reply(200, { kind: "drafts", batches: [batch(1)] }),
+    });
+
+    h.store.set(`relayed:${SESSION_ID}`, relayed(1, 0, "plans/2020-01-01/wip-x/"));
+    await reloaded(h);
+    await tick(h);
+    expect(h.prompts).toEqual([draftsPrompt(1)]);
+  });
+
+  test("an approval drops the record, so the next plan's first batch is named", async () => {
+    const approved = (): HttpResponse => reply(200, { kind: "approved", version: 1, dir: FINAL });
+    const h = await planning({ ...LIVE, "/api/pending": approved });
+    h.store.set(`relayed:${SESSION_ID}`, relayed(2));
+    await tick(h);
+    expect(h.store.has(`relayed:${SESSION_ID}`)).toBe(false);
   });
 
   test("a dropped prompt keeps the poll alive; the next tick retries", async () => {
