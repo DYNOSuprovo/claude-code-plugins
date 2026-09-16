@@ -220,12 +220,17 @@ environment of its own.
   again in a fresh environment and every pending timer of the old one dies.
   State the module must keep across a reload goes to `$.store`.
 - `claude plugin test <dir>` runs `*.test.ts` files that import
-  `claude-code/testing` in the engine's environment. Two limits:
-  its `$` has no `classic` noun, so a `classic.PermissionRequest` hook cannot
-  be raised from a test; and `bun test` at the repo root picks the same
-  `*.test.ts` files up and fails on the import. `vellum` tests its module with
-  `bun test` instead: `register` is called with a recording `on` and a `$`
-  answered from memory (`vellum/hooks/register.test.ts`).
+  `claude-code/testing` in the engine's environment. It takes no argument but
+  the directory, and two rules follow from that: it loads the module from
+  `<dir>/hooks/hooks.json` only, refusing a `modules` entry that climbs out
+  (`path-traversal`), and it collects every `*.test.ts` below `<dir>`. So the
+  kit runs from the plugin root, and a `bun:test` suite elsewhere in the
+  plugin fails that run unless it is named otherwise: `vellum` names its
+  server and page suites `*.spec.ts`, and keeps `*.test.ts` for the kit's own
+  under `vellum/tests/`. `bun test` would pick those up and fail on the
+  import, so the repo's `bunfig.toml` ignores `vellum/tests/**`.
+- The kit's `$` has no `classic` noun, so a `classic.PermissionRequest` hook
+  cannot be raised from a test.
 - A hook answers within its dispatch's budget, about ten seconds. What must
   wait for a person (a browser decision) is polled by `$.clock.every` and
   handed to the session by `$.prompt.submit`, which runs once the session is

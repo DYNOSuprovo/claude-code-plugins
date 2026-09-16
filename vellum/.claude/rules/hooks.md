@@ -6,7 +6,7 @@ paths:
 # The hooks module
 
 `hooks/register.ts` is the engine adapter: one file, types from `claude-code` only, nothing
-from `src/`; `$` is its one port. Held by `src/boundaries.test.ts`.
+from `src/`; `$` is its one port. Held by `src/boundaries.spec.ts`.
 
 The module holds the vellum mode, a mode of its own: the native plan mode never enters the
 loop. `/vellum:plan` enters it, Approve in the page or `/vellum:stop` leaves it.

@@ -10,7 +10,7 @@ Hexagonal with a functional core. `src/domain/` is pure functions over immutable
 read through the adapter, decide in the domain, apply files, memory and listeners.
 `src/adapters/` are plain modules, no interface, no injection: `fs.ts` every read and write
 under the project root, `http/routes.ts` bodies, paths and status codes, `http/serve.ts`
-binding and the page bundle, `browser.ts` the opener. Direction held by `boundaries.test.ts`.
+binding and the page bundle, `browser.ts` the opener. Direction held by `boundaries.spec.ts`.
 
 - Decide, then apply. Read everything first, take the decision as a pure function of plain
   values in `domain/`, then write files, timers and prompts through `adapters/`.

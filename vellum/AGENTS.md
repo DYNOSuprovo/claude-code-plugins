@@ -21,7 +21,7 @@ src/cli.ts               the entry point: `start` spawns `serve` detached
 ui/                      the Preact page; plugins/<kind>/ one document kind, server half and UI half
 ```
 
-Dependencies point toward `src/domain/`, held by `src/boundaries.test.ts`. The rules of each
+Dependencies point toward `src/domain/`, held by `src/boundaries.spec.ts`. The rules of each
 zone load with its files, from `.claude/rules/`: `hooks.md`, `server.md`, `page.md`,
 `tests.md`. The drawings, the assessment and where the next phases land: `docs/architecture.md`.
 
@@ -29,8 +29,9 @@ zone load with its files, from `.claude/rules/`: `hooks.md`, `server.md`, `page.
 
 ```bash
 bun install --cwd vellum                                            # once; Claude Code does it at the plugin's cache
-bun test vellum                                                     # every suite of the plugin
-bun test vellum/src/domain/slug.test.ts                             # one suite; `-t <pattern>` filters by test name
+bun test vellum                                                     # the server's and the page's `*.spec.ts` suites
+bun test vellum/src/domain/slug.spec.ts                             # one suite; `-t <pattern>` filters by test name
+CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test vellum       # the hooks module's `tests/*.test.ts`, through the engine's kit
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum   # what the hooks module hooks and calls
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 command claude --permission-mode default --plugin-dir vellum   # a live session from source
 bun vellum/src/cli.ts serve --session <id> --project <dir> --workdir plans/<date>/wip-<sid8>/      # the server alone, for page work; the trailing slash is required

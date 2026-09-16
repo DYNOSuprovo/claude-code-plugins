@@ -93,6 +93,13 @@ pre-commit:
         - "vellum/hooks/*"
         - "vellum/.claude-plugin/*"
       run: CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum
+    # The kit runs from the plugin root: it loads the module from
+    # `vellum/hooks/` and collects every `*.test.ts` below `vellum/`.
+    - name: test-vellum
+      glob:
+        - "vellum/hooks/*"
+        - "vellum/tests/**"
+      run: CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test vellum
 
 commit-msg:
   jobs:

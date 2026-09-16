@@ -70,7 +70,7 @@ What moved to reach this shape, and why:
    `Decision`, `Anchor`, `Annotation`) instead of defining them; the page depends on the
    contract, the server on the domain.
 4. `ui/state.ts` split into `ui/api.ts` (token, routes, SSE) and the store.
-5. `src/boundaries.test.ts` holds the direction: an import that fails it is in the wrong
+5. `src/boundaries.spec.ts` holds the direction: an import that fails it is in the wrong
    layer, not a test to loosen.
 
 Phases 2 and 3 add domain concepts (element anchors, drafting feedback, diffs, direct
@@ -175,7 +175,7 @@ vellum/
       browser.ts               open the page
     protocol.ts                the JSON contract; re-exports the domain types it carries
     cli.ts                     the entry point: start | serve
-    boundaries.test.ts         the dependency direction
+    boundaries.spec.ts         the dependency direction
   ui/
     api.ts                     the client: token, routes, SSE
     state.ts, app.tsx, …       the store and the components
