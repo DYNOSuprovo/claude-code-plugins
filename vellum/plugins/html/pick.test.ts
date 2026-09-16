@@ -28,7 +28,11 @@ describe("selectorOf", () => {
   });
 
   test("every class of the element is kept", () => {
-    expect(selectorOf([step("div", { classes: ["card", "wide"] })])).toBe("div.card.wide");
+    expect(selectorOf([step("div", { classes: ["card", "wide"] })])).toBe("body > div.card.wide");
+  });
+
+  test("without an id the chain is anchored at body, so a deeper twin does not match", () => {
+    expect(selectorOf([step("div"), step("div"), step("p")])).toBe("body > div > div > p");
   });
 });
 
