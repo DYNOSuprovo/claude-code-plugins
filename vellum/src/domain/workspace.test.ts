@@ -12,7 +12,13 @@ const V1 = 1 as never;
 
 const drafting: PlanWorkspace = { kind: "drafting", dir: DIR, batches: 0 };
 
-const inReview: PlanWorkspace = { kind: "inReview", dir: DIR, version: V1, finalizeError: null };
+const inReview: PlanWorkspace = {
+  kind: "inReview",
+  dir: DIR,
+  version: V1,
+  batches: 0,
+  finalizeError: null,
+};
 
 const changesRequested: PlanWorkspace = { kind: "changesRequested", dir: DIR, version: V1 };
 
@@ -32,11 +38,11 @@ describe("workspaceFromListing", () => {
     });
   });
 
-  test("the latest version without its feedback is inReview", () => {
-    const names = listing("v1.md", "v1.feedback.md", "v2.md");
+  test("the latest version without its feedback is inReview, the drafting batches still counted", () => {
+    const names = listing("v0.feedback-1.md", "v1.md", "v1.feedback.md", "v2.md");
     expect(workspaceFromListing(DIR, names)).toEqual({
       ok: true,
-      value: { ...inReview, version: 2 as never },
+      value: { ...inReview, version: 2 as never, batches: 1 },
     });
   });
 
@@ -98,6 +104,10 @@ describe("pendingOf", () => {
       },
     ],
     [inReview, { kind: "none" }],
+    [
+      { ...inReview, batches: 1 },
+      { kind: "drafts", batches: [{ batch: 1, path: `${DIR}.review/v0.feedback-1.md` }] },
+    ],
     [changesRequested, { kind: "feedback", version: V1, path: `${DIR}.review/v1.feedback.md` }],
     [approved, { kind: "approved", version: V1, dir: FINAL }],
   ] as const)("reads what $kind leaves pending", (workspace, expected) => {

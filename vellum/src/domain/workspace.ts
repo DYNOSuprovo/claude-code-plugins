@@ -24,13 +24,18 @@ export function draftFeedbackFile(batch: number): string {
   return `${REVIEW_DIR}/v0.feedback-${batch}.md`;
 }
 
-/** The directory's listing overlaid with the memory; the two agree on every variant. */
+/**
+ * The directory's listing overlaid with the memory; the two agree on every variant. `batches`
+ * counts the drafting feedback sent before the first version; it stays on `inReview`, since a
+ * batch sent in the second before the gate is still Claude's to read.
+ */
 export type PlanWorkspace =
   | { readonly kind: "drafting"; readonly dir: WipDir; readonly batches: number }
   | {
       readonly kind: "inReview";
       readonly dir: WipDir;
       readonly version: Version;
+      readonly batches: number;
       readonly finalizeError: string | null;
     }
   | { readonly kind: "changesRequested"; readonly dir: WipDir; readonly version: Version }
@@ -98,7 +103,13 @@ export function workspaceFromListing(
     ? { ok: true, value: { kind: "changesRequested", dir: wip.value, version: latest } }
     : {
         ok: true,
-        value: { kind: "inReview", dir: wip.value, version: latest, finalizeError: null },
+        value: {
+          kind: "inReview",
+          dir: wip.value,
+          version: latest,
+          batches: draftBatches(names),
+          finalizeError: null,
+        },
       };
 }
 
@@ -117,7 +128,7 @@ export function workspaceOf(disk: PlanWorkspace, memory: Memory): PlanWorkspace 
 
 /** Read off the workspace; nothing is kept beside it. */
 export function pendingOf(workspace: PlanWorkspace): Pending {
-  if (workspace.kind === "drafting") {
+  if (workspace.kind === "drafting" || workspace.kind === "inReview") {
     const batches = Array.from({ length: workspace.batches }, (_, index) => ({
       batch: index + 1,
       path: projectPath(`${workspace.dir}${draftFeedbackFile(index + 1)}`),
