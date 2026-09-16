@@ -318,15 +318,23 @@ async function startServer(
   return null;
 }
 
+function storedSession($: EngineInterface, id: string): Promise<Session | null> {
+  return $.store.get(`session:${id}`).then(parseSession);
+}
+
 /** The session `$.store` kept across a module reload, when its server still answers. */
 async function restored($: EngineInterface, id: string): Promise<Live | null> {
-  const stored = parseSession(await $.store.get(`session:${id}`));
+  const stored = await storedSession($, id);
 
   return stored !== null && (await alive($, stored.server)) ? keepAlive($, stored) : null;
 }
 
-async function started($: EngineInterface, id: string, workdir: string): Promise<Live | null> {
-  const project = await $.session.cwd();
+async function started(
+  $: EngineInterface,
+  id: string,
+  project: string,
+  workdir: string,
+): Promise<Live | null> {
   const server = await startServer($, id, project, workdir);
 
   if (server === null) return null;
@@ -426,8 +434,9 @@ async function enter($: EngineInterface, live: Live): Promise<void> {
 
 /**
  * Reaches a server, in order: the one this session already has when it answers, the one
- * `$.store` kept, a new one. A `/clear` changes the session id, so the live server of another
- * id is left to its heartbeat and a new one takes over.
+ * `$.store` kept, a new one on the directory the store kept, or on a fresh one. A `/clear`
+ * changes the session id, so the live server of another id is left to its heartbeat and a
+ * new one takes over.
  */
 async function connect($: EngineInterface): Promise<Live | null> {
   const id = await $.session.id();
@@ -435,9 +444,11 @@ async function connect($: EngineInterface): Promise<Live | null> {
 
   if (current?.session.id === id && (await alive($, current.session.server))) return current;
   stopTimers();
+  const stored = await storedSession($, id);
   const date = new Date().toISOString().slice(0, 10);
-  const workdir = `plans/${date}/wip-${id.slice(0, 8)}/`;
-  const live = (await restored($, id)) ?? (await started($, id, workdir));
+  const project = stored?.project ?? (await $.session.cwd());
+  const workdir = stored?.workdir ?? `plans/${date}/wip-${id.slice(0, 8)}/`;
+  const live = (await restored($, id)) ?? (await started($, id, project, workdir));
 
   if (live === null) {
     state = { kind: "idle" };

@@ -353,6 +353,19 @@ describe("skill.prompt", () => {
     expect(h.store.get(`session:${SESSION_ID}`)).toMatchObject({ server: SERVER });
   });
 
+  test("the restarted server keeps the directory and the project the plan was started in", async () => {
+    const h = harness(LIVE);
+    const workdir = "plans/2020-01-01/wip-4c2a9d93/";
+    h.store.set(`session:${SESSION_ID}`, {
+      id: SESSION_ID,
+      server: { ...SERVER, port: 1 },
+      project: "/elsewhere",
+      workdir,
+    });
+    expect(await invokeSkill(h)).toEqual({ text: `t\n\nWorking directory: ${workdir}` });
+    expect(h.runs[0]?.slice(5)).toEqual(["--project", "/elsewhere", "--workdir", workdir]);
+  });
+
   test("a session id the live server does not belong to starts a second one", async () => {
     const h = await planning();
     h.$.session.id = () => Promise.resolve(OTHER_ID);
