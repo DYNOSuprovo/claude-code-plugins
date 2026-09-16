@@ -194,9 +194,9 @@ skills do: the debug log says `Read hooks.json for plugin <name>` and
 
 ## Testing a hooks module (function hooks)
 
-A plugin whose `hooks/hooks.json` names `modules` is a hooks module: one
-TypeScript file exporting `register(on, options)`, run by the engine in an
-environment of its own.
+A plugin whose `hooks/hooks.json` names `modules` is a hooks module: a
+TypeScript entry point exporting `register(on, options)`, run by the engine in
+an environment of its own. It may import siblings, under the rule on `$` below.
 
 - Launch with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` until function hooks ship
   publicly. Without it the module never loads and the plugin's skills run as
