@@ -4,15 +4,15 @@ import { h } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { parseProjectPath } from "../../src/domain/paths.ts";
-import type { TextAnchor } from "../../ui/anchoring.ts";
-import { anchorFromRange, anchorFromSelection, rangeFor } from "../../ui/anchoring.ts";
+import type { Passage } from "../../src/protocol.ts";
+import { passageFromRange, passageFromSelection, rangeFor } from "../../ui/anchoring.ts";
 import { fileUrl } from "../../ui/api.ts";
 import { Composer } from "../../ui/composer.tsx";
 import { paint } from "../../ui/highlights.ts";
 import { docs, inputMethod, select } from "../../ui/state.ts";
 import type { RendererProps, UiPlugin } from "../index.ts";
 import type { Target } from "./pinpoint.ts";
-import { boxOf, rangeOf, targetAt } from "./pinpoint.ts";
+import { boxOf, rangeOf, targetAt, toggled } from "./pinpoint.ts";
 import { toTree } from "./tree.ts";
 
 function attributeName(property: string): string {
@@ -75,7 +75,13 @@ function toVNode(node: RootContent, key: number): ComponentChild {
   );
 }
 
-type Draft = { readonly anchor: TextAnchor; readonly top: number; readonly left: number };
+type Chosen = { readonly element: HTMLElement; readonly passage: Passage };
+
+type Draft = {
+  readonly chosen: readonly [Chosen, ...Chosen[]];
+  readonly top: number;
+  readonly left: number;
+};
 
 type Wash = {
   readonly target: Target;
@@ -95,10 +101,14 @@ function inPane(root: HTMLElement, rect: DOMRect): { top: number; left: number }
   return { top: rect.top - paneRect.top + pane.scrollTop, left: rect.left - paneRect.left };
 }
 
-function draftUnder(root: HTMLElement, anchor: TextAnchor, rect: DOMRect): Draft | null {
+function draftUnder(
+  root: HTMLElement,
+  chosen: readonly [Chosen, ...Chosen[]],
+  rect: DOMRect,
+): Draft | null {
   const at = inPane(root, rect);
 
-  return at === null ? null : { anchor, top: at.top + rect.height + 8, left: Math.max(8, at.left) };
+  return at === null ? null : { chosen, top: at.top + rect.height + 8, left: Math.max(8, at.left) };
 }
 
 /** A link to a listed document switches the view; any other link opens in a new tab. */
@@ -137,15 +147,21 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
 
     if (root === null || text === null) return;
 
-    const ranges = props.annotations.flatMap((annotation) => {
-      const range = annotation.anchor.kind === "text" ? rangeFor(root, annotation.anchor) : null;
+    const rangesOf = (passages: readonly Passage[]): Range[] =>
+      passages.flatMap((passage) => {
+        const range = rangeFor(root, passage);
 
-      return range === null ? [] : [range];
-    });
+        return range === null ? [] : [range];
+      });
 
-    paint("vellum-comment", ranges);
-    const draftRange = draft === null ? null : rangeFor(root, draft.anchor);
-    paint("vellum-draft", draftRange === null ? [] : [draftRange]);
+    paint(
+      "vellum-comment",
+      props.annotations.flatMap((annotation) =>
+        annotation.anchor.kind === "text" ? rangesOf(annotation.anchor.passages) : [],
+      ),
+    );
+
+    paint("vellum-draft", rangesOf((draft?.chosen ?? []).map((one) => one.passage)));
 
     return () => {
       paint("vellum-comment", []);
@@ -157,11 +173,13 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     const root = container.current;
 
     if (root === null || inputMethod.value !== "select") return;
-    const anchor = anchorFromSelection(root);
-    const rect = document.getSelection()?.getRangeAt(0).getBoundingClientRect();
+    const range = document.getSelection()?.getRangeAt(0);
+    const passage = passageFromSelection(root);
 
-    if (anchor === null || rect === undefined) return;
-    setDraft(draftUnder(root, anchor, rect));
+    if (range === undefined || passage === null) return;
+    const node = range.commonAncestorContainer;
+    const element = node instanceof HTMLElement ? node : (node.parentElement ?? root);
+    setDraft(draftUnder(root, [{ element, passage }], range.getBoundingClientRect()));
   };
 
   const onPointerMove = (event: PointerEvent): void => {
@@ -194,11 +212,15 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     }
 
     const target = targetAt(root, event.target, event.clientX, event.clientY);
-    const range = target === null ? null : rangeOf(target);
-    const anchor = range === null ? null : anchorFromRange(root, range);
+    const range = target === null ? null : rangeOf(target.element);
+    const passage = range === null ? null : passageFromRange(root, range);
 
-    if (target === null || anchor === null) return;
-    setDraft(draftUnder(root, anchor, boxOf(target)));
+    if (target === null || passage === null) return;
+    const one = { element: target.element, passage };
+    const adding = (event.ctrlKey || event.metaKey) && draft !== null;
+    const [first, ...rest] = adding && draft !== null ? toggled(draft.chosen, one) : [one];
+
+    setDraft(first === undefined ? null : draftUnder(root, [first, ...rest], boxOf(target)));
   };
 
   if (content === null) return <div class="waiting">Loading…</div>;
@@ -231,12 +253,14 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       )}
       {draft !== null && (
         <Composer
-          anchor={draft.anchor}
+          passages={draft.chosen.map((one) => one.passage)}
           top={draft.top}
           left={draft.left}
           onCancel={() => setDraft(null)}
           onSubmit={(body) => {
-            props.annotate({ doc: props.doc.path, anchor: draft.anchor, body });
+            const [first, ...rest] = draft.chosen;
+            const passages = [first.passage, ...rest.map((one) => one.passage)] as const;
+            props.annotate({ doc: props.doc.path, anchor: { kind: "text", passages }, body });
             setDraft(null);
             document.getSelection()?.removeAllRanges();
           }}

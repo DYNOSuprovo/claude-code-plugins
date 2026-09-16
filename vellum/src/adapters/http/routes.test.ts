@@ -83,6 +83,24 @@ describe("routes", () => {
 
     expect(bad.status).toBe(400);
 
+    const empty = await fetch(url("/api/decision"), {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        kind: "feedback",
+        annotations: [
+          {
+            id: "a",
+            doc: `${WIP}.review/v1.md`,
+            anchor: { kind: "text", passages: [] },
+            body: "x",
+          },
+        ],
+      }),
+    });
+
+    expect(empty.status).toBe(400);
+
     const badAgain = await fetch(url("/api/finalize"), {
       method: "POST",
       headers: headers(),

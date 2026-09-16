@@ -7,7 +7,7 @@ import type { PlanWorkspace } from "./domain/workspace.ts";
  * never redefined.
  */
 
-export type { Anchor, Annotation } from "./domain/feedback.ts";
+export type { Anchor, Annotation, Passage } from "./domain/feedback.ts";
 
 export type { Decision } from "./domain/review.ts";
 

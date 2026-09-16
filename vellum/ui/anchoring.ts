@@ -1,8 +1,6 @@
-import type { Anchor } from "../src/protocol.ts";
+import type { Passage } from "../src/protocol.ts";
 
 const CONTEXT_CHARS = 32;
-
-export type TextAnchor = Extract<Anchor, { kind: "text" }>;
 
 function offsetIn(container: Node, node: Node, offset: number): number {
   const range = document.createRange();
@@ -20,17 +18,17 @@ function linesOf(node: Node): [number, number] | null {
   return match === null ? null : [Number(match[1]), Number(match[2])];
 }
 
-/** The selection inside `container`, as a quote with its context and source lines; `null` when empty or outside. */
-export function anchorFromSelection(container: Element): TextAnchor | null {
+/** The selection inside `container`, as a passage; `null` when empty or outside. */
+export function passageFromSelection(container: Element): Passage | null {
   const selection = document.getSelection();
 
   if (selection === null || selection.rangeCount === 0 || selection.isCollapsed) return null;
 
-  return anchorFromRange(container, selection.getRangeAt(0));
+  return passageFromRange(container, selection.getRangeAt(0));
 }
 
 /** `range` inside `container`, as a quote with its context and source lines; `null` when empty or outside. */
-export function anchorFromRange(container: Element, range: Range): TextAnchor | null {
+export function passageFromRange(container: Element, range: Range): Passage | null {
   if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
     return null;
   }
@@ -44,7 +42,6 @@ export function anchorFromRange(container: Element, range: Range): TextAnchor | 
   const endLines = linesOf(range.endContainer);
 
   return {
-    kind: "text",
     quote,
     prefix: text.slice(Math.max(0, start - CONTEXT_CHARS), start),
     suffix: text.slice(start + quote.length, start + quote.length + CONTEXT_CHARS),
@@ -52,13 +49,13 @@ export function anchorFromRange(container: Element, range: Range): TextAnchor | 
   };
 }
 
-function bestOffset(text: string, anchor: TextAnchor): number | null {
+function bestOffset(text: string, passage: Passage): number | null {
   let best: { offset: number; score: number } | null = null;
 
-  for (let at = text.indexOf(anchor.quote); at !== -1; at = text.indexOf(anchor.quote, at + 1)) {
+  for (let at = text.indexOf(passage.quote); at !== -1; at = text.indexOf(passage.quote, at + 1)) {
     const before = text.slice(Math.max(0, at - CONTEXT_CHARS), at);
-    const after = text.slice(at + anchor.quote.length, at + anchor.quote.length + CONTEXT_CHARS);
-    const score = commonSuffix(before, anchor.prefix) + commonPrefix(after, anchor.suffix);
+    const after = text.slice(at + passage.quote.length, at + passage.quote.length + CONTEXT_CHARS);
+    const score = commonSuffix(before, passage.prefix) + commonPrefix(after, passage.suffix);
 
     if (best === null || score > best.score) best = { offset: at, score };
   }
@@ -97,13 +94,13 @@ function positionAt(container: Node, target: number): [Node, number] | null {
 }
 
 /** Re-finds the quote in `container`, preferring the occurrence whose context matches. */
-export function rangeFor(container: Element, anchor: TextAnchor): Range | null {
+export function rangeFor(container: Element, passage: Passage): Range | null {
   const text = container.textContent ?? "";
-  const offset = bestOffset(text, anchor);
+  const offset = bestOffset(text, passage);
 
   if (offset === null) return null;
   const start = positionAt(container, offset);
-  const end = positionAt(container, offset + anchor.quote.length);
+  const end = positionAt(container, offset + passage.quote.length);
 
   if (start === null || end === null) return null;
   const range = document.createRange();

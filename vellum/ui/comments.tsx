@@ -11,9 +11,16 @@ function Card(props: { readonly annotation: Annotation }): preact.JSX.Element {
     <div class="card">
       <div class="where">
         {annotation.doc} ·{" "}
-        {anchor.kind === "global" ? "general" : `lines ${anchor.lines[0]}–${anchor.lines[1]}`}
+        {anchor.kind === "global"
+          ? "general"
+          : `lines ${anchor.passages.map((passage) => `${passage.lines[0]}–${passage.lines[1]}`).join(", ")}`}
       </div>
-      {anchor.kind === "text" && <div class="quote">“{anchor.quote}”</div>}
+      {anchor.kind === "text" &&
+        anchor.passages.map((passage) => (
+          <div class="quote" key={`${passage.lines[0]}-${passage.quote}`}>
+            “{passage.quote}”
+          </div>
+        ))}
       <div>{annotation.body}</div>
       {!locked.value && (
         <div class="actions">

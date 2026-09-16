@@ -3,7 +3,14 @@ import { join, sep } from "node:path";
 
 import type { Review } from "../../app/review.ts";
 import { parseProjectPath, parseVersion } from "../../domain/paths.ts";
-import type { Anchor, Annotation, Decision, GateInput, PlanWorkspace } from "../../protocol.ts";
+import type {
+  Anchor,
+  Annotation,
+  Decision,
+  GateInput,
+  Passage,
+  PlanWorkspace,
+} from "../../protocol.ts";
 
 export const TOKEN_HEADER = "x-vellum-token";
 
@@ -35,25 +42,34 @@ function parseAnchor(value: unknown): Anchor | null {
 
   if (value.kind === "global") return { kind: "global" };
 
+  if (value.kind !== "text" || !Array.isArray(value.passages)) return null;
+  const parsed = value.passages.map(parsePassage);
+
+  if (parsed.some((passage) => passage === null)) return null;
+  const [first, ...rest] = parsed.filter((passage) => passage !== null);
+
+  return first === undefined ? null : { kind: "text", passages: [first, ...rest] };
+}
+
+function parsePassage(value: unknown): Passage | null {
   if (
-    value.kind === "text" &&
-    typeof value.quote === "string" &&
-    typeof value.prefix === "string" &&
-    typeof value.suffix === "string" &&
-    Array.isArray(value.lines) &&
-    typeof value.lines[0] === "number" &&
-    typeof value.lines[1] === "number"
+    !isRecord(value) ||
+    typeof value.quote !== "string" ||
+    typeof value.prefix !== "string" ||
+    typeof value.suffix !== "string" ||
+    !Array.isArray(value.lines) ||
+    typeof value.lines[0] !== "number" ||
+    typeof value.lines[1] !== "number"
   ) {
-    return {
-      kind: "text",
-      quote: value.quote,
-      prefix: value.prefix,
-      suffix: value.suffix,
-      lines: [value.lines[0], value.lines[1]],
-    };
+    return null;
   }
 
-  return null;
+  return {
+    quote: value.quote,
+    prefix: value.prefix,
+    suffix: value.suffix,
+    lines: [value.lines[0], value.lines[1]],
+  };
 }
 
 function parseAnnotation(value: unknown): Annotation | null {
