@@ -38,8 +38,15 @@ loop. `/vellum:plan` enters it, Approve in the page or `/vellum:stop` leaves it.
   to `next(e).text`, as the plan skill appends the working directory.
 - The lock is a `tool.check` hook with no matcher: while `live`, `Edit`, `Write` and
   `NotebookEdit` under the working directory are allowed outright, whatever the session's
-  permission mode, and outside it are denied with the reason the model reads; every other
-  tool passes on. `lockVerdict` decides as a pure function, the hook applies.
+  permission mode, and under the project and outside the working directory are denied with the
+  reason the model reads. A path outside the project is allowed: it is no change to the
+  codebase, so the session's own scratchpad goes through. Every other tool passes on.
+  `lockVerdict` decides as a pure function, the hook applies.
+- The lock fails closed. A hook that throws or overruns "is skipped and what is beneath it
+  runs in its place", which for a lock means the write goes through, so the registration
+  carries `.catch(($, e, next) => lockFailed(next.error.kind))`: a deny either way, whether the
+  failure landed before or after `next(e)`. `claude plugin validate` lists the hook but not its
+  handler, so nothing but this rule says the handler is there.
 - Every transition is an engine event or an answer from the server, never a reflex of the
   model. What is under review lives on the server's disk; the module keeps no copy of it.
 - Parse at the boundary, once: `tool_input`, `$.store` values and the server's JSON arrive as

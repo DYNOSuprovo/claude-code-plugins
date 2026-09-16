@@ -1,4 +1,4 @@
-import type { ResultOf } from "claude-code";
+import type { HookFailure, ResultOf } from "claude-code";
 
 import { editedPath, type ProjectDir, type Workdir } from "./parse.ts";
 
@@ -28,7 +28,8 @@ function resolvePath(cwd: string, path: string): string {
 /**
  * While vellum plans, the files a call may write are the working directory's, and it writes
  * them outright, since the directory is vellum's own and the page shows every file in it.
- * Every other tool goes to the session's own flow, so exploration and reads are untouched.
+ * A file outside the project is no change to the codebase, so the session's own scratchpad
+ * goes through. Every other tool goes to the session's flow, so reads are untouched.
  */
 export function lockVerdict(
   tool: string,
@@ -41,13 +42,25 @@ export function lockVerdict(
   const path = editedPath(tool, input);
 
   if (path === null) return { kind: "check" };
+  const resolved = resolvePath(cwd, path);
 
-  return resolvePath(cwd, path).startsWith(`${resolvePath(project, workdir)}/`)
+  if (!resolved.startsWith(`${resolvePath("/", project)}/`)) return { kind: "allow" };
+
+  return resolved.startsWith(`${resolvePath(project, workdir)}/`)
     ? { kind: "allow" }
     : {
         kind: "deny",
         reason: `vellum is planning: files outside ${workdir} change after the plan is approved`,
       };
+}
+
+/**
+ * The lock's answer when its own hook failed. A `tool.check` hook that throws or overruns is
+ * skipped and what is beneath runs in its place, which opens the lock; this closes it, whether
+ * the failure landed before or after `next(e)`.
+ */
+export function lockFailed(kind: HookFailure["kind"]): ResultOf["tool.check"] {
+  return { decision: "deny", reason: `vellum: the lock failed (${kind}); retry the call` };
 }
 
 /**

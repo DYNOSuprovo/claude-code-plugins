@@ -1,7 +1,7 @@
 import type { EngineInterface, Register } from "claude-code";
 
 import type { Host } from "./host.ts";
-import { checkVerdict, lockVerdict } from "./lock.ts";
+import { checkVerdict, lockFailed, lockVerdict } from "./lock.ts";
 import { close, connect, restore, type Settle, type State } from "./mode.ts";
 import type { GateWire } from "./parse.ts";
 import { submitResult } from "./relay.ts";
@@ -95,7 +95,7 @@ export const register: Register = (on) => {
     if (verdict.kind === "allow") return { decision: "allow" };
 
     return checkVerdict(e.tool, await next(e));
-  });
+  }).catch((_, _e, next) => lockFailed(next.error.kind));
 
   on("tool.call", { tool: SUBMIT_TOOL }, async ($) => {
     if (state.kind === "idle") return { deny: "no vellum planning in progress; run /vellum:plan" };
