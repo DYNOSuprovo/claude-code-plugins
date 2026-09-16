@@ -8,6 +8,7 @@ import type {
   Annotation,
   Decision,
   ElementRef,
+  GateAnswer,
   Passage,
   PlanWorkspace,
 } from "../../protocol.ts";
@@ -215,11 +216,16 @@ async function api(context: RouteContext, request: Request, route: string): Prom
   if (route === "POST /api/gate") {
     const gated = await review.gate();
 
-    if (!gated.ok) return Response.json({ error: gated.error }, { status: 409 });
+    if (!gated.ok) {
+      const refused: GateAnswer = { error: gated.error };
+
+      return Response.json(refused, { status: 409 });
+    }
 
     if (review.listenerCount === 0) context.openBrowser();
+    const answer: GateAnswer = { version: gated.version, kept: gated.kept };
 
-    return Response.json({ version: gated.version, kept: gated.kept });
+    return Response.json(answer);
   }
 
   if (route === "POST /api/decision") {

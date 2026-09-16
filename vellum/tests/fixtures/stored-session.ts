@@ -3,6 +3,10 @@ import { SERVER } from "./server.ts";
 import { SESSION_ID } from "./session-id.ts";
 import { WORKDIR } from "./workdir.ts";
 
-export function storedSession(server: typeof SERVER = SERVER, project = CWD, workdir = WORKDIR) {
+export function storedSession(
+  server: typeof SERVER = SERVER,
+  project: string = CWD,
+  workdir: string = WORKDIR,
+) {
   return { [`session:${SESSION_ID}`]: { id: SESSION_ID, server, project, workdir } };
 }

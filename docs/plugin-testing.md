@@ -202,6 +202,15 @@ environment of its own.
   publicly. Without it the module never loads and the plugin's skills run as
   if it were not there; with it the debug log says
   `hooks module <name> loaded (worker, environment 1, tier user); events: ...`.
+- To read that line headless, give `--debug-file <path>` and the prompt on
+  stdin: `--debug` alone prints nothing under `-p`, and `--plugin-dir` takes
+  the positional prompt, so `claude -p --plugin-dir <plugin> "say ok"` fails
+  with `Input must be provided either through stdin or as a prompt argument`.
+- A hooks module may span several files, but `$` may not: the loader follows
+  it only into a function declared in the file that registers the hook, and
+  refuses a noun passed on its own (`$.store is used as a value`). Every other
+  file takes a plain record of closures instead, bound where `$` is in scope
+  (`vellum/hooks/host.ts`, `mods/diff/hooks/host/host.ts`).
 - `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate <plugin>` reads
   the module's source and prints what it hooks (`skill.prompt{skill=...}`)
   and every `$` call with the function that makes it. It needs no login and

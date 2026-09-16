@@ -10,7 +10,7 @@ Function hooks, early access: `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`.
 Hexagonal with a functional core: two hexagons (the hooks module, the server) and a page.
 
 ```
-hooks/register.ts        the engine adapter: one file, types from `claude-code` only, `$` is its port
+hooks/                   the engine adapter: register.ts spells `$`, the rest takes a `Host`
 skills/plan, skills/stop the way in and the way out
         │ HTTP, token header
 src/adapters/            http/routes.ts, http/serve.ts, fs.ts, browser.ts: every IO

@@ -41,7 +41,11 @@ References, loaded one at a time: `program-design.md` (signatures, call-stack an
 ## Layout
 
 ```
-hooks/register.ts     the hooks module: the mode (session.start, skill.prompt, tool.check, tool.call on submit)
+hooks/register.ts     the mode's hooks (session.start, skill.prompt, tool.check, tool.call on submit)
+hooks/host.ts         `Host`: one member per `$` call, the port the other files take
+hooks/mode.ts         the machine: idle | live, and restore / connect / close
+hooks/lock.ts         the write policy, pure; relay.ts what the poll says; server.ts its client
+hooks/parse.ts        the boundary: unknown to types, and where the module's brands are minted
 src/cli.ts            `start` spawns `serve` detached; `serve` is the review server
 src/domain/           pure: paths, workspace states, decisions, the feedback text, slug, links
 src/app/review.ts     the use case: read, decide, apply
