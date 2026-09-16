@@ -185,15 +185,13 @@ describe("tool.check", () => {
     );
   });
 
-  test("in the mode a write outside the project is allowed, the session's scratchpad through", async ($, on) => {
+  test("in the mode a write outside the project follows the session's own flow", async ($, on) => {
     world(on);
     on("tool.check", () => ENGINE);
     await $.skill.prompt(PLAN_PROMPT);
     const file_path = "/tmp/claude-1000/project/session/scratchpad/issue.md";
 
-    expect(await $.tool.check({ tool: "Write", input: { file_path } })).toEqual({
-      decision: "allow",
-    });
+    expect(await $.tool.check({ tool: "Write", input: { file_path } })).toEqual(ENGINE);
   });
 
   test("a rule on a tool that writes no file keeps the engine's allow", async ($, on) => {

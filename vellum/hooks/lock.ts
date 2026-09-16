@@ -28,8 +28,10 @@ function resolvePath(cwd: string, path: string): string {
 /**
  * While vellum plans, the files a call may write are the working directory's, and it writes
  * them outright, since the directory is vellum's own and the page shows every file in it.
- * A file outside the project is no change to the codebase, so the session's own scratchpad
- * goes through. Every other tool goes to the session's flow, so reads are untouched.
+ * A file outside the project is no change to the codebase, so the session's own flow decides
+ * it, as it does for `Bash`: the scratchpad passes there without a prompt, and a write to a
+ * home or system file still asks. Every other tool goes to that flow too, so reads are
+ * untouched.
  */
 export function lockVerdict(
   tool: string,
@@ -44,7 +46,7 @@ export function lockVerdict(
   if (path === null) return { kind: "check" };
   const resolved = resolvePath(cwd, path);
 
-  if (!resolved.startsWith(`${resolvePath("/", project)}/`)) return { kind: "allow" };
+  if (!resolved.startsWith(`${resolvePath("/", project)}/`)) return { kind: "check" };
 
   return resolved.startsWith(`${resolvePath(project, workdir)}/`)
     ? { kind: "allow" }

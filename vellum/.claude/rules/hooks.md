@@ -39,8 +39,9 @@ loop. `/vellum:plan` enters it, Approve in the page or `/vellum:stop` leaves it.
 - The lock is a `tool.check` hook with no matcher: while `live`, `Edit`, `Write` and
   `NotebookEdit` under the working directory are allowed outright, whatever the session's
   permission mode, and under the project and outside the working directory are denied with the
-  reason the model reads. A path outside the project is allowed: it is no change to the
-  codebase, so the session's own scratchpad goes through. Every other tool passes on.
+  reason the model reads. A path outside the project is no change to the codebase, so it
+  follows the session's own permission flow: the scratchpad passes there without a prompt, a
+  home or system file still asks. Every other tool passes on.
   `lockVerdict` decides as a pure function, the hook applies.
 - The lock fails closed. A hook that throws or overruns "is skipped and what is beneath it
   runs in its place", which for a lock means the write goes through, so the registration
