@@ -22,8 +22,13 @@ describe("lockVerdict", () => {
     });
   });
 
-  test("a file outside it is denied, with the reason the model reads", () => {
+  test("a file under the project and outside the working directory is denied", () => {
     expect(verdict("Write", { file_path: `${CWD}/src/cli.ts` })).toEqual(DENIED);
+  });
+
+  test("a file outside the project is allowed: the session's scratchpad is no change", () => {
+    const scratchpad = "/tmp/claude-1000/project/session/scratchpad/issue.md";
+    expect(verdict("Write", { file_path: scratchpad })).toEqual({ kind: "allow" });
   });
 
   test("a relative path is resolved against the session's directory", () => {

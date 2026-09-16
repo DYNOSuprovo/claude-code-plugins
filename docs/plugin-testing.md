@@ -206,6 +206,12 @@ environment of its own.
   stdin: `--debug` alone prints nothing under `-p`, and `--plugin-dir` takes
   the positional prompt, so `claude -p --plugin-dir <plugin> "say ok"` fails
   with `Input must be provided either through stdin or as a prompt argument`.
+- A hook that throws or overruns is skipped, and what is beneath it runs in
+  its place. For a `tool.check` hook that is a lock, that is fail-open: the
+  write the hook meant to refuse goes through on the engine's own verdict.
+  `on(...).catch(($, e, next) => ...)` on the registration is how such a hook
+  fails closed; `next.error.kind` says `throw` or `timeout`, and
+  `claude plugin validate` lists the hook without saying a handler is there.
 - A hooks module may span several files, but `$` may not: the loader follows
   it only into a function declared in the file that registers the hook, and
   refuses a noun passed on its own (`$.store is used as a value`). Every other

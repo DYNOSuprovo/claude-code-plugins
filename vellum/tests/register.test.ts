@@ -122,7 +122,7 @@ describe("tool.check", () => {
     ).toEqual(ENGINE);
   });
 
-  test("in the mode a write outside the working directory is denied", async ($, on) => {
+  test("in the mode a write under the project and outside the working directory is denied", async ($, on) => {
     world(on);
     on("tool.check", () => ENGINE);
     await $.skill.prompt(PLAN_PROMPT);
@@ -159,6 +159,41 @@ describe("tool.check", () => {
     });
 
     expect(await checked(), "no rule: the engine's allow stands").toEqual({ decision: "allow" });
+  });
+
+  test("a session directory the engine refuses fails the lock closed", async ($, on) => {
+    const seen = world(on);
+    on("tool.check", () => ENGINE);
+    await $.skill.prompt(PLAN_PROMPT);
+    seen.refuseCwd = "boom";
+
+    expect(await $.tool.check({ tool: "Edit", input: { file_path: `${CWD}/src/cli.ts` } })).toEqual(
+      {
+        decision: "deny",
+        reason: "vellum: the lock failed (throw); retry the call",
+      },
+    );
+  });
+
+  test("outside the mode a failing session directory changes nothing", async ($, on) => {
+    const seen = world(on);
+    on("tool.check", () => ENGINE);
+    seen.refuseCwd = "boom";
+
+    expect(await $.tool.check({ tool: "Edit", input: { file_path: `${CWD}/src/cli.ts` } })).toEqual(
+      ENGINE,
+    );
+  });
+
+  test("in the mode a write outside the project is allowed, the session's scratchpad through", async ($, on) => {
+    world(on);
+    on("tool.check", () => ENGINE);
+    await $.skill.prompt(PLAN_PROMPT);
+    const file_path = "/tmp/claude-1000/project/session/scratchpad/issue.md";
+
+    expect(await $.tool.check({ tool: "Write", input: { file_path } })).toEqual({
+      decision: "allow",
+    });
   });
 
   test("a rule on a tool that writes no file keeps the engine's allow", async ($, on) => {

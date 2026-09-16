@@ -14,11 +14,12 @@ import { store } from "./store.ts";
 /**
  * What the module finds beneath it, and what it did there. `id` is what
  * `$.session.id()` answers, so assigning it is a `/clear`; `drop` is the reason
- * another plugin refuses the next prompt.
+ * another plugin refuses the next prompt, and `refuseCwd` the reason `$.session.cwd()` fails.
  */
 export type World = {
   id: string;
   drop: string | undefined;
+  refuseCwd: string | undefined;
   readonly clock: MockClock;
   readonly paths: string[];
   readonly runs: (readonly string[])[];
@@ -44,6 +45,7 @@ export function world(on: On, options: WorldOptions = {}): World {
   const built: World = {
     id: SESSION_ID,
     drop: undefined,
+    refuseCwd: undefined,
     clock: mock.clock(on),
     paths: liveServer(on, options.routes),
     runs: launcher(on, options.launch),
@@ -59,7 +61,9 @@ export function world(on: On, options: WorldOptions = {}): World {
 
   on("session.start", (_, e) => ({ cwd: e.cwd }));
   on("session.id", () => ({ value: built.id }));
-  on("session.cwd", () => ({ value: CWD }));
+  on("session.cwd", () =>
+    built.refuseCwd === undefined ? { value: CWD } : { deny: built.refuseCwd },
+  );
 
   on("tool.register", (_, e) => {
     tools.push(e.name);
