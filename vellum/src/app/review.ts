@@ -1,11 +1,13 @@
 import {
   exists,
   finalize as renameWorkspace,
+  listFiles,
   readPlan,
   readText,
   readWorkspace,
   writeText,
 } from "../adapters/fs.ts";
+import type { FeedbackHeading } from "../domain/feedback.ts";
 import { formatFeedback } from "../domain/feedback.ts";
 import type { FinalDir, ProjectPath, Version, WipDir } from "../domain/paths.ts";
 import type { Decision } from "../domain/review.ts";
@@ -117,8 +119,16 @@ export class Review {
     if (decided.kind === "approve") return await this.approve(decided.version);
 
     if (decision.kind === "feedback") {
-      const text = formatFeedback(decision.annotations, decided.version);
-      await writeText(this.options.project, decided.path, text);
+      const heading: FeedbackHeading =
+        decided.kind === "draftFeedback"
+          ? { kind: "draft", batch: decided.batch }
+          : { kind: "review", version: decided.version };
+
+      await writeText(
+        this.options.project,
+        decided.path,
+        formatFeedback(decision.annotations, heading),
+      );
     }
 
     return { ok: true, workspace: await this.notify() };
@@ -145,31 +155,29 @@ export class Review {
     return { ok: false, workspace: await this.notify() };
   }
 
+  /** The working directory's files in every state, the linked docs that live outside it after. */
   public async view(): Promise<ReviewView> {
     const workspace = await this.workspace();
+    const files = await listFiles(this.options.project, this.options.workdir);
 
-    if (workspace.kind === "drafting") {
-      return { workspace, plan: null, docs: [] };
-    }
+    if (workspace.kind === "drafting") return { workspace, plan: null, docs: files };
 
     const doc = this.planDoc(workspace.version, workspace.dir);
     const text = await this.planText(workspace.version, workspace.dir);
+    const linked = await this.linkedDocs(text, doc, workspace.dir, files);
 
-    return {
-      workspace,
-      plan: { doc, text },
-      docs: await this.linkedDocs(text, doc, workspace.dir),
-    };
+    return { workspace, plan: { doc, text }, docs: [...files, ...linked] };
   }
 
   private async linkedDocs(
     plan: string,
     planDoc: ProjectPath,
     dir: WipDir | FinalDir,
+    listed: readonly DocRef[],
   ): Promise<DocRef[]> {
     const { project } = this.options;
     const roots = { project, planDir: dir };
-    const seen = new Set<string>([planDoc]);
+    const seen = new Set<string>([planDoc, ...listed.map((doc) => doc.path)]);
     const docs: DocRef[] = [];
 
     for (const plugin of this.options.plugins) {

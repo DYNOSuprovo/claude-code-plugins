@@ -19,7 +19,7 @@ function count(path: string): number {
 
 export function DocList(): preact.JSX.Element {
   const plan = planDoc.value;
-  const linked = docs.value.slice(1);
+  const linked = plan === null ? docs.value : docs.value.slice(1);
 
   const item = (doc: DocRef, name: string, kind: string): preact.JSX.Element => (
     <button
@@ -38,7 +38,7 @@ export function DocList(): preact.JSX.Element {
     <nav class="rail" aria-label="Documents">
       {plan !== null && item(plan, "Plan", plan.path.split("/").at(-1)?.replace(".md", "") ?? "")}
       <h5>Artifacts</h5>
-      {linked.length === 0 && <div class="empty">No linked files</div>}
+      {linked.length === 0 && <div class="empty">No files yet</div>}
       {linked.map((doc) => item(doc, nameOf(doc), kindOf(doc)))}
       <div class="hint">
         <kbd>[</kbd> <kbd>]</kbd> previous, next

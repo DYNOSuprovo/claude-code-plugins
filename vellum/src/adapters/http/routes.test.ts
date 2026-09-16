@@ -3,7 +3,11 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { serverPlugins } from "../../../plugins/server.ts";
+import { Review } from "../../app/review.ts";
+import type { WipDir } from "../../domain/paths.ts";
 import { parseWipDir } from "../../domain/paths.ts";
+import { createHandler, TOKEN_HEADER } from "./routes.ts";
 import { startServer } from "./serve.ts";
 import type { Started } from "./serve.ts";
 
@@ -23,6 +27,14 @@ function url(path: string): string {
 
 function post(path: string, body: string | null = null): Promise<Response> {
   return fetch(url(path), { method: "POST", headers: headers(), body });
+}
+
+function wipDir(): WipDir {
+  const parsed = parseWipDir(WIP);
+
+  if (!parsed.ok) throw new Error(parsed.error);
+
+  return parsed.value;
 }
 
 beforeAll(async () => {
@@ -82,6 +94,30 @@ describe("routes", () => {
 
   test("the finalize route is gone", async () => {
     expect((await post("/api/finalize", JSON.stringify({ version: 1 }))).status).toBe(404);
+  });
+
+  test("open reaches the browser only while no tab listens", async () => {
+    let opened = 0;
+    const review = new Review({ project: root, workdir: wipDir(), plugins: serverPlugins });
+
+    const handler = createHandler({
+      token: "t",
+      project: root,
+      review,
+      openBrowser: () => (opened += 1),
+      heartbeat: () => {},
+    });
+
+    const open = (): Promise<Response> =>
+      handler(
+        new Request("http://x/api/open", { method: "POST", headers: { [TOKEN_HEADER]: "t" } }),
+      );
+
+    expect((await open()).status).toBe(204);
+    expect(opened).toBe(1);
+    review.subscribe(() => {});
+    await open();
+    expect(opened).toBe(1);
   });
 
   test("decision round-trips over HTTP, and approve finalizes at once", async () => {

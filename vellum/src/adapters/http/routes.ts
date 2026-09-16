@@ -165,7 +165,7 @@ async function api(context: RouteContext, request: Request, route: string): Prom
   }
 
   if (route === "POST /api/open") {
-    context.openBrowser();
+    if (review.listenerCount === 0) context.openBrowser();
 
     return new Response(null, { status: 204 });
   }

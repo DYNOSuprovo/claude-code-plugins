@@ -72,14 +72,16 @@ export function DecisionBar(): preact.JSX.Element {
         )}
         {status !== null && <span class={`status ${status.tone}`}>{status.label}</span>}
         <span class="spacer" />
-        <button
-          class="btn"
-          type="button"
-          disabled={locked.value}
-          onClick={() => void decide({ kind: "approve" })}
-        >
-          Approve
-        </button>
+        {workspace?.kind !== "drafting" && (
+          <button
+            class="btn"
+            type="button"
+            disabled={locked.value}
+            onClick={() => void decide({ kind: "approve" })}
+          >
+            Approve
+          </button>
+        )}
         <button
           class="btn send"
           type="button"

@@ -17,6 +17,10 @@ is a browser's: `Bun.serve` builds it from `ui/index.html` at run time, no build
   `src/boundaries.test.ts`.
 - Everything crossing `/api` is JSON and typed in `src/protocol.ts`; a new field lands there
   first.
+- The page draws in every state, `drafting` included: `review.docs` is the working directory's
+  renderable files, the plan at the head once there is one. Comments are taken while
+  `inReview` and while `drafting`, so `locked` names two states, not one, and Approve is drawn
+  only where a version exists.
 - A new document kind is one folder with both halves and two registry lines, not a branch in
   an existing renderer.
 - A kind folder may hold a helper beside `ui.tsx` (`markdown/pinpoint.ts`): its choice is a

@@ -19,9 +19,14 @@ export function feedbackFile(version: Version): string {
   return `${REVIEW_DIR}/v${version}.feedback.md`;
 }
 
+/** A batch of comments sent before the first version; `v0` sorts under no version. */
+export function draftFeedbackFile(batch: number): string {
+  return `${REVIEW_DIR}/v0.feedback-${batch}.md`;
+}
+
 /** The directory's listing overlaid with the memory; the two agree on every variant. */
 export type PlanWorkspace =
-  | { readonly kind: "drafting"; readonly dir: WipDir }
+  | { readonly kind: "drafting"; readonly dir: WipDir; readonly batches: number }
   | {
       readonly kind: "inReview";
       readonly dir: WipDir;
@@ -40,8 +45,22 @@ export type Memory =
 /** What the hooks module must relay to Claude. */
 export type Pending =
   | { readonly kind: "none" }
+  | { readonly kind: "drafts"; readonly batches: readonly DraftBatch[] }
   | { readonly kind: "feedback"; readonly version: Version; readonly path: ProjectPath }
   | { readonly kind: "approved"; readonly version: Version; readonly dir: FinalDir };
+
+/** One batch of drafting comments, as the hooks module names it to Claude. */
+export type DraftBatch = { readonly batch: number; readonly path: ProjectPath };
+
+const DRAFT_FEEDBACK = /^v0\.feedback-\d+\.md$/u;
+
+function draftBatches(names: ReadonlySet<string>): number {
+  let batches = 0;
+
+  for (const name of names) if (DRAFT_FEEDBACK.test(name)) batches += 1;
+
+  return batches;
+}
 
 function latestVersion(names: ReadonlySet<string>): Version | null {
   let latest: Version | null = null;
@@ -71,7 +90,9 @@ export function workspaceFromListing(
       : { ok: true, value: { kind: "approved", dir: dir as FinalDir, version: latest } };
   }
 
-  if (latest === null) return { ok: true, value: { kind: "drafting", dir: wip.value } };
+  if (latest === null) {
+    return { ok: true, value: { kind: "drafting", dir: wip.value, batches: draftBatches(names) } };
+  }
 
   return names.has(`v${latest}.feedback.md`)
     ? { ok: true, value: { kind: "changesRequested", dir: wip.value, version: latest } }
@@ -96,6 +117,15 @@ export function workspaceOf(disk: PlanWorkspace, memory: Memory): PlanWorkspace 
 
 /** Read off the workspace; nothing is kept beside it. */
 export function pendingOf(workspace: PlanWorkspace): Pending {
+  if (workspace.kind === "drafting") {
+    const batches = Array.from({ length: workspace.batches }, (_, index) => ({
+      batch: index + 1,
+      path: projectPath(`${workspace.dir}${draftFeedbackFile(index + 1)}`),
+    }));
+
+    return batches.length === 0 ? { kind: "none" } : { kind: "drafts", batches };
+  }
+
   if (workspace.kind === "changesRequested") {
     return {
       kind: "feedback",

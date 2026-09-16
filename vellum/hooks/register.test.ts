@@ -27,6 +27,8 @@ type Harness = {
   readonly timers: FakeTimer[];
   readonly tools: string[];
   readonly commands: string[];
+  /** Every path the module fetched, in order. */
+  readonly calls: string[];
   /** Ports of the servers `process.run` started in this test; any other port is dead. */
   readonly ports: Set<number>;
   status: string | undefined;
@@ -56,6 +58,7 @@ const LIVE: Record<string, Route> = {
   "/api/heartbeat": () => reply(204, null),
   "/api/gate": () => reply(200, { version: 1, kept: false }),
   "/api/pending": () => reply(200, { kind: "none" }),
+  "/api/open": () => reply(204, null),
 };
 
 function reply(status: number, value: unknown): HttpResponse {
@@ -72,6 +75,7 @@ function harness(routes: Record<string, Route>): Harness {
     timers: [],
     tools: [],
     commands: [],
+    calls: [],
     ports: new Set(),
     status: undefined,
   };
@@ -82,6 +86,7 @@ function harness(routes: Record<string, Route>): Harness {
     http: {
       fetch: (url: string, init?: { body?: string }) => {
         const parsed = new URL(url);
+        h.calls.push(parsed.pathname);
         const route = h.ports.has(Number(parsed.port)) ? routes[parsed.pathname] : undefined;
 
         return route === undefined
@@ -190,6 +195,16 @@ async function tick(h: Harness): Promise<void> {
   }
 }
 
+function batch(n: number): { batch: number; path: string } {
+  return { batch: n, path: `${WORKDIR}.review/v0.feedback-${n}.md` };
+}
+
+function draftsPrompt(...batches: number[]): string {
+  const paths = batches.map((n) => batch(n).path).join(", ");
+
+  return `Drafting feedback from the vellum review page: read ${paths}, revise the files they name, then continue the plan.`;
+}
+
 function polling(h: Harness): boolean {
   return h.timers.some((timer) => timer.ms === 1000 && !timer.cancelled);
 }
@@ -295,6 +310,7 @@ describe("skill.prompt", () => {
       workdir: WORKDIR,
     });
     expect(h.status).toBe("planning");
+    expect(h.calls).toContain("/api/open");
   });
 
   test("returns the skill text without a directory when the launcher cannot start", async () => {
@@ -440,6 +456,37 @@ describe("the decision comes back as a prompt", () => {
     ]);
     expect(polling(h)).toBe(false);
     expect(h.store.has(`session:${SESSION_ID}`)).toBe(false);
+  });
+
+  test("a drafting batch is named once, and the next batches in one prompt", async () => {
+    let batches = [batch(1)];
+
+    const h = await planning({
+      ...LIVE,
+      "/api/pending": () => reply(200, { kind: "drafts", batches }),
+    });
+
+    await tick(h);
+    await tick(h);
+    expect(h.prompts).toEqual([draftsPrompt(1)]);
+    batches = [batch(1), batch(2), batch(3)];
+    await tick(h);
+    expect(h.prompts).toEqual([draftsPrompt(1), draftsPrompt(2, 3)]);
+    expect(h.store.get(`relayed:${SESSION_ID}`)).toBe(3);
+  });
+
+  test("a batch the store says was relayed is not named again after a reload", async () => {
+    const h = harness({
+      ...LIVE,
+      "/api/pending": () => reply(200, { kind: "drafts", batches: [batch(1)] }),
+    });
+
+    h.ports.add(SERVER.port);
+    h.store.set(`session:${SESSION_ID}`, { id: SESSION_ID, server: SERVER, workdir: WORKDIR });
+    h.store.set(`relayed:${SESSION_ID}`, 1);
+    await call(h, "session.start", { cwd: CWD });
+    await tick(h);
+    expect(h.prompts).toEqual([]);
   });
 
   test("a dropped prompt keeps the poll alive; the next tick retries", async () => {

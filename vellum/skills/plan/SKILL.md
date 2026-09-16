@@ -44,6 +44,8 @@ Iterate on the plan with the reviewer until it is approved. A large change, or a
 
 With a working directory, the plan is `plan.md` at its root. Once the plan and its artifacts are ready, call `mcp__vellum__submit` and end your turn: it opens them in the reviewer's browser, and the review comes back as a prompt from the vellum plugin. "Changes requested" names a feedback file: read it, revise `plan.md` and the files it names, call `mcp__vellum__submit` again. "Approved" names the final directory the plan now lives in.
 
+The page is open from the start, on the working directory's files, so the reviewer comments before the plan exists. A batch arrives as a prompt headed "Drafting feedback": read the files it names, revise what they point at, then go on with the plan.
+
 While the review runs, files under the working directory are yours to write and files outside it are locked: the codebase changes after the plan is approved.
 
 Implementation starts in a fresh session, with the plan as the prompt.

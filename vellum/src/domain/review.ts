@@ -3,7 +3,7 @@ import type { ParseResult, ProjectPath, Slug, Version } from "./paths.ts";
 import { parseVersion } from "./paths.ts";
 import { slugFromFileName, slugFromTitle } from "./slug.ts";
 import type { PlanWorkspace } from "./workspace.ts";
-import { feedbackFile, PLAN_FILE, projectPath } from "./workspace.ts";
+import { draftFeedbackFile, feedbackFile, PLAN_FILE, projectPath } from "./workspace.ts";
 
 /**
  * The decisions of a review, as pure functions of plain values. The application reads the
@@ -43,10 +43,24 @@ export function gateVersion(
 export type Decided =
   | { readonly kind: "refused" }
   | { readonly kind: "approve"; readonly version: Version }
-  | { readonly kind: "feedback"; readonly path: ProjectPath; readonly version: Version };
+  | { readonly kind: "feedback"; readonly path: ProjectPath; readonly version: Version }
+  | { readonly kind: "draftFeedback"; readonly path: ProjectPath; readonly batch: number };
 
-/** A decision is taken on a plan under review and on nothing else. */
+/**
+ * A plan is approved under review and nowhere else. A feedback is taken there too, and while
+ * drafting, where it opens the next batch: the reviewer speaks before the first version.
+ */
 export function decideOn(workspace: PlanWorkspace, decision: Decision): Decided {
+  if (workspace.kind === "drafting" && decision.kind === "feedback") {
+    const batch = workspace.batches + 1;
+
+    return {
+      kind: "draftFeedback",
+      path: projectPath(`${workspace.dir}${draftFeedbackFile(batch)}`),
+      batch,
+    };
+  }
+
   if (workspace.kind !== "inReview") return { kind: "refused" };
 
   if (decision.kind === "approve") return { kind: "approve", version: workspace.version };
