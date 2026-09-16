@@ -17,6 +17,13 @@ type Session = {
 /** A reachable review server and the timer that keeps it alive. */
 type Live = { readonly session: Session; readonly heartbeat: Timer };
 
+/**
+ * What `$.store` keeps under `relayed:<id>`: how many drafting batches and which feedback
+ * version the poll already named, for one working directory. Batch numbers restart with the
+ * directory, so a count kept for another one is worth nothing.
+ */
+type Relayed = { readonly workdir: string; readonly drafts: number; readonly version: number };
+
 type DraftBatch = { readonly batch: number; readonly path: string };
 
 type Pending =
@@ -121,9 +128,18 @@ function parseBatch(value: unknown): DraftBatch | null {
     : null;
 }
 
-/** A count the store kept across a reload; anything else reads as nothing relayed yet. */
-function parseRelayed(value: unknown): number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : 0;
+function isCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+/** What the store kept for this working directory; another directory's, or anything else, reads as nothing relayed yet. */
+function parseRelayed(value: unknown, workdir: string): Relayed {
+  return isRecord(value) &&
+    value.workdir === workdir &&
+    isCount(value.drafts) &&
+    isCount(value.version)
+    ? { workdir, drafts: value.drafts, version: value.version }
+    : { workdir, drafts: 0, version: 0 };
 }
 
 function parsePending(text: string): Pending {
@@ -331,8 +347,8 @@ function relayedKey(id: string): string {
 }
 
 /**
- * Leaves the mode. The relayed count stays in the store: a `/vellum:plan` after a stop reuses
- * the session's directory, and the batches Claude already read must not be named again.
+ * Leaves the mode. What was relayed stays in the store: a `/vellum:plan` after a stop reuses
+ * the session's directory, and what Claude already read must not be named again.
  */
 async function close($: EngineInterface): Promise<void> {
   if (state.kind === "live") await $.store.delete(`session:${state.live.session.id}`);
@@ -343,16 +359,21 @@ async function close($: EngineInterface): Promise<void> {
 
 /**
  * Enters the mode: one poll a second until it closes. Each drafting batch is named once and
- * the count survives a reload in `$.store`; a feedback is relayed once per version; an
- * approval once, and then the mode closes. A dropped prompt or a failed poll is logged and
+ * each feedback version once, remembered in `$.store` so a reload or a restarted server
+ * repeats neither; an approval once, and then the mode closes and the record goes, since the
+ * next plan starts a directory of its own. A dropped prompt or a failed poll is logged and
  * retried on the next tick.
  */
 async function enter($: EngineInterface, live: Live): Promise<void> {
   if (state.kind === "live") state.poll.cancel();
-  const { id, server } = live.session;
+  const { id, server, workdir } = live.session;
   let relaying = false;
-  let drafts = parseRelayed(await $.store.get(relayedKey(id)));
-  let version = 0;
+  let relayed = parseRelayed(await $.store.get(relayedKey(id)), workdir);
+
+  const remember = async (next: Relayed): Promise<void> => {
+    relayed = next;
+    await $.store.set(relayedKey(id), next);
+  };
 
   const poll = $.clock.every(POLL_MS, () => {
     if (relaying) return;
@@ -363,28 +384,31 @@ async function enter($: EngineInterface, live: Live): Promise<void> {
         const pending = parsePending(response.text);
 
         if (pending.kind === "drafts") {
-          const fresh = pending.batches.filter((batch) => batch.batch > drafts);
+          const fresh = pending.batches.filter((batch) => batch.batch > relayed.drafts);
           const last = fresh.at(-1);
 
           if (last === undefined || !(await submitPrompt($, draftsPrompt(fresh)))) return;
-          drafts = last.batch;
-          await $.store.set(relayedKey(id), drafts);
+          await remember({ ...relayed, drafts: last.batch });
 
           return;
         }
 
         if (pending.kind === "feedback") {
-          if (pending.version === version || !(await submitPrompt($, feedbackPrompt(pending)))) {
+          if (
+            pending.version === relayed.version ||
+            !(await submitPrompt($, feedbackPrompt(pending)))
+          ) {
             return;
           }
 
-          version = pending.version;
+          await remember({ ...relayed, version: pending.version });
           $.ui.status("planning");
 
           return;
         }
 
         if (pending.kind === "approved" && (await submitPrompt($, approvedPrompt(pending)))) {
+          await $.store.delete(relayedKey(id));
           await close($);
         }
       })

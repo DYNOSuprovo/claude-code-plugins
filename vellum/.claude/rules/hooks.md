@@ -36,7 +36,8 @@ loop. `/vellum:plan` enters it, Approve in the page or `/vellum:stop` leaves it.
   polled by `$.clock.every` and handed to the session by `$.prompt.submit`, which runs once
   the session is idle.
 - One poll relays everything the reviewer sends: the drafting batches, then the decision. What
-  was already named is remembered so nothing is said twice, and the drafting count goes to
-  `$.store`, since a reload must not repeat a batch the model has read.
+  was already named (the drafting count, the feedback version) goes to `$.store` under the
+  working directory it belongs to, so nothing is said twice across a reload or a restarted
+  server, and an approval drops the record: the next plan's batches count from one again.
 - Tests answer `$` from memory (`register.test.ts`): `bun test` cannot host the engine's
   environment. Nothing else is faked.
