@@ -214,35 +214,39 @@ function beating(h: Harness): boolean {
 }
 
 describe("lockVerdict", () => {
+  const verdict = (tool: string, input: unknown, cwd = CWD): unknown =>
+    lockVerdict(tool, input, cwd, CWD, WORKDIR);
+
   test("a file under the working directory is allowed outright", () => {
-    expect(
-      lockVerdict("Edit", { file_path: `${CWD}/${WORKDIR}mockup.html` }, CWD, WORKDIR),
-    ).toEqual({ kind: "allow" });
+    expect(verdict("Edit", { file_path: `${CWD}/${WORKDIR}mockup.html` })).toEqual({
+      kind: "allow",
+    });
   });
 
   test("a file outside it is denied, with the reason the model reads", () => {
-    expect(lockVerdict("Write", { file_path: `${CWD}/src/cli.ts` }, CWD, WORKDIR)).toEqual(DENIED);
+    expect(verdict("Write", { file_path: `${CWD}/src/cli.ts` })).toEqual(DENIED);
   });
 
   test("a relative path is resolved against the session's directory", () => {
-    expect(lockVerdict("Edit", { file_path: `${WORKDIR}notes.md` }, CWD, WORKDIR)).toEqual({
-      kind: "allow",
-    });
-    expect(lockVerdict("Edit", { file_path: `${WORKDIR}../escape.md` }, CWD, WORKDIR)).toEqual(
-      DENIED,
-    );
+    expect(verdict("Edit", { file_path: `${WORKDIR}notes.md` })).toEqual({ kind: "allow" });
+    expect(verdict("Edit", { file_path: `${WORKDIR}../escape.md` })).toEqual(DENIED);
+  });
+
+  test("the working directory hangs off the project root, wherever the session cd-ed", () => {
+    const inside = `${CWD}/${WORKDIR}`;
+    expect(verdict("Edit", { file_path: `${inside}plan.md` }, inside)).toEqual({ kind: "allow" });
+    expect(verdict("Edit", { file_path: "plan.md" }, inside)).toEqual({ kind: "allow" });
+    expect(verdict("Edit", { file_path: "../../../src/cli.ts" }, inside)).toEqual(DENIED);
   });
 
   test("NotebookEdit is read on notebook_path", () => {
-    expect(lockVerdict("NotebookEdit", { notebook_path: "src/n.ipynb" }, CWD, WORKDIR)).toEqual(
-      DENIED,
-    );
+    expect(verdict("NotebookEdit", { notebook_path: "src/n.ipynb" })).toEqual(DENIED);
   });
 
   test.each(["Bash", "Read", "mcp__other__write"])(
     "%s is no file tool: the session decides",
     (tool) => {
-      expect(lockVerdict(tool, { command: "rm -rf /" }, CWD, WORKDIR)).toEqual({ kind: "check" });
+      expect(verdict(tool, { command: "rm -rf /" })).toEqual({ kind: "check" });
     },
   );
 });
@@ -280,7 +284,12 @@ describe("session.start", () => {
   test("a reload finds the live server the store kept and polls again", async () => {
     const h = harness(LIVE);
     h.ports.add(SERVER.port);
-    h.store.set(`session:${SESSION_ID}`, { id: SESSION_ID, server: SERVER, workdir: WORKDIR });
+    h.store.set(`session:${SESSION_ID}`, {
+      id: SESSION_ID,
+      server: SERVER,
+      project: CWD,
+      workdir: WORKDIR,
+    });
     await call(h, "session.start", { cwd: CWD });
     expect(polling(h)).toBe(true);
     expect(beating(h)).toBe(true);
@@ -307,6 +316,7 @@ describe("skill.prompt", () => {
     expect(h.store.get(`session:${SESSION_ID}`)).toEqual({
       id: SESSION_ID,
       server: SERVER,
+      project: CWD,
       workdir: WORKDIR,
     });
     expect(h.status).toBe("planning");
@@ -489,7 +499,12 @@ describe("the decision comes back as a prompt", () => {
     });
 
     h.ports.add(SERVER.port);
-    h.store.set(`session:${SESSION_ID}`, { id: SESSION_ID, server: SERVER, workdir: WORKDIR });
+    h.store.set(`session:${SESSION_ID}`, {
+      id: SESSION_ID,
+      server: SERVER,
+      project: CWD,
+      workdir: WORKDIR,
+    });
     h.store.set(`relayed:${SESSION_ID}`, 1);
     await call(h, "session.start", { cwd: CWD });
     await tick(h);

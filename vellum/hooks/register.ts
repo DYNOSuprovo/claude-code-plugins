@@ -2,8 +2,17 @@ import type { EngineInterface, HttpInit, HttpResponse, Register, Timer } from "c
 
 type ServerInfo = { readonly port: number; readonly token: string; readonly pid: number };
 
-/** What `$.store` keeps under `session:<id>`, so a reloaded module finds its server again. */
-type Session = { readonly id: string; readonly server: ServerInfo; readonly workdir: string };
+/**
+ * What `$.store` keeps under `session:<id>`, so a reloaded module finds its server again.
+ * `project` is the root the server was started in: the working directory hangs off it, while
+ * the session's own directory moves with every `cd` the model runs.
+ */
+type Session = {
+  readonly id: string;
+  readonly server: ServerInfo;
+  readonly project: string;
+  readonly workdir: string;
+};
 
 /** A reachable review server and the timer that keeps it alive. */
 type Live = { readonly session: Session; readonly heartbeat: Timer };
@@ -92,8 +101,9 @@ function parseSession(value: unknown): Session | null {
   return server !== null &&
     isRecord(value) &&
     typeof value.id === "string" &&
+    typeof value.project === "string" &&
     typeof value.workdir === "string"
-    ? { id: value.id, server, workdir: value.workdir }
+    ? { id: value.id, server, project: value.project, workdir: value.workdir }
     : null;
 }
 
@@ -176,13 +186,19 @@ function resolvePath(cwd: string, path: string): string {
  * the page shows every file in it. Every other tool goes to the session's own flow, so
  * exploration and reads are untouched.
  */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- `input` is the call's arguments as `tool.check` hands them over (`ToolCheckInput.input: unknown`); `editedPath`, in the boundary parser above, is what reads them.
-export function lockVerdict(tool: string, input: unknown, cwd: string, workdir: string): Verdict {
+export function lockVerdict(
+  tool: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- `input` is the call's arguments as `tool.check` hands them over (`ToolCheckInput.input: unknown`); `editedPath`, in the boundary parser above, is what reads them.
+  input: unknown,
+  cwd: string,
+  project: string,
+  workdir: string,
+): Verdict {
   const path = editedPath(tool, input);
 
   if (path === null) return { kind: "check" };
 
-  return resolvePath(cwd, path).startsWith(`${resolvePath(cwd, workdir)}/`)
+  return resolvePath(cwd, path).startsWith(`${resolvePath(project, workdir)}/`)
     ? { kind: "allow" }
     : {
         kind: "deny",
@@ -259,6 +275,7 @@ function keepAlive($: EngineInterface, session: Session): Live {
 async function startServer(
   $: EngineInterface,
   id: string,
+  project: string,
   workdir: string,
 ): Promise<ServerInfo | null> {
   const argv = [
@@ -268,7 +285,7 @@ async function startServer(
     "--session",
     id,
     "--project",
-    await $.session.cwd(),
+    project,
     "--workdir",
     workdir,
   ];
@@ -293,10 +310,11 @@ async function restored($: EngineInterface, id: string): Promise<Live | null> {
 }
 
 async function started($: EngineInterface, id: string, workdir: string): Promise<Live | null> {
-  const server = await startServer($, id, workdir);
+  const project = await $.session.cwd();
+  const server = await startServer($, id, project, workdir);
 
   if (server === null) return null;
-  const session = { id, server, workdir };
+  const session = { id, server, project, workdir };
   await $.store.set(`session:${id}`, session);
 
   return keepAlive($, session);
@@ -449,10 +467,10 @@ export const register: Register = (on) => {
 
   on("tool.check", async ($, e, next) => {
     if (state.kind === "idle") return next(e);
-    const { workdir } = state.live.session;
+    const { project, workdir } = state.live.session;
     // ponytail: the lock reads the file tools only, so a shell command the session's own flow
     // approves still writes anywhere; a command classifier is the upgrade if that ever bites.
-    const verdict = lockVerdict(e.tool, e.input, await $.session.cwd(), workdir);
+    const verdict = lockVerdict(e.tool, e.input, await $.session.cwd(), project, workdir);
 
     if (verdict.kind === "deny") return { decision: "deny", reason: verdict.reason };
 
