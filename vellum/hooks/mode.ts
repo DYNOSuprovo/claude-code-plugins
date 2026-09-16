@@ -120,7 +120,7 @@ async function enter(host: Host, state: State, live: Live, settle: Settle): Prom
         if (ticked.approved) settle(await close(host, { kind: "live", live, poll }));
       })
       .catch((cause: unknown) => {
-        host.log(`vellum: the review poll failed: ${String(cause)}`);
+        host.log(`the review poll failed: ${String(cause)}`);
       })
       .finally(() => {
         relaying = false;
@@ -172,7 +172,7 @@ export async function connect(host: Host, state: State, settle: Settle): Promise
 
   if (live === null) return { kind: "idle" };
   const entered = await enter(host, state, live, settle);
-  host.log(`vellum: planning in ${live.session.workdir}, ${live.server.url}`);
+  host.log(`planning in ${live.session.workdir}, ${live.server.url}`);
 
   return entered;
 }
