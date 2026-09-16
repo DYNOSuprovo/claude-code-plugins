@@ -97,11 +97,13 @@ describe("routes", () => {
     expect(await markdown.text()).toBe("# notes\n");
   });
 
-  test("the frame script is served as JavaScript, and only under the token", async () => {
+  test("the frame script is served as JavaScript in its own scope, and only under the token", async () => {
     const script = await fetch(url(`/t/${started.token}/frame.js`));
     expect(script.status).toBe(200);
     expect(script.headers.get("content-type")).toStartWith("text/javascript");
-    expect(await script.text()).toContain("vellum:pick");
+    const text = await script.text();
+    expect(text).toContain("vellum:pick");
+    expect(text).toStartWith("(()=>{");
 
     expect((await fetch(url("/t/wrong-token/frame.js"))).status).toBe(404);
   });
