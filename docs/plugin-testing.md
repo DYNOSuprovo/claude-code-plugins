@@ -233,7 +233,10 @@ an environment of its own. It may import siblings, under the rule on `$` below.
   as `scripts/run-gates.ts` does for `vellum`.
 - Saving a file under `--plugin-dir` reloads the module: `register` runs
   again in a fresh environment and every pending timer of the old one dies.
-  State the module must keep across a reload goes to `$.store`.
+  State the module must keep across a reload goes to `$.store`. The transcript
+  says the reload landed, `<name>: reloaded (5 hooks: session.start,
+  skill.prompt, command.run, tool.check, tool.call)`, counting distinct events,
+  so two hooks on one event read as one.
 - `claude plugin test <dir>` runs `*.test.ts` files that import
   `claude-code/testing` in the engine's environment. It takes no argument but
   the directory, and two rules follow from that: it loads the module from
