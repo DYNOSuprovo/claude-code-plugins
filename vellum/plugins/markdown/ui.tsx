@@ -145,6 +145,8 @@ async function drawDiagrams(root: HTMLElement): Promise<void> {
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: "strict",
+    // A failed render throws before it cleans up: the figure shows the error, and body stays clean.
+    suppressErrorRendering: true,
     theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default",
   });
 
