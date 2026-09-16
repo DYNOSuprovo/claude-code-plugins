@@ -11,6 +11,7 @@ Replaces `plan-frontiers` and `software-craft:thorough-plan`.
 - Claude Code with function hooks, launched with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` until they ship publicly. Without the flag the hooks module does not load: the skill still writes a plan under `plans/<date>/<slug>/`, but there is no mode, no page and no `mcp__vellum__submit` tool; use the native plan mode for that session.
 - `bun` on the PATH: the review server is a Bun script. Claude Code installs the plugin's dependencies (`preact`, `remark`, `rehype-highlight`, `mermaid`) at its cache from `package.json` and `bun.lock`.
 - A browser: Chromium or Firefox, recent. The page uses the CSS Custom Highlight API.
+- Managed settings without an `allowedMcpServers` key. Where that key is set at all, empty included, Anthropic's `sec-default` refuses a user-tier `$.tool.register` by name: `mcp__vellum__submit` does not exist on that machine and the mode cannot be entered. The skill still writes a plan.
 
 ## Skill
 
@@ -44,7 +45,9 @@ References, loaded one at a time: `program-design.md` (signatures, call-stack an
 hooks/register.ts     the mode's hooks (session.start, skill.prompt, tool.check, tool.call on submit)
 hooks/host.ts         `Host`: one member per `$` call, the port the other files take
 hooks/mode.ts         the machine: idle | live, and restore / connect / close
-hooks/lock.ts         the write policy, pure; relay.ts what the poll says; server.ts its client
+hooks/lock.ts         the write policy, pure
+hooks/relay.ts        what the poll says to Claude, and what it remembers
+hooks/server.ts       the review server's client: every route, the token header, the launcher
 hooks/parse.ts        the boundary: unknown to types, and where the module's brands are minted
 src/cli.ts            `start` spawns `serve` detached; `serve` is the review server
 src/domain/           pure: paths, workspace states, decisions, the feedback text, slug, links
@@ -54,6 +57,34 @@ ui/                   the Preact page: document list, decision bar, comments, te
 plugins/              rendering plugins (markdown with highlight and Mermaid, html with its frame script, image); a third party sends a PR
 types/claude-code.d.ts the function hooks contract, written by `/plugin-types vellum/types`
 ```
+
+### What it hooks
+
+| Hook | Matcher | What it does |
+|---|---|---|
+| `session.start` | | Registers the `submit` tool, and picks the mode back up when the stored server still answers. |
+| `skill.prompt` | `skill=vellum:start` | Enters the mode: reaches or starts the server, then appends the working directory and the page's link to the skill's text. |
+| `skill.prompt` | `skill=vellum:stop` | Leaves the mode and says which directory is kept. |
+| `command.run` | `command=clear\|resume` | Closes the mode after the command ran: either forgets the session the mode belonged to. |
+| `tool.check` | | The lock. Its `.catch` denies whatever the failure, so a hook that throws or overruns cannot open it. |
+| `tool.call` | `tool=mcp__vellum__submit` | Gates the plan and names the version, without running a tool. |
+
+### What it calls on `$`
+
+| Call | What for |
+|---|---|
+| `$.tool.register` | The `submit` tool, at the session's start. |
+| `$.session.id` | Which session the mode belongs to; a `/clear` mints a new one. |
+| `$.session.cwd` | Where the session runs now, to resolve a relative path the lock reads. |
+| `$.store.get`, `$.store.set`, `$.store.delete` | The session's server and what the poll already relayed, so a module reload repeats neither. |
+| `$.http.fetch` | Every call to the review server, with the token header. |
+| `$.process.run` | Spawns the detached server, `bun src/cli.ts start`. |
+| `$.clock.every` | The poll, once a second, and the heartbeat that keeps the server alive. |
+| `$.prompt.submit` | Hands Claude a drafting batch, a feedback or the approval, once the session is idle. |
+| `$.ui.status` | The line under the prompt: planning, then the version under review. |
+| `$.ui.log` | Errors only: a server that did not start, a poll that failed, a prompt another plugin dropped. |
+
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum` prints both lists from the module's source; these tables are that output in prose.
 
 Development: `bun install --cwd vellum`, `bun test vellum`, `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum`, then a session with `--plugin-dir vellum`; see `docs/plugin-testing.md` at the repository root. The map of the code and where it goes next: `docs/architecture.md` in this directory.
 
