@@ -111,27 +111,26 @@ describe("Review", () => {
     expect(await review.pending()).toEqual({ kind: "none" });
   });
 
-  test("view lists the working directory's files and the linked docs that exist", async () => {
+  test("view under review lists the files without the working copy of the plan", async () => {
     const { review } = await gated();
     const view = await review.view();
     expect(view.workspace.kind).toBe("inReview");
     expect(view.plan?.doc).toBe(`${WIP}.review/v1.md` as never);
-    expect(view.docs).toEqual([
-      { path: `${WIP}mockup.html` as never, mediaType: "text/html" },
-      { path: `${WIP}plan.md` as never, mediaType: "text/markdown" },
-    ]);
+    expect(view.docs).toEqual([{ path: `${WIP}mockup.html` as never, mediaType: "text/html" }]);
   });
 
-  test("view while drafting lists the renderable files, sorted, without .review/", async () => {
+  test("view while drafting lists the renderable files, the draft plan included, without .review/", async () => {
     const { review, root } = setup();
     writeFileSync(join(root, WIP, ".review", "v0.feedback-1.md"), "# Drafting feedback 1\n");
     writeFileSync(join(root, WIP, "notes.bin"), "not renderable");
+    writeFileSync(join(root, WIP, "plan.md"), "# Draft\n");
     mkdirSync(join(root, WIP, "sub"));
     writeFileSync(join(root, WIP, "sub", "a.md"), "# A\n");
     const view = await review.view();
     expect(view.plan).toBeNull();
     expect(view.docs.map((doc) => doc.path)).toEqual([
       `${WIP}mockup.html` as never,
+      `${WIP}plan.md` as never,
       `${WIP}sub/a.md` as never,
     ]);
   });

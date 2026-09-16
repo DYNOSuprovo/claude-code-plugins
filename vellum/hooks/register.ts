@@ -312,12 +312,12 @@ function relayedKey(id: string): string {
   return `relayed:${id}`;
 }
 
+/**
+ * Leaves the mode. The relayed count stays in the store: a `/vellum:plan` after a stop reuses
+ * the session's directory, and the batches Claude already read must not be named again.
+ */
 async function close($: EngineInterface): Promise<void> {
-  if (state.kind === "live") {
-    const { id } = state.live.session;
-    await Promise.all([$.store.delete(`session:${id}`), $.store.delete(relayedKey(id))]);
-  }
-
+  if (state.kind === "live") await $.store.delete(`session:${state.live.session.id}`);
   stopTimers();
   state = { kind: "idle" };
   $.ui.status(undefined);
