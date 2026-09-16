@@ -83,6 +83,15 @@ export const register: Register = (on) => {
     return { text: `${result.text}\n\n${line}` };
   });
 
+  // The deterministic way the mode ends when the session forgets it: a `/clear` mints a new
+  // session id, so the old poll and heartbeat would run on until the next way in noticed.
+  on("command.run", { command: ["clear", "resume"] }, async ($, e, next) => {
+    const result = await next(e);
+    state = await close(hostOf($), state);
+
+    return result;
+  });
+
   on("tool.check", async ($, e, next) => {
     if (state.kind === "idle") return next(e);
     const { project, workdir } = state.live.session;

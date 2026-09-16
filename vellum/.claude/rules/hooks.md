@@ -48,6 +48,10 @@ loop. `/vellum:plan` enters it, Approve in the page or `/vellum:stop` leaves it.
   carries `.catch(($, e, next) => lockFailed(next.error.kind))`: a deny either way, whether the
   failure landed before or after `next(e)`. `claude plugin validate` lists the hook but not its
   handler, so nothing but this rule says the handler is there.
+- `/clear` and `/resume` close the mode, on `command.run` and after `next(e)`: a `/clear`
+  mints a new session id, so the old poll and heartbeat would run on until the next way in
+  noticed. It is the deterministic place, not a guess at what the session did. `/vellum:stop`
+  stays the reviewer's explicit way out, and `close` is a no-op when the mode is already idle.
 - Every transition is an engine event or an answer from the server, never a reflex of the
   model. What is under review lives on the server's disk; the module keeps no copy of it.
 - Parse at the boundary, once: `tool_input`, `$.store` values and the server's JSON arrive as

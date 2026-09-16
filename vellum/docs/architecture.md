@@ -114,10 +114,12 @@ stateDiagram-v2
   live --> live: another session id, server restarted
   live --> idle: approval prompt entered
   live --> idle: skill.prompt vellum:stop
+  live --> idle: command.run clear | resume
   idle --> idle: nothing starts
 ```
 
-`live` allows the file tools inside the working directory and denies them outside it, serves
+`live` allows the file tools inside the working directory and denies them under the project
+outside it, serves
 `mcp__vellum__submit`, and polls `GET /api/pending` once a second until it closes: drafting
 batches, then the review's decision, each relayed as a prompt.
 
