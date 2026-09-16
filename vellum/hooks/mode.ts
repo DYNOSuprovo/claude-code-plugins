@@ -137,7 +137,8 @@ async function enter(host: Host, state: State, live: Live, settle: Settle): Prom
  * the session's directory, and what Claude already read must not be named again.
  */
 export async function close(host: Host, state: State): Promise<State> {
-  if (state.kind === "live") await host.storeDelete(`session:${state.live.session.id}`);
+  if (state.kind === "idle") return state;
+  await host.storeDelete(`session:${state.live.session.id}`);
   stopTimers(state);
   host.status(undefined);
 

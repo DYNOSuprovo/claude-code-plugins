@@ -17,6 +17,7 @@ import {
   STOP_PROMPT,
   storedSession,
   tick,
+  typedCommand,
   WORKDIR,
   world,
 } from "./fixtures/index.ts";
@@ -283,6 +284,41 @@ describe("skill.prompt vellum:stop", () => {
     });
 
     expect(seen.runs).toEqual([]);
+  });
+});
+
+describe("command.run", () => {
+  test("/clear closes the mode it finds live", async ($, on) => {
+    const seen = world(on);
+    on("command.run", () => ({}));
+    await $.skill.prompt(PLAN_PROMPT);
+    await $.command.run(typedCommand("clear"));
+
+    const from = seen.paths.length;
+    await seen.clock.advance(HEARTBEAT_MS);
+
+    expect(seen.store.has(`session:${SESSION_ID}`)).toBe(false);
+    expect(seen.statuses.at(-1)).toBeUndefined();
+    expect(seen.paths.slice(from), "no poll and no heartbeat after a clear").toEqual([]);
+  });
+
+  test("/resume closes it the same way", async ($, on) => {
+    const seen = world(on);
+    on("command.run", () => ({}));
+    await $.skill.prompt(PLAN_PROMPT);
+    await $.command.run(typedCommand("resume"));
+
+    expect(seen.store.has(`session:${SESSION_ID}`)).toBe(false);
+    expect(seen.statuses.at(-1)).toBeUndefined();
+  });
+
+  test("outside the mode a /clear runs and touches nothing", async ($, on) => {
+    const seen = world(on);
+    on("command.run", () => ({ text: "conversation cleared" }));
+
+    expect(await $.command.run(typedCommand("clear"))).toEqual({ text: "conversation cleared" });
+    expect(seen.statuses).toEqual([]);
+    expect(seen.store.size).toBe(0);
   });
 });
 

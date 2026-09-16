@@ -32,7 +32,7 @@ References, loaded one at a time: `program-design.md` (signatures, call-stack an
 4. **Send feedback** writes `.review/vN.feedback.md` (path, then lines and quote or selector and text, then the comment, for each) and submits a prompt: Claude reads the file, revises, calls `mcp__vellum__submit` again, `vN+1` in the same turn.
 5. **Approve** renames the directory to the slug of the plan's title (`-2` on collision, `plan` without a title), rewrites the links in every text file of it, and submits a prompt naming the final directory. The mode closes and the lock lifts.
 
-`/vellum:stop` leaves the mode without a plan; the directory is kept. The status bar reads `vellum: planning`, then `vellum: plan vN under review`.
+`/vellum:stop` leaves the mode without a plan; the directory is kept. `/clear` and `/resume` close it too, since either forgets the session the mode belonged to. The status bar reads `vellum: planning`, then `vellum: plan vN under review`.
 
 ## Agent
 

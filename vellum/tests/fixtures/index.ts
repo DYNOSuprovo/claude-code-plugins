@@ -48,6 +48,8 @@ export * from "./stored-session.ts";
 
 export * from "./tick.ts";
 
+export * from "./typed-command.ts";
+
 export * from "./workdir.ts";
 
 export * from "./world.ts";
