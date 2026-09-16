@@ -20,14 +20,15 @@ function stepSelector(step: Step): string {
   return `${step.tag}${classes.join("")}${rank}`;
 }
 
-/** The selector of the last step, from the nearest ancestor that carries an id; `steps` is outermost first. */
+/**
+ * The selector of the last step, from the nearest ancestor that carries an id, or from `body`:
+ * a chain of child combinators anchored at either matches one element. `steps` is outermost first.
+ */
 export function selectorOf(steps: readonly Step[]): string {
   const start = steps.findLastIndex((step) => step.id !== null && IDENT.test(step.id));
+  const chain = steps.slice(start === -1 ? 0 : start).map((step) => stepSelector(step));
 
-  return steps
-    .slice(start === -1 ? 0 : start)
-    .map((step) => stepSelector(step))
-    .join(" > ");
+  return (start === -1 ? ["body", ...chain] : chain).join(" > ");
 }
 
 /** `tags`: lower-case tag names from the pointer's element up to `html`, innermost first. */
