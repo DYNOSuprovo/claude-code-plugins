@@ -10,6 +10,7 @@ import {
   addAnnotation,
   annotations,
   currentDoc,
+  holding,
   listen,
   loadReview,
   planDoc,
@@ -82,9 +83,25 @@ function App(): preact.JSX.Element {
       if (event.key === "[") step(-1);
     };
 
-    document.addEventListener("keydown", onKey);
+    const held = (event: KeyboardEvent): void => {
+      holding.value = event.ctrlKey || event.metaKey;
+    };
 
-    return () => document.removeEventListener("keydown", onKey);
+    const release = (): void => {
+      holding.value = false;
+    };
+
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", held);
+    document.addEventListener("keyup", held);
+    window.addEventListener("blur", release);
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", held);
+      document.removeEventListener("keyup", held);
+      window.removeEventListener("blur", release);
+    };
   }, []);
 
   return (

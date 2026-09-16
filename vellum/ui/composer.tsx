@@ -1,9 +1,10 @@
 import { useState } from "preact/hooks";
 
-import type { Passage } from "../src/protocol.ts";
+/** One chosen place, as the popover shows it: what it says, and where it is. */
+export type Pick = { readonly key: string; readonly text: string; readonly where: string };
 
 export type ComposerProps = {
-  readonly passages: readonly Passage[];
+  readonly picks: readonly Pick[];
   /** While a target is being added, the popover fades and lets the pointer through. */
   readonly through: boolean;
   readonly top: number;
@@ -12,7 +13,7 @@ export type ComposerProps = {
   readonly onCancel: () => void;
 };
 
-/** The popover under a selection: every chosen quote, a textarea, Cancel and Add comment. */
+/** The popover under a selection: every chosen place, a textarea, Cancel and Add comment. */
 export function Composer(props: ComposerProps): preact.JSX.Element {
   const [body, setBody] = useState("");
 
@@ -23,9 +24,9 @@ export function Composer(props: ComposerProps): preact.JSX.Element {
       aria-label="New comment"
       style={{ top: `${props.top}px`, left: `${props.left}px` }}
     >
-      {props.passages.map((passage) => (
-        <div class="quote" key={`${passage.lines[0]}-${passage.quote}`}>
-          “{passage.quote}” · lines {passage.lines[0]}–{passage.lines[1]}
+      {props.picks.map((pick) => (
+        <div class="quote" key={pick.key}>
+          “{pick.text}” · {pick.where}
         </div>
       ))}
       <textarea

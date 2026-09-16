@@ -6,16 +6,18 @@ const METHODS: readonly (readonly [InputMethod, string])[] = [
   ["pinpoint", "Pinpoint"],
 ];
 
-/** The controls over the document: Select|Pinpoint while a Markdown pane shows, Beside the plan while an artifact does. */
+/** The controls over the document: Select|Pinpoint while a pane takes comments, Beside the plan while an artifact shows. */
 export function Tools(): preact.JSX.Element {
   const plan = planDoc.value;
   const doc = currentDoc.value;
   const beside = plan !== null && doc !== null && doc.path !== plan.path;
-  const markdown = doc?.mediaType === "text/markdown" || (beside && split.value);
+
+  const pinpointable =
+    doc?.mediaType === "text/markdown" || doc?.mediaType === "text/html" || (beside && split.value);
 
   return (
     <div class="tools">
-      {markdown && (
+      {pinpointable && (
         <span class="seg" role="group" aria-label="Input method">
           {METHODS.map(([method, name]) => (
             <button
@@ -31,7 +33,7 @@ export function Tools(): preact.JSX.Element {
           ))}
         </span>
       )}
-      {markdown && beside && <span class="sep" />}
+      {pinpointable && beside && <span class="sep" />}
       {beside && (
         <label class="toggle">
           <input

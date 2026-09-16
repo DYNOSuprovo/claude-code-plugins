@@ -9,7 +9,7 @@ import { passageFromRange, passageFromSelection, rangeFor } from "../../ui/ancho
 import { fileUrl } from "../../ui/api.ts";
 import { Composer } from "../../ui/composer.tsx";
 import { paint } from "../../ui/highlights.ts";
-import { docs, inputMethod, select } from "../../ui/state.ts";
+import { docs, holding, inputMethod, select } from "../../ui/state.ts";
 import type { RendererProps, UiPlugin } from "../index.ts";
 import type { Target } from "./pinpoint.ts";
 import { boxOf, rangeOf, targetAt, toggled } from "./pinpoint.ts";
@@ -129,28 +129,12 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const [text, setText] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [wash, setWash] = useState<Wash | null>(null);
-  const [holding, setHolding] = useState(false);
   const container = useRef<HTMLElement>(null);
 
   const content = useMemo(
     () => (text === null ? null : toTree(text).children.map(toVNode)),
     [text],
   );
-
-  useEffect(() => {
-    const held = (event: KeyboardEvent): void => setHolding(event.ctrlKey || event.metaKey);
-    const release = (): void => setHolding(false);
-
-    document.addEventListener("keydown", held);
-    document.addEventListener("keyup", held);
-    window.addEventListener("blur", release);
-
-    return () => {
-      document.removeEventListener("keydown", held);
-      document.removeEventListener("keyup", held);
-      window.removeEventListener("blur", release);
-    };
-  }, []);
 
   useEffect(() => {
     void fetch(fileUrl(props.doc.path))
@@ -240,7 +224,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   };
 
   if (content === null) return <div class="waiting">Loading…</div>;
-  const adding = holding && draft !== null && inputMethod.value === "pinpoint";
+  const adding = holding.value && draft !== null && inputMethod.value === "pinpoint";
 
   return (
     <>
@@ -270,7 +254,11 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       )}
       {draft !== null && (
         <Composer
-          passages={draft.chosen.map((one) => one.passage)}
+          picks={draft.chosen.map(({ passage }) => ({
+            key: `${passage.lines[0]}-${passage.quote}`,
+            text: passage.quote,
+            where: `lines ${passage.lines[0]}–${passage.lines[1]}`,
+          }))}
           through={adding}
           top={draft.top}
           left={draft.left}

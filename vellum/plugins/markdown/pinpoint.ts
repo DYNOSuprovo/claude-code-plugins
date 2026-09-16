@@ -1,3 +1,6 @@
+import type { Relation } from "../../ui/selection.ts";
+import { nextSelection } from "../../ui/selection.ts";
+
 export type TargetKind = "block" | "inline" | "code" | "table" | "row" | "cell";
 
 export type TableEdge = "inside" | "side" | "topOrBottom";
@@ -26,20 +29,6 @@ export type Target = {
   readonly kind: TargetKind;
   readonly label: string;
 };
-
-/** How a clicked target sits against one already chosen. */
-export type Relation = "same" | "overlapping" | "separate";
-
-/** Which chosen targets survive a Ctrl+click, and whether the clicked one joins them. */
-export type SelectionUpdate = { readonly keep: readonly number[]; readonly add: boolean };
-
-/** A Ctrl+click: the same target leaves the set, an overlapping one is replaced, anything else joins. */
-export function nextSelection(relations: readonly Relation[]): SelectionUpdate {
-  return {
-    keep: relations.flatMap((relation, index) => (relation === "separate" ? [index] : [])),
-    add: !relations.includes("same"),
-  };
-}
 
 /**
  * Two targets overlap when their texts do, which their elements do not tell: a list item

@@ -23,6 +23,10 @@ is a browser's: `Bun.serve` builds it from `ui/index.html` at run time, no build
   only where a version exists.
 - A new document kind is one folder with both halves and two registry lines, not a branch in
   an existing renderer.
-- A kind folder may hold a helper beside `ui.tsx` (`markdown/pinpoint.ts`): its choice is a
-  pure function tested with `bun test`, its DOM part a thin adapter. The page has no DOM
-  implementation to test against.
+- A kind folder may hold a helper beside `ui.tsx` (`markdown/pinpoint.ts`, `html/pick.ts`): its
+  choice is a pure function tested with `bun test`, its DOM part a thin adapter. The page has no
+  DOM implementation to test against.
+- An HTML file is served with a sandboxed CSP, so the page cannot reach into it: `html/frame.ts`
+  runs inside the mockup and owns the selection there, the page only sends it the method, the
+  Ctrl state and the selectors already commented. `html/messages.ts` is the contract both sides
+  import; every message crosses with the target `"*"` and each side checks `event.source`.
