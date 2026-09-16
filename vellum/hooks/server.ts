@@ -14,7 +14,8 @@ import {
   type Workdir,
 } from "./parse.ts";
 
-const START_TIMEOUT_MS = 10_000;
+// Well under the hook's own budget: the way in also probes and reads the store before it starts.
+const START_TIMEOUT_MS = 5_000;
 
 /** The review server's client: every route, the token header and the page's address. */
 export type ReviewServer = {

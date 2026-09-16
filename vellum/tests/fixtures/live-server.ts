@@ -4,7 +4,7 @@ import { reply } from "./reply.ts";
 import { SERVER } from "./server.ts";
 
 /** What a route answers; `null` is a server that does not answer that call. */
-export type Route = () => HttpResponse | null;
+export type Route = () => HttpResponse | null | Promise<HttpResponse | null>;
 
 const LIVE = {
   "/api/review": () => reply(200, { workspace: { kind: "drafting" } }),
@@ -18,10 +18,10 @@ export function liveServer(on: On, routes: Record<string, Route> = {}): string[]
   const paths: string[] = [];
   const served = new Map([...Object.entries(LIVE), ...Object.entries(routes)]);
 
-  on("http.fetch", (_, e) => {
+  on("http.fetch", async (_, e) => {
     const { pathname, port } = new URL(e.url);
     paths.push(pathname);
-    const answer = Number(port) === SERVER.port ? (served.get(pathname)?.() ?? null) : null;
+    const answer = Number(port) === SERVER.port ? ((await served.get(pathname)?.()) ?? null) : null;
 
     return answer === null ? { deny: `ECONNREFUSED ${e.url}` } : { value: answer };
   });

@@ -1,1 +1,1 @@
-export const HEARTBEAT_MS = 30_000;
+export { HEARTBEAT_MS } from "../../hooks/mode.ts";
