@@ -137,6 +137,17 @@ describe("Review", () => {
     ]);
   });
 
+  test("a batch sent just before the gate is still pending after it", async () => {
+    const { review, root } = setup();
+    await review.decide({ kind: "feedback", annotations: [GENERAL_NO] });
+    writeFileSync(join(root, WIP, "plan.md"), PLAN);
+    await review.gate();
+    expect(await review.pending()).toEqual({
+      kind: "drafts",
+      batches: [{ batch: 1, path: `${WIP}.review/v0.feedback-1.md` as never }],
+    });
+  });
+
   test("a feedback while drafting writes the next batch and leaves it pending", async () => {
     const { review, root } = setup();
     const first = await review.decide({ kind: "feedback", annotations: [GENERAL_NO] });

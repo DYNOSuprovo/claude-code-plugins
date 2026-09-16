@@ -10,7 +10,13 @@ const V1 = 1 as never;
 
 const drafting: PlanWorkspace = { kind: "drafting", dir: DIR, batches: 2 };
 
-const inReview: PlanWorkspace = { kind: "inReview", dir: DIR, version: V1, finalizeError: null };
+const inReview: PlanWorkspace = {
+  kind: "inReview",
+  dir: DIR,
+  version: V1,
+  batches: 0,
+  finalizeError: null,
+};
 
 const changesRequested: PlanWorkspace = { kind: "changesRequested", dir: DIR, version: V1 };
 
