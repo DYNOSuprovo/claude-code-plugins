@@ -27,10 +27,14 @@ export const HEARTBEAT_GRACE_MS = 90_000;
 
 const WATCHDOG_PERIOD_MS = 5_000;
 
-/** `plugins/html/frame.ts` for the sandboxed mockups, built once: the page bundle never loads it. */
+/**
+ * `plugins/html/frame.ts` for the sandboxed mockups, built once: the page bundle never loads it.
+ * An IIFE, since a classic `<script>` shares the mockup's global scope: the default ESM output
+ * has no wrapper, and its minified names would collide with the mockup's own (`_`, `a`, `r`).
+ */
 async function buildFrameScript(): Promise<string> {
   const entry = join(import.meta.dir, "../../../plugins/html/frame.ts");
-  const built = await Bun.build({ entrypoints: [entry], minify: true });
+  const built = await Bun.build({ entrypoints: [entry], minify: true, format: "iife" });
   const output = built.outputs[0];
 
   if (output === undefined) throw new Error(`no output building ${entry}`);
