@@ -18,6 +18,21 @@ function linesOf(text: string, tag: string): unknown[] {
   return found;
 }
 
+/** The class of every span the highlighter adds inside the code. */
+function spanClasses(text: string): unknown[] {
+  const found: unknown[] = [];
+
+  const walk = (node: Root | RootContent): void => {
+    if (node.type === "element" && node.tagName === "span") found.push(node.properties.className);
+
+    if ("children" in node) for (const child of node.children) walk(child);
+  };
+
+  walk(toTree(text));
+
+  return found;
+}
+
 describe("toTree", () => {
   test("a list item's lines stop before its nested list", () => {
     expect(linesOf("- First item\n  - Nested one\n  - Nested two\n- Second item\n", "li")).toEqual([
@@ -40,5 +55,19 @@ describe("toTree", () => {
       "1-4",
       "2-3",
     ]);
+  });
+
+  test("a ts block is coloured, and its pre keeps its lines", () => {
+    const text = "```ts\nconst answer = 42;\n```\n";
+
+    expect(spanClasses(text)).toContainEqual(["hljs-keyword"]);
+    expect(linesOf(text, "pre")).toEqual(["1-3"]);
+  });
+
+  test("a mermaid block is not coloured, and keeps its lines", () => {
+    const text = "```mermaid\nflowchart TD\n  A --> B\n```\n";
+
+    expect(spanClasses(text)).toEqual([]);
+    expect(linesOf(text, "pre")).toEqual(["1-4"]);
   });
 });

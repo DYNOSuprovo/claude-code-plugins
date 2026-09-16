@@ -1,7 +1,8 @@
+import type { Passage } from "../../src/protocol.ts";
 import type { Relation } from "../../ui/selection.ts";
 import { nextSelection } from "../../ui/selection.ts";
 
-export type TargetKind = "block" | "inline" | "code" | "table" | "row" | "cell";
+export type TargetKind = "block" | "inline" | "code" | "table" | "row" | "cell" | "diagram";
 
 export type TableEdge = "inside" | "side" | "topOrBottom";
 
@@ -86,6 +87,9 @@ const INLINES: ReadonlyMap<string, string> = new Map([
 
 /** `tags`: lower-case tag names from the pointer's element up to the article, innermost first, the article excluded. */
 export function pickTarget(tags: readonly string[], edge: TableEdge): Pick | null {
+  const figure = tags.indexOf("figure");
+
+  if (figure !== -1) return { index: figure, kind: "diagram" };
   const pre = tags.indexOf("pre");
 
   if (pre !== -1) return { index: pre, kind: "code" };
@@ -109,6 +113,8 @@ export function pickTarget(tags: readonly string[], edge: TableEdge): Pick | nul
 }
 
 function labelOf(element: HTMLElement): string {
+  if (element.tagName === "FIGURE") return "diagram";
+
   if (element instanceof HTMLPreElement) {
     const language = /language-(\S+)/u.exec(element.querySelector("code")?.className ?? "")?.[1];
 
@@ -169,6 +175,26 @@ function nestedListOf(element: HTMLElement): Element | null {
   return element instanceof HTMLLIElement
     ? element.querySelector(":scope > ul, :scope > ol")
     : null;
+}
+
+/**
+ * A diagram's place, from the source block it was drawn from: the rendered SVG holds none of
+ * the source, so the lines and the first line of the source stand for it.
+ */
+export function diagramPassage(
+  lines: string | undefined,
+  source: string | undefined,
+): Passage | null {
+  const match = lines === undefined ? null : /^(\d+)-(\d+)$/u.exec(lines);
+
+  const quote = source
+    ?.split("\n")
+    .find((line) => line.trim() !== "")
+    ?.trim();
+
+  if (match === null || quote === undefined) return null;
+
+  return { quote, prefix: "", suffix: "", lines: [Number(match[1]), Number(match[2])] };
 }
 
 /** The text of `element` as a range; a list item stops before its first nested list. */

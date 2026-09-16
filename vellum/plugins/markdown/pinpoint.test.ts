@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { pickTarget, tableEdge } from "./pinpoint.ts";
+import { diagramPassage, pickTarget, tableEdge } from "./pinpoint.ts";
 
 describe("pickTarget", () => {
   test("a paragraph is a block at 0", () => {
@@ -66,6 +66,26 @@ describe("pickTarget", () => {
 
   test("a row without a cell under the pointer is the table", () => {
     expect(pickTarget(["tr", "tbody", "table"], "inside")).toEqual({ index: 2, kind: "table" });
+  });
+
+  test("a figure is a diagram at 0", () => {
+    expect(pickTarget(["figure"], "inside")).toEqual({ index: 0, kind: "diagram" });
+  });
+});
+
+describe("diagramPassage", () => {
+  test("the quote is the first line of the source, over the block's lines", () => {
+    expect(diagramPassage("7-11", "flowchart TD\n  A --> B\n")).toEqual({
+      quote: "flowchart TD",
+      prefix: "",
+      suffix: "",
+      lines: [7, 11],
+    });
+  });
+
+  test("a figure without lines or without source has no passage", () => {
+    expect(diagramPassage(undefined, "flowchart TD")).toBeNull();
+    expect(diagramPassage("7-11", "   \n")).toBeNull();
   });
 });
 

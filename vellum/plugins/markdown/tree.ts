@@ -1,4 +1,5 @@
 import type { Element, Root, RootContent } from "hast";
+import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
@@ -28,7 +29,11 @@ function addLines(node: Root | RootContent): void {
   if ("children" in node) for (const child of node.children) addLines(child);
 }
 
-const processor = unified().use(remarkParse).use(remarkGfm).use(remarkRehype);
+const processor = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkRehype)
+  .use(rehypeHighlight, { detect: false, plainText: ["mermaid"] });
 
 /** The Markdown `text` as hast, every element carrying its source lines. */
 export function toTree(text: string): Root {
