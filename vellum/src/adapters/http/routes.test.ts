@@ -21,6 +21,10 @@ function url(path: string): string {
   return `http://127.0.0.1:${started.server.port}${path}`;
 }
 
+function post(path: string, body: string | null = null): Promise<Response> {
+  return fetch(url(path), { method: "POST", headers: headers(), body });
+}
+
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), "vellum-routes-"));
   mkdirSync(join(root, WIP), { recursive: true });
@@ -66,15 +70,21 @@ describe("routes", () => {
     expect(missing.status).toBe(404);
   });
 
-  test("gate, pending, decision and finalize round-trip over HTTP", async () => {
-    const gate = await fetch(url("/api/gate"), {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify({ plan: "# Routed plan\n", planFilePath: "plans/p.md" }),
-    });
+  test("gate answers 409 until plan.md exists, then the version", async () => {
+    const missing = await post("/api/gate");
+    expect(missing.status).toBe(409);
+    expect(await missing.json()).toEqual({ error: `write plan.md in ${WIP} first` });
 
-    expect(await gate.json()).toEqual({ version: 1 });
+    writeFileSync(join(root, WIP, "plan.md"), "# Routed plan\n");
+    expect(await (await post("/api/gate")).json()).toEqual({ version: 1, kept: false });
+    expect(await (await post("/api/gate")).json()).toEqual({ version: 1, kept: true });
+  });
 
+  test("the finalize route is gone", async () => {
+    expect((await post("/api/finalize", JSON.stringify({ version: 1 }))).status).toBe(404);
+  });
+
+  test("decision round-trips over HTTP, and approve finalizes at once", async () => {
     const bad = await fetch(url("/api/decision"), {
       method: "POST",
       headers: headers(),
@@ -101,42 +111,14 @@ describe("routes", () => {
 
     expect(empty.status).toBe(400);
 
-    const badAgain = await fetch(url("/api/finalize"), {
-      method: "POST",
-      headers: headers(),
-      body: "not json",
-    });
-
-    expect(badAgain.status).toBe(400);
-
-    const early = await fetch(url("/api/finalize"), {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify({ version: 1 }),
-    });
-
-    expect(early.status).toBe(409);
-
-    const approve = await fetch(url("/api/decision"), {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify({ kind: "approve" }),
-    });
-
+    const approve = await post("/api/decision", JSON.stringify({ kind: "approve" }));
     expect(approve.status).toBe(200);
+
     const pending = await fetch(url("/api/pending"), { headers: headers() });
-    expect(await pending.json()).toEqual({ kind: "approved", version: 1 });
-
-    const finalize = await fetch(url("/api/finalize"), {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify({ version: 1 }),
-    });
-
-    expect(finalize.status).toBe(200);
-    expect(await finalize.json()).toMatchObject({
-      workspace: { kind: "approved", dir: "plans/2026-09-15/routed-plan/" },
-      plan: "# Routed plan\n",
+    expect(await pending.json()).toEqual({
+      kind: "approved",
+      version: 1,
+      dir: "plans/2026-09-15/routed-plan/",
     });
   });
 });

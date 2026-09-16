@@ -14,7 +14,7 @@ Do not reinvent plugin patterns. Delegate:
 
 New plugin: add its `marketplace.json` entry and its `README.md` table row by hand; no check catches their absence. Version bumps: edit `plugin.json` only; pre-commit propagates to the existing entry and row.
 
-Testing a plugin from source (launch flags, permission modes, transcript checks) and the install/update lifecycle (what a version bump reaches, what it does not): `docs/plugin-testing.md`. What a skill's example commands may contain so they run without a prompt: `.claude/rules/skill-commands.md`, loaded when a `SKILL.md` is edited. The vellum plugin carries its own `AGENTS.md`, loaded when a file under `vellum/` is read, and its own `.claude/rules/`, whose `paths:` are relative to `vellum/` (measured on 2.1.272 from a session at the repository root).
+Testing a plugin from source (launch flags, permission modes, transcript checks) and the install/update lifecycle (what a version bump reaches, what it does not): `docs/plugin-testing.md`. What a skill's example commands may contain so they run without a prompt: `.claude/rules/skill-commands.md`, loaded when a `SKILL.md` is edited. The vellum plugin carries its own `AGENTS.md`, loaded when a file under `vellum/` is read, and its own `.claude/rules/`, whose `paths:` are relative to `vellum/` (measured from a session at the repository root).
 
 ## Commands
 
@@ -54,6 +54,7 @@ Carried by nobody, so hold them by hand:
 
 - Plugins are self-contained. No import crosses a plugin boundary, or reaches into `scripts/` or `.claude/`. Today every relative import stays inside its own top-level directory, and none climbs past a single `../`.
 - Ship sources, never compiled binaries. `bun` is the runtime.
+- Docs name symbols, sections and paths, never line numbers or version numbers: both drift at the next regeneration or release.
 
 ## Non-Obvious Directories
 

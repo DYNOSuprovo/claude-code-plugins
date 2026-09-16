@@ -16,7 +16,7 @@ const inReview: PlanWorkspace = { kind: "inReview", dir: DIR, version: V1, final
 
 const changesRequested: PlanWorkspace = { kind: "changesRequested", dir: DIR, version: V1 };
 
-const approvedPending: PlanWorkspace = { kind: "approvedPending", dir: DIR, version: V1 };
+const approved: PlanWorkspace = { kind: "approved", dir: FINAL, version: V1 };
 
 function listing(...names: string[]): ReadonlySet<string> {
   return new Set(names);
@@ -59,19 +59,18 @@ describe("workspaceFromListing", () => {
 describe("workspaceOf", () => {
   test.each([
     ["none", { kind: "none" }, inReview],
-    ["approvedPending", { kind: "approvedPending", version: V1 }, approvedPending],
     [
       "finalizeError",
       { kind: "finalizeError", version: V1, error: "EACCES" },
       { ...inReview, finalizeError: "EACCES" },
     ],
   ] as const)("overlays %s on a plan under review", (_name, memory, expected) => {
-    expect(workspaceOf(inReview, memory, DIR)).toEqual(expected);
+    expect(workspaceOf(inReview, memory)).toEqual(expected);
   });
 
   test("the approved memory wins over the directory, which was renamed", () => {
     const memory = { kind: "approved", version: V1, dir: FINAL } as const;
-    expect(workspaceOf(drafting, memory, DIR)).toEqual({
+    expect(workspaceOf(drafting, memory)).toEqual({
       kind: "approved",
       dir: FINAL,
       version: V1,
@@ -84,7 +83,7 @@ describe("pendingOf", () => {
     [drafting, { kind: "none" }],
     [inReview, { kind: "none" }],
     [changesRequested, { kind: "feedback", version: V1, path: `${DIR}.review/v1.feedback.md` }],
-    [approvedPending, { kind: "approved", version: V1 }],
+    [approved, { kind: "approved", version: V1, dir: FINAL }],
   ] as const)("reads what $kind leaves pending", (workspace, expected) => {
     expect(pendingOf(workspace)).toEqual(expected as never);
   });

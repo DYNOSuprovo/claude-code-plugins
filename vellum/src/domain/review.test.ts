@@ -14,7 +14,11 @@ const inReview: PlanWorkspace = { kind: "inReview", dir: DIR, version: V1, final
 
 const changesRequested: PlanWorkspace = { kind: "changesRequested", dir: DIR, version: V1 };
 
-const approvedPending: PlanWorkspace = { kind: "approvedPending", dir: DIR, version: V1 };
+const approved: PlanWorkspace = {
+  kind: "approved",
+  dir: "plans/2026-09-15/notes/" as never,
+  version: V1,
+};
 
 describe("gateVersion", () => {
   test("the first plan is v1", () => {
@@ -37,11 +41,8 @@ describe("gateVersion", () => {
 });
 
 describe("decideOn", () => {
-  test("approve marks the version as approved, pending the rename", () => {
-    expect(decideOn(inReview, { kind: "approve" })).toEqual({
-      kind: "approve",
-      memory: { kind: "approvedPending", version: V1 },
-    });
+  test("approve names the version to finalize", () => {
+    expect(decideOn(inReview, { kind: "approve" })).toEqual({ kind: "approve", version: V1 });
   });
 
   test("feedback names the file to write", () => {
@@ -52,20 +53,14 @@ describe("decideOn", () => {
     });
   });
 
-  test.each([drafting, changesRequested, approvedPending])("is refused on $kind", (workspace) => {
+  test.each([drafting, changesRequested, approved])("is refused on $kind", (workspace) => {
     expect(decideOn(workspace, { kind: "approve" })).toEqual({ kind: "refused" });
   });
 });
 
 describe("slugFor", () => {
   test("the title first, the plan file's name without one", () => {
-    expect(slugFor("# Notes\n", "plans/quiet-otter.md")).toEqual({
-      ok: true,
-      value: "notes" as never,
-    });
-    expect(slugFor("no heading", "plans/quiet-otter.md")).toEqual({
-      ok: true,
-      value: "quiet-otter" as never,
-    });
+    expect(slugFor("# Notes\n")).toEqual({ ok: true, value: "notes" as never });
+    expect(slugFor("no heading")).toEqual({ ok: true, value: "plan" as never });
   });
 });

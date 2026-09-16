@@ -2,15 +2,8 @@ import { realpath } from "node:fs/promises";
 import { join, sep } from "node:path";
 
 import type { Review } from "../../app/review.ts";
-import { parseProjectPath, parseVersion } from "../../domain/paths.ts";
-import type {
-  Anchor,
-  Annotation,
-  Decision,
-  GateInput,
-  Passage,
-  PlanWorkspace,
-} from "../../protocol.ts";
+import { parseProjectPath } from "../../domain/paths.ts";
+import type { Anchor, Annotation, Decision, Passage, PlanWorkspace } from "../../protocol.ts";
 
 export const TOKEN_HEADER = "x-vellum-token";
 
@@ -27,14 +20,6 @@ type Handler = (request: Request) => Promise<Response>;
 /* oxlint-disable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- the block below IS the boundary parser the rules ask for: it validates the JSON bodies the browser and the hooks module post, and there is no earlier place to parse them. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-async function parseGate(request: Request): Promise<GateInput | null> {
-  const body: unknown = await request.json().catch(() => null);
-
-  return isRecord(body) && typeof body.plan === "string" && typeof body.planFilePath === "string"
-    ? { plan: body.plan, planFilePath: body.planFilePath }
-    : null;
 }
 
 function parseAnchor(value: unknown): Anchor | null {
@@ -100,11 +85,6 @@ async function parseDecision(request: Request): Promise<Decision | null> {
     : null;
 }
 
-async function parseFinalize(request: Request): Promise<number | null> {
-  const body: unknown = await request.json().catch(() => null);
-
-  return isRecord(body) && typeof body.version === "number" ? body.version : null;
-}
 /* oxlint-enable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type */
 
 function badRequest(): Response {
@@ -191,14 +171,13 @@ async function api(context: RouteContext, request: Request, route: string): Prom
   }
 
   if (route === "POST /api/gate") {
-    const input = await parseGate(request);
+    const gated = await review.gate();
 
-    if (input === null) return badRequest();
-    const version = await review.gate(input);
+    if (!gated.ok) return Response.json({ error: gated.error }, { status: 409 });
 
     if (review.listenerCount === 0) context.openBrowser();
 
-    return Response.json({ version });
+    return Response.json({ version: gated.version, kept: gated.kept });
   }
 
   if (route === "POST /api/decision") {
@@ -208,18 +187,6 @@ async function api(context: RouteContext, request: Request, route: string): Prom
     const result = await review.decide(decision);
 
     return Response.json({ workspace: result.workspace }, { status: result.ok ? 200 : 409 });
-  }
-
-  if (route === "POST /api/finalize") {
-    const raw = await parseFinalize(request);
-    const version = raw === null ? null : parseVersion(raw);
-
-    if (version?.ok !== true) return badRequest();
-    const result = await review.finalize(version.value);
-
-    return result.ok
-      ? Response.json({ workspace: result.workspace, plan: result.plan })
-      : Response.json({ workspace: result.workspace }, { status: 409 });
   }
 
   return new Response("not found", { status: 404 });

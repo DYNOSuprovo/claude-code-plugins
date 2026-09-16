@@ -8,6 +8,9 @@ import { parseProjectPath, parseVersion, parseWipDir } from "./paths.ts";
 
 export const REVIEW_DIR = ".review";
 
+/** The plan the model writes and `submit` sends for review, at the working directory's root. */
+export const PLAN_FILE = "plan.md";
+
 export function versionFile(version: Version): string {
   return `${REVIEW_DIR}/v${version}.md`;
 }
@@ -16,8 +19,8 @@ export function feedbackFile(version: Version): string {
   return `${REVIEW_DIR}/v${version}.feedback.md`;
 }
 
-/** What the directory says on its own; `approvedPending` and `finalizing` live in memory. */
-export type DiskWorkspace =
+/** The directory's listing overlaid with the memory; the two agree on every variant. */
+export type PlanWorkspace =
   | { readonly kind: "drafting"; readonly dir: WipDir }
   | {
       readonly kind: "inReview";
@@ -28,21 +31,9 @@ export type DiskWorkspace =
   | { readonly kind: "changesRequested"; readonly dir: WipDir; readonly version: Version }
   | { readonly kind: "approved"; readonly dir: FinalDir; readonly version: Version };
 
-export type PlanWorkspace =
-  | DiskWorkspace
-  | { readonly kind: "approvedPending"; readonly dir: WipDir; readonly version: Version }
-  | {
-      readonly kind: "finalizing";
-      readonly from: WipDir;
-      readonly to: FinalDir;
-      readonly version: Version;
-    };
-
-/** What the directory cannot say: the steps between Approve and the rename, and a rename that failed. */
+/** What the directory cannot say: a rename that failed, and the one that landed. */
 export type Memory =
   | { readonly kind: "none" }
-  | { readonly kind: "approvedPending"; readonly version: Version }
-  | { readonly kind: "finalizing"; readonly version: Version; readonly to: FinalDir }
   | { readonly kind: "finalizeError"; readonly version: Version; readonly error: string }
   | { readonly kind: "approved"; readonly version: Version; readonly dir: FinalDir };
 
@@ -50,7 +41,7 @@ export type Memory =
 export type Pending =
   | { readonly kind: "none" }
   | { readonly kind: "feedback"; readonly version: Version; readonly path: ProjectPath }
-  | { readonly kind: "approved"; readonly version: Version };
+  | { readonly kind: "approved"; readonly version: Version; readonly dir: FinalDir };
 
 function latestVersion(names: ReadonlySet<string>): Version | null {
   let latest: Version | null = null;
@@ -69,7 +60,7 @@ function latestVersion(names: ReadonlySet<string>): Version | null {
 export function workspaceFromListing(
   dir: WipDir | FinalDir,
   names: ReadonlySet<string>,
-): ParseResult<DiskWorkspace> {
+): ParseResult<PlanWorkspace> {
   const latest = latestVersion(names);
   const wip = parseWipDir(dir);
 
@@ -91,17 +82,9 @@ export function workspaceFromListing(
 }
 
 /** The workspace as the page and the hooks module see it: the directory, overlaid with the memory. */
-export function workspaceOf(disk: DiskWorkspace, memory: Memory, workdir: WipDir): PlanWorkspace {
+export function workspaceOf(disk: PlanWorkspace, memory: Memory): PlanWorkspace {
   if (memory.kind === "approved") {
     return { kind: "approved", dir: memory.dir, version: memory.version };
-  }
-
-  if (memory.kind === "finalizing") {
-    return { kind: "finalizing", from: workdir, to: memory.to, version: memory.version };
-  }
-
-  if (disk.kind === "inReview" && memory.kind === "approvedPending") {
-    return { kind: "approvedPending", dir: disk.dir, version: disk.version };
   }
 
   if (disk.kind === "inReview" && memory.kind === "finalizeError") {
@@ -121,8 +104,8 @@ export function pendingOf(workspace: PlanWorkspace): Pending {
     };
   }
 
-  if (workspace.kind === "approvedPending") {
-    return { kind: "approved", version: workspace.version };
+  if (workspace.kind === "approved") {
+    return { kind: "approved", version: workspace.version, dir: workspace.dir };
   }
 
   return { kind: "none" };

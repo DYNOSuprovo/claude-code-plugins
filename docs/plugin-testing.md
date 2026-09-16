@@ -237,6 +237,38 @@ environment of its own.
   must be spawned detached by a launcher that relays one line and exits.
   Nothing tells a detached process that the session ended: give it a
   heartbeat from `$.clock.every` and let it exit when the beat stops.
+- A plugin can hold a mode of its own instead of borrowing a native one. The
+  three pieces, measured together (`spike-results.md` facts 13 to 20): a
+  `tool.check` hook as the lock, a `$.tool.register` tool as the model's
+  explicit signal, a skill as the way out. Each is an engine event or a server
+  answer, so nothing rides on the model remembering to call something.
+- A `tool.check` deny from a module reaches the model as
+  `Permission to use <Tool> denied by plugin <name>: <reason>`, in `default`
+  mode and in `auto` mode alike; a hook's deny is not overridden by the mode.
+  Returning `next(e)` instead leaves the session's own mode to decide, so a
+  write a plugin means to allow still prompts in `default`: answer
+  `{ decision: "allow" }` for the paths the plugin owns.
+- `next(e)` there carries `rule` when a settings allow rule decided
+  (`{"decision":"allow","rule":"Bash(mkdir:*)"}`), and leaves it out when the
+  mode or the tool's own check did. That is how a plugin tells a user's
+  standing grant from the engine's own verdict.
+- `$.command.register({ name: "stop" })` is listed as `/stop`, with no plugin
+  prefix; only skills and markdown commands get `/<plugin>:<name>`. Its
+  `{ text }` prints under the plugin's name and starts no model turn. A way in
+  or out that must stay in the plugin's namespace is a skill instead, with
+  `disable-model-invocation: true` so only the person runs it, closed on the
+  plugin's own `skill.prompt` hook.
+- `claude plugin validate` prints each matcher's **source text**, not its
+  value: a matcher written `{ command: STOP.name }` is reported as
+  `command.run{command=STOP.name}`. Write matchers as string literals. Two
+  hooks on one event are two entries, each with its own matcher.
+- Saving a file under `--plugin-dir` prints `<plugin>: reloaded (N hooks: …)`
+  and raises `session.start` again for that plugin alone, so a mode kept in
+  `$.store` can be restored there. Registering the same tool or command name
+  again replaces it, with no warning and no duplicate in the typeahead.
+- A registered tool's result text is what the model acts on:
+  `Plan vN is under review in the browser. End your turn; the review arrives
+  as a prompt.` ended Opus 5's turn every time.
 
 ### What the contract and the docs say
 

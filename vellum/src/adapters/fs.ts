@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { rewriteLinks } from "../domain/links.ts";
 import type { FinalDir, ParseResult, ProjectPath, Slug, WipDir } from "../domain/paths.ts";
 import { dateOf, parseFinalDir } from "../domain/paths.ts";
-import type { DiskWorkspace } from "../domain/workspace.ts";
-import { REVIEW_DIR, workspaceFromListing } from "../domain/workspace.ts";
+import type { PlanWorkspace } from "../domain/workspace.ts";
+import { PLAN_FILE, REVIEW_DIR, workspaceFromListing } from "../domain/workspace.ts";
 
 /** The file system under the project root: every read and write of the review lives here. */
 
@@ -14,10 +14,17 @@ const TEXT_PROBE_BYTES = 8192;
 export async function readWorkspace(
   project: string,
   dir: WipDir | FinalDir,
-): Promise<ParseResult<DiskWorkspace>> {
+): Promise<ParseResult<PlanWorkspace>> {
   const names = await readdir(join(project, dir, REVIEW_DIR)).catch((): string[] => []);
 
   return workspaceFromListing(dir, new Set(names));
+}
+
+/** The plan the model writes at the working directory's root; `null` when it wrote none yet. */
+export async function readPlan(project: string, workdir: WipDir): Promise<string | null> {
+  const file = Bun.file(join(project, workdir, PLAN_FILE));
+
+  return (await file.exists()) ? await file.text() : null;
 }
 
 export function readText(project: string, path: ProjectPath): Promise<string> {
