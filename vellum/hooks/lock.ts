@@ -62,7 +62,7 @@ export function lockVerdict(
  * the failure landed before or after `next(e)`.
  */
 export function lockFailed(kind: HookFailure["kind"]): ResultOf["tool.check"] {
-  return { decision: "deny", reason: `vellum: the lock failed (${kind}); retry the call` };
+  return { decision: "deny", reason: `the lock failed (${kind}); retry the call` };
 }
 
 /**

@@ -175,7 +175,7 @@ describe("tool.check", () => {
     expect(await $.tool.check({ tool: "Edit", input: { file_path: `${CWD}/src/cli.ts` } })).toEqual(
       {
         decision: "deny",
-        reason: "vellum: the lock failed (throw); retry the call",
+        reason: "the lock failed (throw); retry the call",
       },
     );
   });

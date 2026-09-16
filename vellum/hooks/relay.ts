@@ -51,7 +51,7 @@ async function submitPrompt(host: Host, text: string): Promise<boolean> {
   const result = await host.submitPrompt(text);
 
   if (result.drop === undefined) return true;
-  host.log(`vellum: the review prompt was dropped: ${result.drop}`);
+  host.log(`the review prompt was dropped: ${result.drop}`);
 
   return false;
 }

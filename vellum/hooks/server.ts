@@ -86,9 +86,9 @@ export async function start(
       return info === null ? null : reach(host, info);
     }
 
-    host.log(`vellum: the review server did not start: ${run.stderr.trim()}`);
+    host.log(`the review server did not start: ${run.stderr.trim()}`);
   } catch (cause) {
-    host.log(`vellum: the review server did not start: ${String(cause)}`);
+    host.log(`the review server did not start: ${String(cause)}`);
   }
 
   return null;
