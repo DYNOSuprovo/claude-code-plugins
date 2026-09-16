@@ -162,19 +162,20 @@ export class Review {
   }
 
   /**
-   * The working directory's files in every state, the linked docs that live outside it after.
-   * Once a version exists the reviewer decides on it, so the working copy `plan.md` leaves the
-   * list; while drafting it is the draft the reviewer may comment on.
+   * The plan's directory's files in every state, the final directory's once approved, the
+   * linked docs that live outside it after. Once a version exists the reviewer decides on it,
+   * so the working copy `plan.md` leaves the list; while drafting it is the draft the reviewer
+   * may comment on.
    */
   public async view(): Promise<ReviewView> {
     const workspace = await this.workspace();
-    const listed = await listFiles(this.options.project, this.options.workdir);
+    const listed = await listFiles(this.options.project, workspace.dir);
 
     if (workspace.kind === "drafting") return { workspace, plan: null, docs: listed };
 
     const doc = this.planDoc(workspace.version, workspace.dir);
     const text = await this.planText(workspace.version, workspace.dir);
-    const draft = projectPath(`${this.options.workdir}${PLAN_FILE}`);
+    const draft = projectPath(`${workspace.dir}${PLAN_FILE}`);
     const files = listed.filter((file) => file.path !== draft);
     const linked = await this.linkedDocs(text, doc, workspace.dir, files);
 

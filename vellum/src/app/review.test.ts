@@ -129,6 +129,18 @@ describe("Review", () => {
     ]);
   });
 
+  test("view once approved lists the final directory's files, the plan's copy left out", async () => {
+    const { review, root } = await gated();
+    writeFileSync(join(root, WIP, "unlinked.md"), "# Unlinked\n");
+    await review.decide({ kind: "approve" });
+    const view = await review.view();
+    expect(view.plan?.doc).toBe(`${FINAL}.review/v1.md` as never);
+    expect(view.docs.map((doc) => doc.path)).toEqual([
+      `${FINAL}mockup.html` as never,
+      `${FINAL}unlinked.md` as never,
+    ]);
+  });
+
   test("view while drafting lists the renderable files, the draft plan included, without .review/", async () => {
     const { review, root } = setup();
     writeFileSync(join(root, WIP, ".review", "v0.feedback-1.md"), "# Drafting feedback 1\n");

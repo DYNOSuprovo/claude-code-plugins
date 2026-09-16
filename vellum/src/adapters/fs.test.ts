@@ -85,6 +85,11 @@ describe("listFiles", () => {
       modified: statSync(join(root, WIP, "mockup.html")).mtimeMs,
     });
   });
+
+  test("a directory that cannot be read is an error, not an empty list", async () => {
+    const root = mkdtempSync(join(tmpdir(), "vellum-nodir-"));
+    await expect(listFiles(root, wip())).rejects.toThrow("ENOENT");
+  });
 });
 
 describe("watchFiles", () => {
