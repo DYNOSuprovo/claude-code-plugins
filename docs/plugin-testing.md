@@ -393,7 +393,7 @@ the checker's: if it is enabled, stop and say so.
      --permission-mode default --model opus --debug-file <run>/s.debug.log
    ```
 
-5. Run the plugin's own full round. For `vellum`: `/vellum:plan`, a mockup, a
+5. Run the plugin's own full round. For `vellum`: `/vellum:start`, a mockup, a
    comment sent while the model still drafts, `plan.md` with a code block and
    a `mermaid` block, `mcp__vellum__submit`, a comment on the diagram and one
    on an element of the mockup, the revision and its `submit`, Approve. The

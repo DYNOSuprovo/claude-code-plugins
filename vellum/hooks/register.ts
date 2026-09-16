@@ -6,7 +6,7 @@ import { close, connect, restore, type Settle, type State } from "./mode.ts";
 import type { GateWire } from "./parse.ts";
 import { submitResult } from "./relay.ts";
 
-const PLAN_SKILL = "vellum:plan";
+const START_SKILL = "vellum:start";
 
 const STOP_SKILL = "vellum:stop";
 
@@ -20,7 +20,7 @@ const SUBMIT = {
 };
 
 const UNREACHABLE: GateWire = {
-  error: "the vellum review server is not answering; run /vellum:plan again",
+  error: "the vellum review server is not answering; run /vellum:start again",
 };
 
 /**
@@ -58,7 +58,7 @@ export const register: Register = (on) => {
     return next(e);
   });
 
-  on("skill.prompt", { skill: PLAN_SKILL }, async ($, e, next) => {
+  on("skill.prompt", { skill: START_SKILL }, async ($, e, next) => {
     state = await connect(hostOf($), state, settle);
     const result = await next(e);
 
@@ -66,7 +66,11 @@ export const register: Register = (on) => {
     // The page opens on the way in, so the reviewer can comment on the artifacts before v1.
     void state.live.server.open();
 
-    return { text: `${result.text}\n\nWorking directory: ${state.live.session.workdir}` };
+    // The reviewer reads the link here: `$.ui.log` does not show in the transcript, so the
+    // skill is the deterministic channel the module owns.
+    const lines = `Working directory: ${state.live.session.workdir}\nReview page: ${state.live.server.url}`;
+
+    return { text: `${result.text}\n\n${lines}` };
   });
 
   // The way out is a skill, not `$.command.register`: a registered command takes the global
@@ -107,7 +111,7 @@ export const register: Register = (on) => {
   }).catch((_, _e, next) => lockFailed(next.error.kind));
 
   on("tool.call", { tool: SUBMIT_TOOL }, async ($) => {
-    if (state.kind === "idle") return { deny: "no vellum planning in progress; run /vellum:plan" };
+    if (state.kind === "idle") return { deny: "no vellum planning in progress; run /vellum:start" };
     const gate = await state.live.server.gate().catch(() => UNREACHABLE);
 
     if (!("error" in gate)) $.ui.status(`plan v${gate.version} under review`);

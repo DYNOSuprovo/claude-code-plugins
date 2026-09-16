@@ -19,7 +19,7 @@ parse.ts     the boundary: unknown to types, and the only place a brand is minte
 ```
 
 The module holds the vellum mode, a mode of its own: the native plan mode never enters the
-loop. `/vellum:plan` enters it, Approve in the page or `/vellum:stop` leaves it.
+loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it.
 
 - `$` is spelled only in `register.ts`, and the other files take a `Host`. The loader
   refuses anything else: "$ is followed only into a function declared in this same file,

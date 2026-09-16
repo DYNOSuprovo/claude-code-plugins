@@ -2,7 +2,7 @@
 
 v1.1.0
 
-Write a plan the way its reviewer reads it, then review it in the browser. The skill orders the plan by what the reviewer is most likely to change and buries the mechanics; the hooks module holds a planning mode of its own: `/vellum:plan` enters it, Claude writes the plan and its mockups in a working directory, the reviewer comments them in a page or approves, and the answer reaches Claude as a prompt.
+Write a plan the way its reviewer reads it, then review it in the browser. The skill orders the plan by what the reviewer is most likely to change and buries the mechanics; the hooks module holds a planning mode of its own: `/vellum:start` enters it, Claude writes the plan and its mockups in a working directory, the reviewer comments them in a page or approves, and the answer reaches Claude as a prompt.
 
 Replaces `plan-frontiers` and `software-craft:thorough-plan`.
 
@@ -14,7 +14,7 @@ Replaces `plan-frontiers` and `software-craft:thorough-plan`.
 
 ## Skill
 
-`/vellum:plan` triggers itself when a design choice is open, a change crosses several modules or interfaces, or a refactor reshapes a contract. Three moves:
+`/vellum:start` triggers itself when a design choice is open, a change crosses several modules or interfaces, or a refactor reshapes a contract. Three moves:
 
 1. Size the ceremony. A one-sentence diff gets no plan. A fuzzy idea gets a throwaway first, after the few questions that pin down what it must show.
 2. Settle the open choices in question rounds, each question with a recommended answer. Only a question whose answer changes the architecture, an interface or the scope is asked; the rest becomes a recorded assumption. `assume` closes a round.
@@ -24,7 +24,7 @@ References, loaded one at a time: `program-design.md` (signatures, call-stack an
 
 ## Review in the browser
 
-`/vellum:plan` enters the mode. The hooks module creates `plans/<date>/wip-<sid8>/`, tells Claude to put the plan and its artifacts there, starts one review server per session on `127.0.0.1` (it exits on its own once the session's heartbeat stops) and opens the page. While the mode is live, `Edit`, `Write` and `NotebookEdit` under the project and outside the working directory are refused with a reason Claude reads; inside it they pass without a prompt; a path outside the project is no change to the codebase and follows the session's own permission flow, so the session's scratchpad passes there without a prompt; a lock that fails refuses the call rather than letting it past; every other tool follows the session's own permission flow, and a Bash command that a settings allow rule would approve asks instead. The native plan mode is untouched and stays available for a plan that needs no review page.
+`/vellum:start` enters the mode. The hooks module creates `plans/<date>/wip-<sid8>/`, tells Claude to put the plan and its artifacts there, starts one review server per session on `127.0.0.1` (it exits on its own once the session's heartbeat stops) and opens the page. While the mode is live, `Edit`, `Write` and `NotebookEdit` under the project and outside the working directory are refused with a reason Claude reads; inside it they pass without a prompt; a path outside the project is no change to the codebase and follows the session's own permission flow, so the session's scratchpad passes there without a prompt; a lock that fails refuses the call rather than letting it past; every other tool follows the session's own permission flow, and a Bash command that a settings allow rule would approve asks instead. The native plan mode is untouched and stays available for a plan that needs no review page.
 
 1. The page lists the working directory's renderable files from the start: Markdown, HTML in a sandboxed iframe, images. `[` and `]` move between documents; an artifact can sit beside the plan. A comment sent before the first version is written to `.review/v0.feedback-<n>.md` and reaches Claude as a prompt at its next idle: it revises the file and goes on.
 2. Claude writes `plan.md` at the directory's root and calls `mcp__vellum__submit`: the text is saved as `.review/vN.md`, the page shows it, Claude ends its turn. The same text keeps its version; after a feedback, a submit is a new version.
