@@ -27,12 +27,13 @@ export async function readWorkspace(
 }
 
 /**
- * Every file of the working directory the page can render, `.review/` left out, sorted. The
- * page lists these in all states, so the reviewer can comment before the first version.
+ * Every file of the plan's directory the page can render, `.review/` left out, sorted. The
+ * page lists these in all states, so the reviewer can comment before the first version. The
+ * server created the directory, so a listing that fails is an error to answer, not an empty list.
  */
-export async function listFiles(project: string, workdir: WipDir): Promise<DocRef[]> {
-  const root = join(project, workdir);
-  const entries = await readdir(root, { withFileTypes: true, recursive: true }).catch(() => []);
+export async function listFiles(project: string, dir: WipDir | FinalDir): Promise<DocRef[]> {
+  const root = join(project, dir);
+  const entries = await readdir(root, { withFileTypes: true, recursive: true });
   const docs: DocRef[] = [];
 
   for (const entry of entries) {
