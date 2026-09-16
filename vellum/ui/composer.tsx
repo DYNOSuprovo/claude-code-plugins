@@ -4,6 +4,8 @@ import type { Passage } from "../src/protocol.ts";
 
 export type ComposerProps = {
   readonly passages: readonly Passage[];
+  /** While a target is being added, the popover fades and lets the pointer through. */
+  readonly through: boolean;
   readonly top: number;
   readonly left: number;
   readonly onSubmit: (body: string) => void;
@@ -16,7 +18,7 @@ export function Composer(props: ComposerProps): preact.JSX.Element {
 
   return (
     <div
-      class="popover"
+      class={props.through ? "popover through" : "popover"}
       role="dialog"
       aria-label="New comment"
       style={{ top: `${props.top}px`, left: `${props.left}px` }}
