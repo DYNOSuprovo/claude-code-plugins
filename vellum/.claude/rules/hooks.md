@@ -35,7 +35,7 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
 - The way out is the skill `vellum:stop`, closed on its own `skill.prompt` hook, not
   `$.command.register`: a registered command takes the global namespace (`/stop`), and
   `disable-model-invocation` keeps this one the reviewer's to run. The hook appends its line
-  to `next(e).text`, as the plan skill appends the working directory.
+  to `next(e).text`, as the start skill appends the working directory and the page's link.
 - The lock is a `tool.check` hook with no matcher: while `live`, `Edit`, `Write` and
   `NotebookEdit` under the working directory are allowed outright, whatever the session's
   permission mode, and under the project and outside the working directory are denied with the
@@ -45,13 +45,21 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
   `lockVerdict` decides as a pure function, the hook applies.
 - The lock fails closed. A hook that throws or overruns "is skipped and what is beneath it
   runs in its place", which for a lock means the write goes through, so the registration
-  carries `.catch(($, e, next) => lockFailed(next.error.kind))`: a deny either way, whether the
-  failure landed before or after `next(e)`. `claude plugin validate` lists the hook but not its
-  handler, so nothing but this rule says the handler is there.
-- `/clear` and `/resume` close the mode, on `command.run` and after `next(e)`: a `/clear`
-  mints a new session id, so the old poll and heartbeat would run on until the next way in
-  noticed. It is the deterministic place, not a guess at what the session did. `/vellum:stop`
-  stays the reviewer's explicit way out, and `close` is a no-op when the mode is already idle.
+  carries a `.catch`: while `live`, `lockFailed` denies either way, whether the failure landed
+  before or after `next(e)`; while `idle` the hook only passed `next(e)` through, so the
+  handler replays it and a failure beneath is not vellum's deny. The lock reads
+  `$.session.cwd()` for `Edit`, `Write` and `NotebookEdit` alone, so a failure there never
+  denies a read. `claude plugin validate` lists the hook but not its handler, so nothing but
+  this rule says the handler is there.
+- `/clear` and `/resume` suspend the mode, on `command.run` and after `next(e)`: timers stopped,
+  status cleared, `session:<id>` kept, so a later `/resume` of that session finds its directory.
+  `/clear` always mints a new session id; `/resume` suspends only when the id changed, since an
+  Esc in the picker or the same session resumed leaves the conversation planning. It is the
+  deterministic place, not a guess at what the session did. `/vellum:stop` stays the reviewer's
+  explicit way out and drops the record; both are no-ops when the mode is already idle.
+- The poll closes the mode from inside a tick through `settle`, which `register.ts` honours
+  only while the state the tick entered is still the current one: an approval that lands
+  during a new way in leaves the new mode and its timers alone.
 - Every transition is an engine event or an answer from the server, never a reflex of the
   model. What is under review lives on the server's disk; the module keeps no copy of it.
 - Parse at the boundary, once: `tool_input`, `$.store` values and the server's JSON arrive as

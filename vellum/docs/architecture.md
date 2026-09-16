@@ -48,7 +48,7 @@ plain modules with no interface and no injection).
 
 | Part | Shape | Driving side | Driven side |
 |---|---|---|---|
-| Hooks module | ports and adapters, `Host` the port | the engine's events (`session.start`, `skill.prompt`, `tool.check`, `tool.call`) | the engine's `$` (clock, store, http, process, prompt, tool), answered by the kit in tests |
+| Hooks module | ports and adapters, `Host` the port | the engine's events (`session.start`, `skill.prompt`, `command.run`, `tool.check`, `tool.call`) | the engine's `$` (clock, store, http, process, prompt, tool), answered by the kit in tests |
 | Server | ports and adapters, domain / app / adapters | `adapters/http/routes.ts` | the file system through `adapters/fs.ts`, real in tests (a temp directory) |
 | Page | a store of signals and components | the reviewer's clicks | `/api`, the files route, SSE |
 | `plugins/<kind>/` | feature slices: one document kind = one folder with its server half and its UI half | | |
@@ -114,7 +114,7 @@ stateDiagram-v2
   live --> live: another session id, server restarted
   live --> idle: approval prompt entered
   live --> idle: skill.prompt vellum:stop
-  live --> idle: command.run clear | resume
+  live --> idle: command.run clear, or resume to another session
   idle --> idle: nothing starts
 ```
 

@@ -1,4 +1,4 @@
 {
-  "description": "Holds the vellum planning mode: locks writes outside the working directory, serves the submit tool, closes on the stop skill, and delivers the review as a prompt",
+  "description": "Holds the vellum planning mode: refuses writes under the project and outside the working directory, serves the submit tool, closes on the stop skill, suspends on /clear and /resume, and delivers the review as a prompt",
   "modules": ["./register.ts"]
 }
