@@ -171,12 +171,15 @@ function setHolding(next: boolean): void {
   draw();
 }
 
-function onKey(event: KeyboardEvent): void {
-  const next = event.ctrlKey || event.metaKey;
-
+/** The frame's own Ctrl state changed: the page mirrors it, so its Composer lets clicks through or not. */
+function hold(next: boolean): void {
   if (next === holding) return;
   setHolding(next);
   post({ type: "vellum:holding", holding: next });
+}
+
+function onKey(event: KeyboardEvent): void {
+  hold(event.ctrlKey || event.metaKey);
 }
 
 function onMove(event: PointerEvent): void {
@@ -237,7 +240,8 @@ document.addEventListener("keydown", onKey);
 
 document.addEventListener("keyup", onKey);
 
-window.addEventListener("blur", () => setHolding(false));
+// The keyup never arrives once the focus left: the page must hear the release from here.
+window.addEventListener("blur", () => hold(false));
 
 window.addEventListener("scroll", draw, true);
 
