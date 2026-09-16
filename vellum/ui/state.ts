@@ -39,11 +39,11 @@ export const docs = computed<readonly DocRef[]>(() => {
   return plan === null ? listed : [plan, ...listed];
 });
 
+/** The selected document, or, once a version or an approval took it off the list, the plan or the first one. */
 export const currentDoc = computed<DocRef | null>(() => {
   const list = docs.value;
-  const wanted = current.value ?? planDoc.value?.path ?? list[0]?.path;
 
-  return list.find((doc) => doc.path === wanted) ?? null;
+  return list.find((doc) => doc.path === current.value) ?? planDoc.value ?? list[0] ?? null;
 });
 
 /** Comments are taken on a plan under review and while drafting; every other state locks the page. */
