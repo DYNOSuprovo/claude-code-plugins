@@ -1,26 +1,45 @@
 import { useState } from "preact/hooks";
 
-import type { Annotation } from "../src/protocol.ts";
+import type { Anchor, Annotation } from "../src/protocol.ts";
 import { addAnnotation, annotations, currentDoc, locked, removeAnnotation } from "./state.ts";
+
+/** What the card says above the quotes: general, the lines of the passages, or the elements. */
+function whereOf(anchor: Anchor): string {
+  if (anchor.kind === "global") return "general";
+
+  if (anchor.kind === "text") {
+    return `lines ${anchor.passages.map((passage) => `${passage.lines[0]}–${passage.lines[1]}`).join(", ")}`;
+  }
+
+  return anchor.elements.map((element) => element.selector).join(", ");
+}
+
+function quotesOf(anchor: Anchor): readonly { readonly key: string; readonly text: string }[] {
+  if (anchor.kind === "global") return [];
+
+  if (anchor.kind === "text") {
+    return anchor.passages.map((passage) => ({
+      key: `${passage.lines[0]}-${passage.quote}`,
+      text: passage.quote,
+    }));
+  }
+
+  return anchor.elements.map((element) => ({ key: element.selector, text: element.text }));
+}
 
 function Card(props: { readonly annotation: Annotation }): preact.JSX.Element {
   const { annotation } = props;
-  const { anchor } = annotation;
 
   return (
     <div class="card">
       <div class="where">
-        {annotation.doc} ·{" "}
-        {anchor.kind === "global"
-          ? "general"
-          : `lines ${anchor.passages.map((passage) => `${passage.lines[0]}–${passage.lines[1]}`).join(", ")}`}
+        {annotation.doc} · {whereOf(annotation.anchor)}
       </div>
-      {anchor.kind === "text" &&
-        anchor.passages.map((passage) => (
-          <div class="quote" key={`${passage.lines[0]}-${passage.quote}`}>
-            “{passage.quote}”
-          </div>
-        ))}
+      {quotesOf(annotation.anchor).map((quote) => (
+        <div class="quote" key={quote.key}>
+          “{quote.text}”
+        </div>
+      ))}
       <div>{annotation.body}</div>
       {!locked.value && (
         <div class="actions">

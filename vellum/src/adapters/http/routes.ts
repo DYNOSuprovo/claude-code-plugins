@@ -3,7 +3,14 @@ import { join, sep } from "node:path";
 
 import type { Review } from "../../app/review.ts";
 import { parseProjectPath } from "../../domain/paths.ts";
-import type { Anchor, Annotation, Decision, Passage, PlanWorkspace } from "../../protocol.ts";
+import type {
+  Anchor,
+  Annotation,
+  Decision,
+  ElementRef,
+  Passage,
+  PlanWorkspace,
+} from "../../protocol.ts";
 
 export const TOKEN_HEADER = "x-vellum-token";
 
@@ -11,6 +18,8 @@ export type RouteContext = {
   readonly token: string;
   readonly project: string;
   readonly review: Review;
+  /** `plugins/html/frame.ts`, built; every HTML file served carries a tag that loads it. */
+  readonly frameScript: string;
   readonly openBrowser: () => void;
   readonly heartbeat: () => void;
 };
@@ -27,6 +36,16 @@ function parseAnchor(value: unknown): Anchor | null {
 
   if (value.kind === "global") return { kind: "global" };
 
+  if (value.kind === "element") {
+    if (!Array.isArray(value.elements)) return null;
+    const elements = value.elements.map(parseElementRef);
+
+    if (elements.some((element) => element === null)) return null;
+    const [head, ...tail] = elements.filter((element) => element !== null);
+
+    return head === undefined ? null : { kind: "element", elements: [head, ...tail] };
+  }
+
   if (value.kind !== "text" || !Array.isArray(value.passages)) return null;
   const parsed = value.passages.map(parsePassage);
 
@@ -34,6 +53,20 @@ function parseAnchor(value: unknown): Anchor | null {
   const [first, ...rest] = parsed.filter((passage) => passage !== null);
 
   return first === undefined ? null : { kind: "text", passages: [first, ...rest] };
+}
+
+function parseElementRef(value: unknown): ElementRef | null {
+  if (
+    !isRecord(value) ||
+    typeof value.selector !== "string" ||
+    value.selector === "" ||
+    typeof value.text !== "string" ||
+    typeof value.label !== "string"
+  ) {
+    return null;
+  }
+
+  return { selector: value.selector, text: value.text, label: value.label };
 }
 
 function parsePassage(value: unknown): Passage | null {
@@ -91,7 +124,14 @@ function badRequest(): Response {
   return new Response("bad request", { status: 400 });
 }
 
-async function serveFile(project: string, rawPath: string): Promise<Response> {
+/** The tag goes before the last `</body>`, or at the end of a document without one. */
+function withFrameScript(html: string, tag: string): string {
+  const at = html.lastIndexOf("</body>");
+
+  return at === -1 ? `${html}${tag}` : `${html.slice(0, at)}${tag}${html.slice(at)}`;
+}
+
+async function serveFile(project: string, rawPath: string, tag: string): Promise<Response> {
   let decoded: string;
 
   try {
@@ -113,13 +153,15 @@ async function serveFile(project: string, rawPath: string): Promise<Response> {
 
   if (!(await file.exists())) return new Response("not found", { status: 404 });
 
-  return new Response(file, {
-    headers: {
-      "content-type": file.type,
-      "content-security-policy": "sandbox allow-scripts",
-      "cache-control": "no-store",
-    },
-  });
+  const headers = {
+    "content-type": file.type,
+    "content-security-policy": "sandbox allow-scripts",
+    "cache-control": "no-store",
+  };
+
+  if (!file.type.startsWith("text/html")) return new Response(file, { headers });
+
+  return new Response(withFrameScript(await file.text(), tag), { headers });
 }
 
 function sse(review: Review): Response {
@@ -196,6 +238,8 @@ async function api(context: RouteContext, request: Request, route: string): Prom
 export function createHandler(context: RouteContext): Handler {
   const filesPrefix = `/t/${context.token}/files/`;
   const eventsPath = `/t/${context.token}/events`;
+  const framePath = `/t/${context.token}/frame.js`;
+  const frameTag = `<script src="${framePath}"></script>`;
 
   return async (request) => {
     const url = new URL(request.url);
@@ -209,8 +253,14 @@ export function createHandler(context: RouteContext): Handler {
       return await api(context, request, `${request.method} ${pathname}`);
     }
 
+    if (request.method === "GET" && pathname === framePath) {
+      return new Response(context.frameScript, {
+        headers: { "content-type": "text/javascript", "cache-control": "no-store" },
+      });
+    }
+
     if (request.method === "GET" && pathname.startsWith(filesPrefix)) {
-      return await serveFile(context.project, pathname.slice(filesPrefix.length));
+      return await serveFile(context.project, pathname.slice(filesPrefix.length), frameTag);
     }
 
     if (request.method === "GET" && pathname === eventsPath) return sse(context.review);

@@ -8,10 +8,18 @@ export type Passage = {
   readonly lines: readonly [number, number];
 };
 
-/** Where a comment points: the document as a whole, or one or more passages of it. */
+/** One element of a rendered document: where it sits, what it shows, what to call it. */
+export type ElementRef = {
+  readonly selector: string;
+  readonly text: string;
+  readonly label: string;
+};
+
+/** Where a comment points: the document as a whole, passages of it, or elements of it. */
 export type Anchor =
   | { readonly kind: "global" }
-  | { readonly kind: "text"; readonly passages: readonly [Passage, ...Passage[]] };
+  | { readonly kind: "text"; readonly passages: readonly [Passage, ...Passage[]] }
+  | { readonly kind: "element"; readonly elements: readonly [ElementRef, ...ElementRef[]] };
 
 export type Annotation = {
   readonly id: string;
@@ -24,8 +32,19 @@ function indent(body: string): string {
   return body.trim().split("\n").join("\n   ");
 }
 
-function place(passage: Passage): string {
-  return `lines ${passage.lines[0]}–${passage.lines[1]}: "${passage.quote}"`;
+/** Where each anchored place is, one string each; a global anchor has none. */
+function placesOf(anchor: Anchor): readonly string[] {
+  if (anchor.kind === "global") return [];
+
+  if (anchor.kind === "text") {
+    return anchor.passages.map(
+      (passage) => `lines ${passage.lines[0]}–${passage.lines[1]}: "${passage.quote}"`,
+    );
+  }
+
+  return anchor.elements.map(
+    (element) => `element \`${element.selector}\` (${element.label}): "${element.text}"`,
+  );
 }
 
 /** Which round the comments belong to: a version under review, or a batch sent while drafting. */
@@ -45,15 +64,15 @@ export function formatFeedback(
   heading: FeedbackHeading,
 ): string {
   const items = annotations.map((annotation, index) => {
-    const { anchor } = annotation;
     const doc = `\`${annotation.doc}\``;
+    const [first, ...rest] = placesOf(annotation.anchor);
 
     const where =
-      anchor.kind === "global"
+      first === undefined
         ? `${doc}, general`
-        : anchor.passages.length === 1
-          ? `${doc} ${place(anchor.passages[0])}`
-          : `${doc}\n${anchor.passages.map((passage) => `   - ${place(passage)}`).join("\n")}`;
+        : rest.length === 0
+          ? `${doc} ${first}`
+          : `${doc}\n${[first, ...rest].map((place) => `   - ${place}`).join("\n")}`;
 
     return `${index + 1}. ${where}\n   ${indent(annotation.body)}`;
   });

@@ -27,9 +27,21 @@ export const HEARTBEAT_GRACE_MS = 90_000;
 
 const WATCHDOG_PERIOD_MS = 5_000;
 
+/** `plugins/html/frame.ts` for the sandboxed mockups, built once: the page bundle never loads it. */
+async function buildFrameScript(): Promise<string> {
+  const entry = join(import.meta.dir, "../../../plugins/html/frame.ts");
+  const built = await Bun.build({ entrypoints: [entry], minify: true });
+  const output = built.outputs[0];
+
+  if (output === undefined) throw new Error(`no output building ${entry}`);
+
+  return await output.text();
+}
+
 export async function startServer(options: ServeOptions): Promise<Started> {
   await mkdir(join(options.project, options.workdir, REVIEW_DIR), { recursive: true });
   const token = crypto.randomUUID();
+  const frameScript = await buildFrameScript();
 
   const review = new Review({
     project: options.project,
@@ -44,6 +56,7 @@ export async function startServer(options: ServeOptions): Promise<Started> {
     token,
     project: options.project,
     review,
+    frameScript,
     openBrowser: () => openInBrowser(url),
     heartbeat: () => {
       lastHeartbeat = Date.now();

@@ -41,6 +41,8 @@ beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), "vellum-routes-"));
   mkdirSync(join(root, WIP), { recursive: true });
   writeFileSync(join(root, WIP, "mockup.html"), "<p>mock</p>");
+  writeFileSync(join(root, WIP, "page.html"), "<body><p>hi</p></body>\n");
+  writeFileSync(join(root, WIP, "notes.md"), "# notes\n");
   symlinkSync("/etc/hostname", join(root, WIP, "escape.txt"));
   const workdir = parseWipDir(WIP);
 
@@ -82,6 +84,28 @@ describe("routes", () => {
     expect(missing.status).toBe(404);
   });
 
+  test("an html file carries the frame script, a markdown file is untouched", async () => {
+    const tag = `<script src="/t/${started.token}/frame.js"></script>`;
+
+    const framed = await fetch(url(`/t/${started.token}/files/${WIP}page.html`));
+    expect(await framed.text()).toBe(`<body><p>hi</p>${tag}</body>\n`);
+
+    const noBody = await fetch(url(`/t/${started.token}/files/${WIP}mockup.html`));
+    expect(await noBody.text()).toBe(`<p>mock</p>${tag}`);
+
+    const markdown = await fetch(url(`/t/${started.token}/files/${WIP}notes.md`));
+    expect(await markdown.text()).toBe("# notes\n");
+  });
+
+  test("the frame script is served as JavaScript, and only under the token", async () => {
+    const script = await fetch(url(`/t/${started.token}/frame.js`));
+    expect(script.status).toBe(200);
+    expect(script.headers.get("content-type")).toStartWith("text/javascript");
+    expect(await script.text()).toContain("vellum:pick");
+
+    expect((await fetch(url("/t/wrong-token/frame.js"))).status).toBe(404);
+  });
+
   test("gate answers 409 until plan.md exists, then the version", async () => {
     const missing = await post("/api/gate");
     expect(missing.status).toBe(409);
@@ -104,6 +128,7 @@ describe("routes", () => {
       token: "t",
       project: root,
       review,
+      frameScript: "",
       openBrowser: () => (opened += 1),
       heartbeat: () => {},
     });
@@ -118,6 +143,41 @@ describe("routes", () => {
     review.subscribe(() => {});
     await open();
     expect(opened).toBe(1);
+  });
+
+  test("a decision carries an element anchor; an element without a selector is refused", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "vellum-element-"));
+    mkdirSync(join(dir, WIP, ".review"), { recursive: true });
+    const review = new Review({ project: dir, workdir: wipDir(), plugins: serverPlugins });
+
+    const handler = createHandler({
+      token: "t",
+      project: dir,
+      review,
+      frameScript: "",
+      openBrowser: () => {},
+      heartbeat: () => {},
+    });
+
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- an unparsed anchor is the case under test: the route's parser is what grants the type.
+    const decide = (anchor: unknown): Promise<Response> =>
+      handler(
+        new Request("http://x/api/decision", {
+          method: "POST",
+          headers: { [TOKEN_HEADER]: "t" },
+          body: JSON.stringify({
+            kind: "feedback",
+            annotations: [{ id: "a", doc: `${WIP}mockup.html`, anchor, body: "bigger" }],
+          }),
+        }),
+      );
+
+    const element = { selector: "#pricing > div.card", text: "Pro", label: "div.card" };
+    expect((await decide({ kind: "element", elements: [element] })).status).toBe(200);
+    expect(await Bun.file(join(dir, WIP, ".review/v0.feedback-1.md")).text()).toContain(
+      'element `#pricing > div.card` (div.card): "Pro"',
+    );
+    expect((await decide({ kind: "element", elements: [{ text: "Pro" }] })).status).toBe(400);
   });
 
   test("decision round-trips over HTTP, and approve finalizes at once", async () => {

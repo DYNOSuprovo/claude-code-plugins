@@ -17,6 +17,9 @@ export type InputMethod = "select" | "pinpoint";
 
 export const inputMethod = signal<InputMethod>("select");
 
+/** Ctrl or Meta held down: a pinpoint click adds to the set instead of replacing it. */
+export const holding = signal(false);
+
 export const error = signal<string | null>(null);
 
 export const planDoc = computed<DocRef | null>(() => {

@@ -61,6 +61,65 @@ test("formatFeedback lists the passages of a comment that points to several plac
   );
 });
 
+test("formatFeedback names the selector, the label and the text of an element anchor", () => {
+  const annotation: Annotation = {
+    id: "a",
+    doc: DOC,
+    anchor: {
+      kind: "element",
+      elements: [
+        {
+          selector: "section#pricing > div.card:nth-of-type(2)",
+          text: "Pro — $29/mo",
+          label: "div.card",
+        },
+      ],
+    },
+    body: "The price must stand out.",
+  };
+
+  expect(formatFeedback([annotation], { kind: "review", version: 2 as never })).toBe(
+    [
+      "# Plan review: changes requested (v2)",
+      "",
+      `1. \`${DOC}\` element \`section#pricing > div.card:nth-of-type(2)\` (div.card): "Pro — $29/mo"`,
+      "   The price must stand out.",
+      "",
+    ].join("\n"),
+  );
+});
+
+test("formatFeedback gives each element of a comment its own bullet", () => {
+  const annotation: Annotation = {
+    id: "a",
+    doc: DOC,
+    anchor: {
+      kind: "element",
+      elements: [
+        {
+          selector: "#pricing > div.card:nth-of-type(1)",
+          text: "Starter $9/mo",
+          label: "div.card",
+        },
+        { selector: "#pricing > div.card:nth-of-type(2)", text: "Pro $29/mo", label: "div.card" },
+      ],
+    },
+    body: "The price must stand out on both cards.",
+  };
+
+  expect(formatFeedback([annotation], { kind: "review", version: 2 as never })).toBe(
+    [
+      "# Plan review: changes requested (v2)",
+      "",
+      `1. \`${DOC}\``,
+      '   - element `#pricing > div.card:nth-of-type(1)` (div.card): "Starter $9/mo"',
+      '   - element `#pricing > div.card:nth-of-type(2)` (div.card): "Pro $29/mo"',
+      "   The price must stand out on both cards.",
+      "",
+    ].join("\n"),
+  );
+});
+
 test("a drafting batch is headed by its number, not by a version", () => {
   const annotation: Annotation = {
     id: "a",
