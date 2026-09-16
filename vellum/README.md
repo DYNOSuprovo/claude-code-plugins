@@ -1,15 +1,15 @@
 # vellum
 
-v1.0.0
+v1.1.0
 
-Write a plan the way its reviewer reads it, then review it in the browser. The skill orders the plan by what the reviewer is most likely to change and buries the mechanics; the hooks module opens the plan and its mockups in a page at `ExitPlanMode`, where the reviewer comments the text or approves, and hands the answer back to Claude as a prompt.
+Write a plan the way its reviewer reads it, then review it in the browser. The skill orders the plan by what the reviewer is most likely to change and buries the mechanics; the hooks module holds a planning mode of its own: `/vellum:plan` enters it, Claude writes the plan and its mockups in a working directory, the reviewer comments them in a page or approves, and the answer reaches Claude as a prompt.
 
 Replaces `plan-frontiers` and `software-craft:thorough-plan`.
 
 ## Requirements
 
-- Claude Code 2.1.272 or later, launched with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` until function hooks ship publicly. Without the flag the skill still runs, artifacts go to `plans/<date>/<slug>/`, and `ExitPlanMode` shows the terminal dialog as in plain plan mode.
-- `bun` on the PATH: the review server is a Bun script. Claude Code installs the plugin's dependencies (`preact`, `remark`) at its cache from `package.json` and `bun.lock`.
+- Claude Code with function hooks, launched with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` until they ship publicly. Without the flag the hooks module does not load: the skill still writes a plan under `plans/<date>/<slug>/`, but there is no mode, no page and no `mcp__vellum__submit` tool; use the native plan mode for that session.
+- `bun` on the PATH: the review server is a Bun script. Claude Code installs the plugin's dependencies (`preact`, `remark`, `rehype-highlight`, `mermaid`) at its cache from `package.json` and `bun.lock`.
 - A browser: Chromium or Firefox, recent. The page uses the CSS Custom Highlight API.
 
 ## Skill
@@ -18,22 +18,21 @@ Replaces `plan-frontiers` and `software-craft:thorough-plan`.
 
 1. Size the ceremony. A one-sentence diff gets no plan. A fuzzy idea gets a throwaway first, after the few questions that pin down what it must show.
 2. Settle the open choices in question rounds, each question with a recommended answer. Only a question whose answer changes the architecture, an interface or the scope is asked; the rest becomes a recorded assumption. `assume` closes a round.
-3. Enter plan mode and write the plan ordered by probability of revision: decisions, interfaces, files, slices with their check, out of scope, then mechanics.
+3. Write the plan to `plan.md`, ordered by probability of revision: decisions, interfaces, files, slices with their check, out of scope, then mechanics. Then call `mcp__vellum__submit`.
 
 References, loaded one at a time: `program-design.md` (signatures, call-stack and file trees, command interfaces, contracts), `slices.md` (vertical order, sizing, implementation notes), `visual.md` (when a mockup or a diagram earns its place).
 
 ## Review in the browser
 
-When the skill is invoked, the hooks module creates `plans/<date>/wip-<sid8>/` and tells Claude to put the plan's artifacts there. It starts one review server per session, on `127.0.0.1`, that exits 90 s after the session ends.
+`/vellum:plan` enters the mode. The hooks module creates `plans/<date>/wip-<sid8>/`, tells Claude to put the plan and its artifacts there, starts one review server per session on `127.0.0.1` (it exits on its own once the session's heartbeat stops) and opens the page. While the mode is live, `Edit`, `Write` and `NotebookEdit` outside the working directory are refused with a reason Claude reads; inside it they pass without a prompt; every other tool follows the session's own permission flow, and a Bash command that a settings allow rule would approve asks instead. The native plan mode is untouched and stays available for a plan that needs no review page.
 
-At `ExitPlanMode`:
+1. The page lists the working directory's renderable files from the start: Markdown, HTML in a sandboxed iframe, images. `[` and `]` move between documents; an artifact can sit beside the plan. A comment sent before the first version is written to `.review/v0.feedback-<n>.md` and reaches Claude as a prompt at its next idle: it revises the file and goes on.
+2. Claude writes `plan.md` at the directory's root and calls `mcp__vellum__submit`: the text is saved as `.review/vN.md`, the page shows it, Claude ends its turn. The same text keeps its version; after a feedback, a submit is a new version.
+3. Comments: select text in a Markdown document, or Pinpoint a block, a code block, a table cell or a diagram; in an HTML mockup, Pinpoint an element and Ctrl+click to add another. The box under the comments takes a general comment. Code blocks are coloured and Mermaid blocks are drawn.
+4. **Send feedback** writes `.review/vN.feedback.md` (path, then lines and quote or selector and text, then the comment, for each) and submits a prompt: Claude reads the file, revises, calls `mcp__vellum__submit` again, `vN+1` in the same turn.
+5. **Approve** renames the directory to the slug of the plan's title (`-2` on collision, `plan` without a title), rewrites the links in every text file of it, and submits a prompt naming the final directory. The mode closes and the lock lifts.
 
-1. The plan is saved as `.review/vN.md` in the working directory and the page opens (a connected tab is reused). The call is refused with "Plan vN is open for review in the browser"; Claude ends its turn.
-2. The page lists the plan and the files it links: Markdown, HTML in a sandboxed iframe, images. `[` and `]` move between documents; an artifact can sit beside the plan. Select text in the plan or a linked Markdown to comment it; the box under the comments takes a general comment.
-3. **Send feedback** writes `.review/vN.feedback.md` (path, lines, quote and comment for each) and submits a prompt: Claude reads the file, revises, calls `ExitPlanMode` again with `vN+1`.
-4. **Approve** submits a prompt asking Claude to call `ExitPlanMode` again. That call is allowed: the directory is renamed to the slug of the plan's title (`-2` on collision, the plan file's name without a title), links are rewritten in the plan and in every text file of the directory, and the session leaves plan mode.
-
-The status bar reads `vellum: plan vN under review` while the page waits. A subagent's `ExitPlanMode`, or one outside `/vellum:plan`, goes to the terminal dialog.
+`/vellum:stop` leaves the mode without a plan; the directory is kept. The status bar reads `vellum: planning`, then `vellum: plan vN under review`.
 
 ## Agent
 
@@ -42,13 +41,13 @@ The status bar reads `vellum: plan vN under review` while the page waits. A suba
 ## Layout
 
 ```
-hooks/register.ts     the hooks module: skill.prompt and classic.PermissionRequest on ExitPlanMode
+hooks/register.ts     the hooks module: the mode (session.start, skill.prompt, tool.check, tool.call on submit)
 src/cli.ts            `start` spawns `serve` detached; `serve` is the review server
 src/domain/           pure: paths, workspace states, decisions, the feedback text, slug, links
 src/app/review.ts     the use case: read, decide, apply
 src/adapters/         http (routes, the page bundled by Bun.serve from ui/index.html), fs, browser
 ui/                   the Preact page: document list, decision bar, comments, text anchoring
-plugins/              rendering plugins (markdown, html, image); a third party sends a PR
+plugins/              rendering plugins (markdown with highlight and Mermaid, html with its frame script, image); a third party sends a PR
 types/claude-code.d.ts the function hooks contract, written by `/plugin-types vellum/types`
 ```
 
