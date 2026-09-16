@@ -12,7 +12,11 @@ const ROOT = join(import.meta.dir, "..");
 function sources(dir: string): string[] {
   return readdirSync(join(ROOT, dir), { recursive: true, withFileTypes: true })
     .filter(
-      (entry) => entry.isFile() && /\.tsx?$/u.test(entry.name) && !entry.name.includes(".test."),
+      (entry) =>
+        entry.isFile() &&
+        /\.tsx?$/u.test(entry.name) &&
+        !entry.name.includes(".test.") &&
+        !entry.name.includes(".spec."),
     )
     .map((entry) => join(entry.parentPath, entry.name));
 }

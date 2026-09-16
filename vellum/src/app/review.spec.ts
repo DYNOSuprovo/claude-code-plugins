@@ -8,7 +8,7 @@ import { serverPlugins } from "../../plugins/server.ts";
 import { parseWipDir } from "../domain/paths.ts";
 import { Review } from "./review.ts";
 
-/** The applying side: the pure decisions are covered in `src/domain/review.test.ts`. */
+/** The applying side: the pure decisions are covered in `src/domain/review.spec.ts`. */
 
 const WIP = "plans/2026-09-15/wip-4c2a9d93/";
 

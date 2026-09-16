@@ -124,6 +124,12 @@ export const EXPECTED_COMMANDS: CommandPair[] = [
     ci: "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum",
     difference: null,
   },
+  {
+    gate: "test-vellum",
+    lefthook: "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test vellum",
+    ci: "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test vellum",
+    difference: null,
+  },
 ];
 
 /** Strip the launcher so `foo.ts` and `bun foo.ts` compare as the same gate. */

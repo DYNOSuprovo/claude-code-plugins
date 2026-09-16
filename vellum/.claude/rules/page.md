@@ -15,7 +15,7 @@ no build step, so what the page imports costs nothing at `cli start`.
 
 - `ui/` and `plugins/` never import `src/app` or `src/adapters`; they depend on
   `src/protocol.ts` only. `src/` never imports `ui/` beyond `index.html`. Held by
-  `src/boundaries.test.ts`.
+  `src/boundaries.spec.ts`.
 - Everything crossing `/api` is JSON and typed in `src/protocol.ts`; a new field lands there
   first.
 - The page draws in every state, `drafting` included: `review.docs` is the working directory's

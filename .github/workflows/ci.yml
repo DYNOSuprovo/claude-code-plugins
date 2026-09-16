@@ -65,6 +65,9 @@ jobs:
       - name: Validate the vellum hooks module
         run: CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum
 
+      - name: Test the vellum hooks module
+        run: CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test vellum
+
       # main is a delayed fast-forward pointer on dev's history: releases move it
       # with `git push origin dev:main`. Fail loudly if main ever leaves that line.
       - name: Guard main as a strict prefix of dev
