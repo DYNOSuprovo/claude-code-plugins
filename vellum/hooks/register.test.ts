@@ -425,6 +425,13 @@ describe("skill.prompt vellum:stop", () => {
     expect(h.status).toBeUndefined();
   });
 
+  test("keeps the relayed count, so a plan after a stop names no batch twice", async () => {
+    const h = await planning();
+    h.store.set(`relayed:${SESSION_ID}`, 2);
+    await stop(h);
+    expect(h.store.get(`relayed:${SESSION_ID}`)).toBe(2);
+  });
+
   test("outside the mode it says so and starts nothing", async () => {
     const h = harness(LIVE);
     expect(await stop(h)).toEqual({ text: "t\n\nno vellum planning in progress" });
