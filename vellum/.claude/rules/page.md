@@ -10,7 +10,8 @@ paths:
 signals, `*.tsx` the components, `anchoring.ts` and `highlights.ts` the text selection.
 `plugins/<kind>/` is one document kind: `server.ts` pure (candidates in, linked docs out) and
 `ui.tsx` the renderer, registered in `plugins/server.ts` and `plugins/index.ts`. One bundle
-is a browser's: `Bun.serve` builds it from `ui/index.html` at run time, no build step.
+is a browser's: `Bun.serve` builds it from `ui/index.html` at the first request for the page,
+no build step, so what the page imports costs nothing at `cli start`.
 
 - `ui/` and `plugins/` never import `src/app` or `src/adapters`; they depend on
   `src/protocol.ts` only. `src/` never imports `ui/` beyond `index.html`. Held by
@@ -26,6 +27,10 @@ is a browser's: `Bun.serve` builds it from `ui/index.html` at run time, no build
 - A kind folder may hold a helper beside `ui.tsx` (`markdown/pinpoint.ts`, `html/pick.ts`): its
   choice is a pure function tested with `bun test`, its DOM part a thin adapter. The page has no
   DOM implementation to test against.
+- A `mermaid` block reaches the page as an empty `figure` carrying its lines and its source, and
+  Mermaid fills it after the mount: the figure is the one place a renderer writes DOM that Preact
+  does not own, and `data-source` is both what a comment on it quotes and what a late render
+  checks before it writes. Its comment boxes the figure, since the SVG holds no text to highlight.
 - An HTML file is served with a sandboxed CSP, so the page cannot reach into it: `html/frame.ts`
   runs inside the mockup and owns the selection there, the page only sends it the method, the
   Ctrl state and the selectors already commented. `html/messages.ts` is the contract both sides

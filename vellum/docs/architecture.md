@@ -145,12 +145,14 @@ its own, in `$.store`: how many batches it already named, so a reload never repe
 | Feature | Pure part | Adapter part | Page part |
 |---|---|---|---|
 | Comment on an HTML element (#105) | `ElementRef`, the `Anchor` variant `element` and its line in the feedback text; `plugins/html/pick.ts` and `ui/selection.ts` | `frame.js` built once at `startServer` and injected into `text/html` responses, `postMessage` across the sandbox | the HTML renderer bridges the frame and opens the Composer over the iframe |
+| Coloured code and Mermaid (#105) | `rehype-highlight` in the `toTree` pipeline, so the hast keeps `data-lines`; the target kind `diagram` and `diagramPassage` in `plugins/markdown/pinpoint.ts` | | the Markdown renderer turns a `mermaid` block into a `figure`, draws it after the mount, and boxes it where text is highlighted |
 | Diff `vN-1` / `vN` (#106) | a line diff over two texts | `/api/review` returns the previous text | a toggle |
 | Direct edit (#106) | the edited text is the version to finalize | a field on the decision or on finalize | an editor |
 | Approval notes (#106) | `vN.notes.md` naming, the note in the prompt or the consent | | a textarea on Approve |
 | Drafts (#106) | | `draft.json` read and written | restore on load |
 
-Six of seven add a pure part first; `src/domain/` is where it goes.
+Five of the six add a pure part first; `src/domain/` is where a new domain concept goes, and
+a renderer's own choice stays beside its `ui.tsx`.
 
 ## The tree
 
@@ -181,7 +183,7 @@ vellum/
     selection.ts               what a Ctrl+click keeps, shared by both pinpoints
     anchoring.ts, highlights.ts
   plugins/<kind>/{server.ts,ui.tsx}   one folder per document kind
-  plugins/markdown/tree.ts            Markdown to hast, every element with its source lines
+  plugins/markdown/tree.ts            Markdown to hast, coloured, every element with its source lines
   plugins/markdown/pinpoint.ts        the target under the pointer: pure choice, thin DOM adapter
   plugins/html/pick.ts                selectors, targets and labels: pure choice
   plugins/html/frame.ts               the script inside the sandboxed mockup; messages.ts is its contract

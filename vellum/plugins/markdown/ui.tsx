@@ -1,4 +1,4 @@
-import type { RootContent } from "hast";
+import type { Element as HastElement, RootContent } from "hast";
 import type { ComponentChild } from "preact";
 import { h } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
@@ -12,7 +12,7 @@ import { paint } from "../../ui/highlights.ts";
 import { docs, holding, inputMethod, select } from "../../ui/state.ts";
 import type { RendererProps, UiPlugin } from "../index.ts";
 import type { Target } from "./pinpoint.ts";
-import { boxOf, rangeOf, targetAt, toggled } from "./pinpoint.ts";
+import { boxOf, diagramPassage, rangeOf, targetAt, toggled } from "./pinpoint.ts";
 import { toTree } from "./tree.ts";
 
 function attributeName(property: string): string {
@@ -46,11 +46,32 @@ function urlAttributes(value: string): readonly (readonly [string, string])[] {
     : [];
 }
 
+/** The source of a mermaid block, when `node` is the `pre` holding one. */
+function mermaidSource(node: HastElement): string | null {
+  const code = node.tagName === "pre" ? node.children[0] : undefined;
+  const classes = code?.type === "element" ? code.properties.className : undefined;
+
+  if (!Array.isArray(classes) || !classes.includes("language-mermaid")) return null;
+  const text = code?.type === "element" ? code.children[0] : undefined;
+
+  return text?.type === "text" ? text.value : null;
+}
+
 /** hast to preact, by hand: the JSX runtime adapters type against a global JSX namespace this page does not own. */
 function toVNode(node: RootContent, key: number): ComponentChild {
   if (node.type === "text") return node.value;
 
   if (node.type !== "element") return null;
+  const source = mermaidSource(node);
+
+  if (source !== null) {
+    return h("figure", {
+      key,
+      class: "mermaid",
+      "data-lines": String(node.properties.dataLines),
+      "data-source": source,
+    });
+  }
 
   const attributes = Object.entries(node.properties).flatMap(([name, value]) => {
     if (value === undefined || value === null || value === false) return [];
@@ -111,6 +132,48 @@ function draftUnder(
   return at === null ? null : { chosen, top: at.top + rect.height + 8, left: Math.max(8, at.left) };
 }
 
+/** Mermaid draws in the page after the mount; its bundle loads on the first diagram only. */
+async function drawDiagrams(root: HTMLElement): Promise<void> {
+  const figures = [...root.querySelectorAll<HTMLElement>("figure.mermaid")];
+
+  if (figures.length === 0) return;
+  const { default: mermaid } = await import("mermaid");
+
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: "strict",
+    theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default",
+  });
+
+  for (const [index, figure] of figures.entries()) {
+    const source = figure.dataset.source ?? "";
+
+    try {
+      const { svg } = await mermaid.render(`vellum-diagram-${index}`, source);
+
+      if (figure.dataset.source === source) figure.innerHTML = svg;
+    } catch (cause) {
+      const text = document.createElement("pre");
+      const error = document.createElement("p");
+      text.textContent = source;
+      error.className = "diagram-error";
+      error.textContent = String(cause);
+      figure.replaceChildren(text, error);
+    }
+  }
+}
+
+/** A diagram stands for its source block; every other target for the text it shows. */
+function passageOf(root: HTMLElement, target: Target): Passage | null {
+  if (target.kind === "diagram") {
+    return diagramPassage(target.element.dataset.lines, target.element.dataset.source);
+  }
+
+  const range = rangeOf(target.element);
+
+  return range === null ? null : passageFromRange(root, range);
+}
+
 /** A link to a listed document switches the view; any other link opens in a new tab. */
 function onClick(event: MouseEvent): void {
   if (inputMethod.value === "pinpoint") return;
@@ -154,20 +217,39 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
         return range === null ? [] : [range];
       });
 
-    paint(
-      "vellum-comment",
-      props.annotations.flatMap((annotation) =>
-        annotation.anchor.kind === "text" ? rangesOf(annotation.anchor.passages) : [],
-      ),
+    /** A diagram is boxed where text is highlighted: its passage quotes source the SVG lacks. */
+    const box = (name: string, passages: readonly Passage[]): void => {
+      const lines = new Set(passages.map((passage) => passage.lines.join("-")));
+
+      for (const figure of root.querySelectorAll<HTMLElement>("figure.mermaid")) {
+        figure.classList.toggle(name, lines.has(figure.dataset.lines ?? ""));
+      }
+    };
+
+    const commented = props.annotations.flatMap((annotation) =>
+      annotation.anchor.kind === "text" ? annotation.anchor.passages : [],
     );
 
-    paint("vellum-draft", rangesOf((draft?.chosen ?? []).map((one) => one.passage)));
+    const picked = (draft?.chosen ?? []).map((one) => one.passage);
+
+    paint("vellum-comment", rangesOf(commented));
+    paint("vellum-draft", rangesOf(picked));
+    box("commented", commented);
+    box("picked", picked);
 
     return () => {
       paint("vellum-comment", []);
       paint("vellum-draft", []);
+      box("commented", []);
+      box("picked", []);
     };
   }, [props.annotations, draft, text]);
+
+  useEffect(() => {
+    const root = container.current;
+
+    if (root !== null) void drawDiagrams(root);
+  }, [content]);
 
   const onMouseUp = (): void => {
     const root = container.current;
@@ -212,8 +294,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     }
 
     const target = targetAt(root, event.target, event.clientX, event.clientY);
-    const range = target === null ? null : rangeOf(target.element);
-    const passage = range === null ? null : passageFromRange(root, range);
+    const passage = target === null ? null : passageOf(root, target);
 
     if (target === null || passage === null) return;
     const one = { element: target.element, passage };

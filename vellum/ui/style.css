@@ -11,6 +11,24 @@
   --warn: #8a5a00;
   --ui: "Archivo", "Helvetica Neue", Arial, sans-serif;
   --prose: "Source Serif 4", Georgia, serif;
+  --code-surface: #eef1ec;
+  --code-ink: #18222d;
+  --code-comment: #6c7a6b;
+  --code-keyword: #8a3a7a;
+  --code-string: #2e7d4f;
+  --code-number: #8a5a00;
+  --code-name: #1f5f8b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --code-surface: #1b2430;
+    --code-ink: #dde4ec;
+    --code-comment: #8d99a8;
+    --code-keyword: #e6a3d4;
+    --code-string: #93d8a8;
+    --code-number: #e8c07c;
+    --code-name: #8fc7ee;
+  }
 }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
@@ -77,8 +95,20 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: #fff;
 .plan ul, .plan ol { padding-left: 1.2em; }
 .plan a { color: var(--ink); text-decoration-color: var(--redline); text-underline-offset: 3px; cursor: pointer; }
 .plan code { font-size: 0.86em; background: #eef1ec; padding: 1px 4px; border-radius: 3px; font-family: ui-monospace, Menlo, monospace; }
-.plan pre { background: #eef1ec; padding: 10px 12px; border-radius: 6px; overflow: auto; font-size: 0.86em; }
+.plan pre { background: var(--code-surface); color: var(--code-ink); padding: 10px 12px; border-radius: 6px; overflow: auto; font-size: 0.86em; }
 .plan pre code { background: none; padding: 0; }
+.plan .hljs-comment, .plan .hljs-quote { color: var(--code-comment); font-style: italic; }
+.plan .hljs-keyword, .plan .hljs-literal, .plan .hljs-type, .plan .hljs-meta { color: var(--code-keyword); }
+.plan .hljs-string, .plan .hljs-attr, .plan .hljs-symbol { color: var(--code-string); }
+.plan .hljs-number, .plan .hljs-built_in { color: var(--code-number); }
+.plan .hljs-title, .plan .hljs-name, .plan .hljs-section, .plan .hljs-property { color: var(--code-name); }
+.plan .hljs-addition { color: var(--code-string); }
+.plan .hljs-deletion { color: var(--redline); }
+.plan figure.mermaid { margin: 10px 0 14px; padding: 12px; background: var(--code-surface); border-radius: 6px; overflow: auto; }
+.plan figure.mermaid svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+.plan figure.mermaid.commented { outline: 2px solid var(--marker); }
+.plan figure.mermaid.picked { outline: 2px dashed var(--redline); }
+.plan .diagram-error { color: var(--redline); font: 0.82rem var(--ui); margin: 8px 0 0; }
 .plan table { border-collapse: collapse; font: 0.875rem/1.25rem var(--ui); margin: 6px 0 12px; min-width: 100%; }
 .plan th, .plan td { border: 1px solid var(--rule); padding: 8px 12px; text-align: left; }
 .plan blockquote { border-left: 3px solid var(--rule); margin: 0 0 8px; padding-left: 12px; color: var(--graphite); }
