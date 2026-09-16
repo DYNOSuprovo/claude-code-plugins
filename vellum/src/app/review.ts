@@ -135,12 +135,17 @@ export class Review {
     return { ok: true, workspace: await this.notify() };
   }
 
-  /** Approve is the whole finalization: links rewritten, directory renamed, nothing pending after. */
+  /**
+   * Approve is the whole finalization: the approved text back in `plan.md`, since Claude may
+   * have revised the working copy past it, links rewritten, directory renamed, nothing pending after.
+   */
   private async approve(version: Version): Promise<DecisionResult> {
     const { project, workdir } = this.options;
-    const slug = slugFor(await this.planText(version));
+    const approved = await this.planText(version);
+    const slug = slugFor(approved);
 
     if (!slug.ok) return await this.failApprove(version, slug.error);
+    await writeText(project, projectPath(`${workdir}${PLAN_FILE}`), approved);
     const renamed = await renameWorkspace(project, workdir, slug.value);
 
     if (!renamed.ok) return await this.failApprove(version, renamed.error);
