@@ -129,12 +129,28 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const [text, setText] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [wash, setWash] = useState<Wash | null>(null);
+  const [holding, setHolding] = useState(false);
   const container = useRef<HTMLElement>(null);
 
   const content = useMemo(
     () => (text === null ? null : toTree(text).children.map(toVNode)),
     [text],
   );
+
+  useEffect(() => {
+    const held = (event: KeyboardEvent): void => setHolding(event.ctrlKey || event.metaKey);
+    const release = (): void => setHolding(false);
+
+    document.addEventListener("keydown", held);
+    document.addEventListener("keyup", held);
+    window.addEventListener("blur", release);
+
+    return () => {
+      document.removeEventListener("keydown", held);
+      document.removeEventListener("keyup", held);
+      window.removeEventListener("blur", release);
+    };
+  }, []);
 
   useEffect(() => {
     void fetch(fileUrl(props.doc.path))
@@ -224,11 +240,12 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   };
 
   if (content === null) return <div class="waiting">Loading…</div>;
+  const adding = holding && draft !== null && inputMethod.value === "pinpoint";
 
   return (
     <>
       <article
-        class="plan"
+        class={adding ? "plan adding" : "plan"}
         ref={container}
         onMouseUp={onMouseUp}
         onClick={onClick}
@@ -254,6 +271,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       {draft !== null && (
         <Composer
           passages={draft.chosen.map((one) => one.passage)}
+          through={adding}
           top={draft.top}
           left={draft.left}
           onCancel={() => setDraft(null)}
