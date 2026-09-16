@@ -171,8 +171,6 @@ export async function connect(host: Host, state: State, settle: Settle): Promise
   const live = (await restored(host, id)) ?? (await started(host, id, project, workdir));
 
   if (live === null) return { kind: "idle" };
-  const entered = await enter(host, state, live, settle);
-  host.log(`planning in ${live.session.workdir}, ${live.server.url}`);
 
-  return entered;
+  return enter(host, state, live, settle);
 }
