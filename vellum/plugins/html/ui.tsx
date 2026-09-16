@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import type { ElementRef } from "../../src/protocol.ts";
-import { fileUrl } from "../../ui/api.ts";
+import { docUrl } from "../../ui/api.ts";
 import { Composer } from "../../ui/composer.tsx";
 import { holding, inputMethod } from "../../ui/state.ts";
 import type { RendererProps, UiPlugin } from "../index.ts";
@@ -89,7 +89,7 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
         title={props.doc.path}
         ref={frame}
         sandbox="allow-scripts"
-        src={fileUrl(props.doc.path)}
+        src={docUrl(props.doc)}
         onLoad={() => {
           post({ type: "vellum:method", method });
           post({ type: "vellum:comments", selectors });

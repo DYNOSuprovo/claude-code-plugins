@@ -25,9 +25,10 @@ export const error = signal<string | null>(null);
 export const planDoc = computed<DocRef | null>(() => {
   const plan = review.value?.plan;
 
+  // A version's file never changes: its path is the whole key.
   return plan === null || plan === undefined
     ? null
-    : { path: plan.doc, mediaType: "text/markdown" };
+    : { path: plan.doc, mediaType: "text/markdown", modified: 0 };
 });
 
 export const docs = computed<readonly DocRef[]>(() => {

@@ -108,6 +108,18 @@ describe("routes", () => {
     expect((await fetch(url("/t/wrong-token/frame.js"))).status).toBe(404);
   });
 
+  test("a file written under the working directory reaches the event stream", async () => {
+    const events = await fetch(url(`/t/${started.token}/events`));
+    const reader = events.body?.getReader();
+
+    if (reader === undefined) throw new Error("no event stream");
+    const next = async (): Promise<string> => new TextDecoder().decode((await reader.read()).value);
+    expect(await next()).toContain('"type":"workspace"');
+    writeFileSync(join(root, WIP, "late.md"), "# late\n");
+    expect(await next()).toContain('"type":"workspace"');
+    await reader.cancel();
+  });
+
   test("gate answers 409 until plan.md exists, then the version", async () => {
     const missing = await post("/api/gate");
     expect(missing.status).toBe(409);

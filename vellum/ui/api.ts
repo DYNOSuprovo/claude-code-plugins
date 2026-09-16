@@ -1,5 +1,5 @@
 import type { ProjectPath } from "../src/domain/paths.ts";
-import type { Decision, ReviewView } from "../src/protocol.ts";
+import type { Decision, DocRef, ReviewView } from "../src/protocol.ts";
 
 /** The page's side of the HTTP contract: the token from the URL, the routes, the event stream. */
 
@@ -9,6 +9,11 @@ const base = `/t/${token}`;
 
 export function fileUrl(path: ProjectPath): string {
   return `${base}/files/${path}`;
+}
+
+/** The document's URL, changed with its mtime so a renderer reloads what Claude rewrote. */
+export function docUrl(doc: DocRef): string {
+  return `${fileUrl(doc.path)}?v=${doc.modified}`;
 }
 
 function request(path: string, init?: RequestInit): Promise<Response> {

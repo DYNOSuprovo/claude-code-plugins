@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { parseProjectPath } from "../../src/domain/paths.ts";
 import type { Passage } from "../../src/protocol.ts";
 import { passageFromRange, passageFromSelection, rangeFor } from "../../ui/anchoring.ts";
-import { fileUrl } from "../../ui/api.ts";
+import { docUrl, fileUrl } from "../../ui/api.ts";
 import { Composer } from "../../ui/composer.tsx";
 import { paint } from "../../ui/highlights.ts";
 import { docs, holding, inputMethod, select } from "../../ui/state.ts";
@@ -200,10 +200,10 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   );
 
   useEffect(() => {
-    void fetch(fileUrl(props.doc.path))
+    void fetch(docUrl(props.doc))
       .then((response) => response.text())
       .then(setText);
-  }, [props.doc.path]);
+  }, [props.doc.path, props.doc.modified]);
 
   useEffect(() => {
     const root = container.current;

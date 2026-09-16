@@ -6,14 +6,16 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { WipDir } from "../domain/paths.ts";
 import { parseWipDir } from "../domain/paths.ts";
 import { slugFromTitle } from "../domain/slug.ts";
-import { finalize, readWorkspace } from "./fs.ts";
+import { finalize, listFiles, readWorkspace, watchFiles } from "./fs.ts";
 
 const WIP = "plans/2026-09-15/wip-4c2a9d93/";
 
@@ -29,13 +31,36 @@ function fixture(): string {
   return root;
 }
 
-function run(root: string): ReturnType<typeof finalize> {
+function wip(): WipDir {
   const from = parseWipDir(WIP);
+
+  if (!from.ok) throw new Error(from.error);
+
+  return from.value;
+}
+
+function run(root: string): ReturnType<typeof finalize> {
   const slug = slugFromTitle("# Notification");
 
-  if (!from.ok || !slug.ok) throw new Error("fixture");
+  if (!slug.ok) throw new Error(slug.error);
 
-  return finalize(root, from.value, slug.value);
+  return finalize(root, wip(), slug.value);
+}
+
+/** The changes a watcher reported after `write` ran, once its writes settled. */
+async function watched(root: string, write: () => void): Promise<number> {
+  let changes = 0;
+
+  const unwatch = watchFiles(root, wip(), () => {
+    changes += 1;
+  });
+
+  await Bun.sleep(50);
+  write();
+  await Bun.sleep(300);
+  unwatch();
+
+  return changes;
 }
 
 describe("readWorkspace", () => {
@@ -47,6 +72,41 @@ describe("readWorkspace", () => {
     expect(await readWorkspace(root, from.value)).toMatchObject({ value: { kind: "inReview" } });
     const empty = mkdtempSync(join(tmpdir(), "vellum-empty-"));
     expect(await readWorkspace(empty, from.value)).toMatchObject({ value: { kind: "drafting" } });
+  });
+});
+
+describe("listFiles", () => {
+  test("each file carries its mtime, so the page sees a rewrite", async () => {
+    const root = fixture();
+    const [mockup] = await listFiles(root, wip());
+    expect(mockup).toEqual({
+      path: `${WIP}mockup.html` as never,
+      mediaType: "text/html",
+      modified: statSync(join(root, WIP, "mockup.html")).mtimeMs,
+    });
+  });
+});
+
+describe("watchFiles", () => {
+  test("a write under the working directory, in a new subdirectory too, is one change", async () => {
+    const root = fixture();
+
+    const changes = await watched(root, () => {
+      mkdirSync(join(root, WIP, "sub"));
+      writeFileSync(join(root, WIP, "sub", "notes.md"), "# notes\n");
+    });
+
+    expect(changes).toBe(1);
+  });
+
+  test("a write under .review/ is the server's own and reports nothing", async () => {
+    const root = fixture();
+
+    const changes = await watched(root, () => {
+      writeFileSync(join(root, WIP, ".review/v1.feedback.md"), "# Feedback\n");
+    });
+
+    expect(changes).toBe(0);
   });
 });
 
