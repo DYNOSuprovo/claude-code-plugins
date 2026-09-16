@@ -331,8 +331,14 @@ describe("skill.prompt", () => {
 
   test("restarts the server when the stored one is dead", async () => {
     const h = harness(LIVE);
-    h.store.set(`session:${SESSION_ID}`, { id: SESSION_ID, server: { ...SERVER, port: 1 } });
+    h.store.set(`session:${SESSION_ID}`, {
+      id: SESSION_ID,
+      server: { ...SERVER, port: 1 },
+      project: CWD,
+      workdir: WORKDIR,
+    });
     await invokeSkill(h);
+    expect(h.calls[0]).toBe("/api/review");
     expect(h.runs).toHaveLength(1);
     expect(h.store.get(`session:${SESSION_ID}`)).toMatchObject({ server: SERVER });
   });
