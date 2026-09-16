@@ -1,7 +1,7 @@
 import {
-  exists,
   finalize as renameWorkspace,
   listFiles,
+  modifiedAt,
   readPlan,
   readText,
   readWorkspace,
@@ -75,7 +75,8 @@ export class Review {
     return readText(this.options.project, this.planDoc(version, dir));
   }
 
-  private async notify(): Promise<PlanWorkspace> {
+  /** Tells every listener the workspace again; the server calls it when a file changes under it. */
+  public async notify(): Promise<PlanWorkspace> {
     const workspace = await this.workspace();
 
     for (const listener of this.listeners) listener(workspace);
@@ -189,10 +190,11 @@ export class Review {
     for (const plugin of this.options.plugins) {
       for (const doc of plugin.linkedDocs?.(plan, roots) ?? []) {
         if (seen.has(doc.path)) continue;
+        const modified = await modifiedAt(project, doc.path);
 
-        if (!(await exists(project, doc.path))) continue;
+        if (modified === null) continue;
         seen.add(doc.path);
-        docs.push(doc);
+        docs.push({ ...doc, modified });
       }
     }
 

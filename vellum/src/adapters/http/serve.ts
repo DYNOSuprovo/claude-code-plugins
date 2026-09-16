@@ -7,6 +7,7 @@ import { Review } from "../../app/review.ts";
 import type { WipDir } from "../../domain/paths.ts";
 import { REVIEW_DIR } from "../../domain/workspace.ts";
 import { openInBrowser } from "../browser.ts";
+import { watchFiles } from "../fs.ts";
 import { createHandler } from "./routes.ts";
 
 export type ServeOptions = {
@@ -53,6 +54,13 @@ export async function startServer(options: ServeOptions): Promise<Started> {
     plugins: serverPlugins,
   });
 
+  // The page hears of every file Claude writes; the approval renames the directory, and there the watch ends.
+  const unwatch = watchFiles(options.project, options.workdir, () => void review.notify());
+
+  review.subscribe((workspace) => {
+    if (workspace.kind === "approved") unwatch();
+  });
+
   let lastHeartbeat = Date.now();
   let url = "";
 
@@ -87,6 +95,7 @@ export async function startServer(options: ServeOptions): Promise<Started> {
     token,
     url,
     stop: () => {
+      unwatch();
       clearInterval(watchdog);
       server.stop(true);
     },

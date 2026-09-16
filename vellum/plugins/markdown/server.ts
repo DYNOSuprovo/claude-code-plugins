@@ -1,7 +1,7 @@
 import { isAbsolute, join, normalize, relative } from "node:path";
 
 import { parseProjectPath } from "../../src/domain/paths.ts";
-import type { DocRef, LinkRoots, ServerPlugin } from "../../src/protocol.ts";
+import type { DocLink, LinkRoots, ServerPlugin } from "../../src/protocol.ts";
 import { mediaTypeOf } from "../../src/protocol.ts";
 
 /** A Markdown link target, an `<img src>`, or a path in backticks: the skill lists artifacts by path. */
@@ -20,8 +20,8 @@ function decoded(target: string): string {
 }
 
 /** Every local link of the plan, resolved from the project root and from the plan's directory. */
-export function linkedDocs(plan: string, roots: LinkRoots): readonly DocRef[] {
-  const docs: DocRef[] = [];
+export function linkedDocs(plan: string, roots: LinkRoots): readonly DocLink[] {
+  const docs: DocLink[] = [];
 
   for (const match of plan.matchAll(LINK_TARGETS)) {
     const target = decoded(match[1] ?? "").split(/[#?]/u)[0] ?? "";

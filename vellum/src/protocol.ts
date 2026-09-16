@@ -15,7 +15,11 @@ export type { Pending, PlanWorkspace } from "./domain/workspace.ts";
 
 export type MediaType = "text/markdown" | "text/html" | `image/${string}`;
 
-export type DocRef = { readonly path: ProjectPath; readonly mediaType: MediaType };
+/** A document a plugin proposes; the server checks it exists before it becomes a `DocRef`. */
+export type DocLink = { readonly path: ProjectPath; readonly mediaType: MediaType };
+
+/** `modified` is the file's mtime in ms: the page refetches a document when it changes. */
+export type DocRef = DocLink & { readonly modified: number };
 
 export type ReviewView = {
   readonly workspace: PlanWorkspace;
@@ -28,7 +32,7 @@ export type LinkRoots = { readonly project: string; readonly planDir: string };
 /** A server plugin proposes documents linked from the plan; the server keeps those that exist. */
 export type ServerPlugin = {
   readonly id: string;
-  readonly linkedDocs?: (plan: string, roots: LinkRoots) => readonly DocRef[];
+  readonly linkedDocs?: (plan: string, roots: LinkRoots) => readonly DocLink[];
 };
 
 export function mediaTypeOf(path: string): MediaType | null {

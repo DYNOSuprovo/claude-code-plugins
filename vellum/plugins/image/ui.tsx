@@ -1,10 +1,10 @@
-import { fileUrl } from "../../ui/api.ts";
+import { docUrl } from "../../ui/api.ts";
 import type { RendererProps, UiPlugin } from "../index.ts";
 
 function ImageDoc(props: RendererProps): preact.JSX.Element {
   return (
     <div class="image">
-      <img alt={props.doc.path} src={fileUrl(props.doc.path)} />
+      <img alt={props.doc.path} src={docUrl(props.doc)} />
     </div>
   );
 }

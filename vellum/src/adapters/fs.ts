@@ -1,3 +1,4 @@
+import { watch } from "node:fs";
 import { readdir, rename, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
@@ -12,6 +13,9 @@ import { mediaTypeOf } from "../protocol.ts";
 /** The file system under the project root: every read and write of the review lives here. */
 
 const TEXT_PROBE_BYTES = 8192;
+
+/** A write is several events; the page hears of it once they stop. */
+const WATCH_SETTLE_MS = 100;
 
 export async function readWorkspace(
   project: string,
@@ -33,13 +37,35 @@ export async function listFiles(project: string, workdir: WipDir): Promise<DocRe
 
   for (const entry of entries) {
     if (!entry.isFile()) continue;
-    const path = relative(project, join(entry.parentPath, entry.name));
+    const file = join(entry.parentPath, entry.name);
+    const path = relative(project, file);
     const mediaType = path.split("/").includes(REVIEW_DIR) ? null : mediaTypeOf(path);
 
-    if (mediaType !== null) docs.push({ path: projectPath(path), mediaType });
+    if (mediaType === null) continue;
+    docs.push({ path: projectPath(path), mediaType, modified: (await stat(file)).mtimeMs });
   }
 
   return docs.toSorted((a, b) => a.path.localeCompare(b.path));
+}
+
+/**
+ * Calls `onChange` once a write under the working directory settles, so the page learns of
+ * a file Claude wrote; `.review/` is the server's own and already announced.
+ */
+export function watchFiles(project: string, workdir: WipDir, onChange: () => void): () => void {
+  let settle: ReturnType<typeof setTimeout> | null = null;
+
+  const watcher = watch(join(project, workdir), { recursive: true }, (_event, name) => {
+    if (name?.split("/")[0] === REVIEW_DIR) return;
+
+    if (settle !== null) clearTimeout(settle);
+    settle = setTimeout(onChange, WATCH_SETTLE_MS);
+  });
+
+  return () => {
+    if (settle !== null) clearTimeout(settle);
+    watcher.close();
+  };
 }
 
 /** The plan the model writes at the working directory's root; `null` when it wrote none yet. */
@@ -57,8 +83,11 @@ export async function writeText(project: string, path: ProjectPath, text: string
   await Bun.write(join(project, path), text);
 }
 
-export function exists(project: string, path: ProjectPath): Promise<boolean> {
-  return Bun.file(join(project, path)).exists();
+/** The file's mtime in ms, `null` when there is no such file. */
+export async function modifiedAt(project: string, path: ProjectPath): Promise<number | null> {
+  const found = await stat(join(project, path)).catch(() => null);
+
+  return found?.isFile() === true ? found.mtimeMs : null;
 }
 
 async function isDir(project: string, path: string): Promise<boolean> {

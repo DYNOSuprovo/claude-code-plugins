@@ -116,7 +116,9 @@ describe("Review", () => {
     const view = await review.view();
     expect(view.workspace.kind).toBe("inReview");
     expect(view.plan?.doc).toBe(`${WIP}.review/v1.md` as never);
-    expect(view.docs).toEqual([{ path: `${WIP}mockup.html` as never, mediaType: "text/html" }]);
+    expect(view.docs).toEqual([
+      { path: `${WIP}mockup.html` as never, mediaType: "text/html", modified: expect.any(Number) },
+    ]);
   });
 
   test("view while drafting lists the renderable files, the draft plan included, without .review/", async () => {

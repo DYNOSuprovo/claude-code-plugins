@@ -22,6 +22,9 @@ no build step, so what the page imports costs nothing at `cli start`.
   renderable files, the plan at the head once there is one. Comments are taken while
   `inReview` and while `drafting`, so `locked` names two states, not one, and Approve is drawn
   only where a version exists.
+- The server watches the working directory, so every file Claude writes reaches the page as a
+  workspace event. A renderer loads its document through `docUrl`, whose query is the file's
+  `modified`: a rewrite reloads that document alone, and nothing else remounts.
 - A new document kind is one folder with both halves and two registry lines, not a branch in
   an existing renderer.
 - A kind folder may hold a helper beside `ui.tsx` (`markdown/pinpoint.ts`, `html/pick.ts`): its
