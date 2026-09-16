@@ -1,11 +1,12 @@
 import { computed, signal } from "@preact/signals";
 
 import type { ProjectPath } from "../src/domain/paths.ts";
-import type { Annotation, Decision, DocRef, PlanWorkspace, ReviewView } from "../src/protocol.ts";
+import type { Annotation, Decision, DocRef, ReviewView } from "../src/protocol.ts";
 import { fetchReview, postDecision, subscribe } from "./api.ts";
 
 export const review = signal<ReviewView | null>(null);
 
+/** The comments not sent yet: a send clears them, and nothing Claude does may. */
 export const annotations = signal<readonly Annotation[]>([]);
 
 /** The document shown; `null` is the plan. */
@@ -52,13 +53,6 @@ export const locked = computed(() => {
   return kind !== "inReview" && kind !== "drafting";
 });
 
-/** The round the comments belong to: a version, or the batches already sent while drafting. */
-function roundOf(workspace: PlanWorkspace | undefined): string {
-  if (workspace === undefined) return "";
-
-  return workspace.kind === "drafting" ? `drafts ${workspace.batches}` : `v${workspace.version}`;
-}
-
 export async function loadReview(): Promise<void> {
   const fetched = await fetchReview();
 
@@ -68,10 +62,7 @@ export async function loadReview(): Promise<void> {
     return;
   }
 
-  const previous = review.value?.workspace;
   review.value = fetched.value;
-
-  if (roundOf(previous) !== roundOf(fetched.value.workspace)) annotations.value = [];
 }
 
 export async function decide(decision: Decision): Promise<void> {
@@ -79,6 +70,7 @@ export async function decide(decision: Decision): Promise<void> {
 
   if (status === 409) error.value = "This version was already decided.";
   else if (status >= 300) error.value = `POST /api/decision failed: ${status}`;
+  else annotations.value = [];
   await loadReview();
 }
 
