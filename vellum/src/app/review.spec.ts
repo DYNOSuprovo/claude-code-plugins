@@ -78,6 +78,18 @@ describe("Review", () => {
     expect(await review.workspace()).toMatchObject({ kind: "inReview", version: 2 });
   });
 
+  test("asked to keep an unchanged plan.md, the gate keeps its version after a feedback too", async () => {
+    const { review } = await gated();
+    await review.decide({ kind: "feedback", annotations: [] });
+    expect(await review.gate({ unchanged: "keep" })).toEqual({ ok: true, version: V1, kept: true });
+    expect(await review.workspace()).toMatchObject({ kind: "changesRequested" });
+    expect(await review.gate({ unchanged: "record" })).toEqual({
+      ok: true,
+      version: 2 as never,
+      kept: false,
+    });
+  });
+
   test("feedback writes the file the pending names, and the version is decided", async () => {
     const { review, root } = await gated();
     const first = await review.decide({ kind: "feedback", annotations: [GENERAL_NO] });

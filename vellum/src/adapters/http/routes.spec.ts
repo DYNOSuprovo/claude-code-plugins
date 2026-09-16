@@ -130,6 +130,11 @@ describe("routes", () => {
     expect(await (await post("/api/gate")).json()).toEqual({ version: 1, kept: true });
   });
 
+  test("gate reads how an unchanged plan.md is treated from its body", async () => {
+    const kept = await post("/api/gate", JSON.stringify({ unchanged: "keep" }));
+    expect(await kept.json()).toEqual({ version: 1, kept: true });
+  });
+
   test("the finalize route is gone", async () => {
     expect((await post("/api/finalize", JSON.stringify({ version: 1 }))).status).toBe(404);
   });

@@ -1,6 +1,7 @@
 import type { Host } from "./host.ts";
 import type { Live } from "./mode.ts";
 import type { GateWire, PendingWire, SessionId, Workdir } from "./parse.ts";
+import type { Unchanged } from "./server.ts";
 
 // Named here for the feedback prompt; `register.ts` writes the matcher as a literal, since the
 // loader reads matchers from that file's source and cannot follow an import.
@@ -36,6 +37,21 @@ function feedbackPrompt(pending: Extract<PendingWire, { kind: "feedback" }>): st
 
 function approvedPrompt(pending: Extract<PendingWire, { kind: "approved" }>): string {
   return `Plan v${pending.version} approved. It lives at ${pending.dir}. Implement it here or in a fresh session.`;
+}
+
+/**
+ * Submits `plan.md` and says where it stands. A recorded version is announced under the prompt
+ * and in the transcript; a kept one changes nothing; a refusal (no `plan.md` yet, the plan
+ * approved) is the caller's to read; a server that does not answer is a rejection.
+ */
+export async function submitPlan(host: Host, live: Live, unchanged: Unchanged): Promise<GateWire> {
+  const gate = await live.server.gate(unchanged);
+
+  if ("error" in gate || gate.kept) return gate;
+  host.status(`plan v${gate.version} under review`);
+  host.log(`plan v${gate.version} is under review in the browser`);
+
+  return gate;
 }
 
 /** What the model reads from `submit`: `kept` means the browser already shows this very text. */

@@ -37,6 +37,15 @@ export type GateResult =
   | { readonly ok: true; readonly version: Version; readonly kept: boolean }
   | { readonly ok: false; readonly error: string };
 
+/**
+ * What a submit does with a `plan.md` whose text is the version under review: `record` opens a
+ * new version after a feedback, as the model's explicit call means it; `keep` never does, as
+ * the turn's end means nothing new.
+ */
+export type GateOptions = { readonly unchanged: "record" | "keep" };
+
+const RECORD_UNCHANGED: GateOptions = { unchanged: "record" };
+
 /** The use case: reads the directory, lets the domain decide, applies: files, memory, listeners. */
 export class Review {
   private memory: Memory = { kind: "none" };
@@ -85,7 +94,7 @@ export class Review {
   }
 
   /** The plan the model wrote is the version under review; the same text keeps its number. */
-  public async gate(): Promise<GateResult> {
+  public async gate(options: GateOptions = RECORD_UNCHANGED): Promise<GateResult> {
     const workspace = await this.workspace();
 
     if (workspace.kind === "approved") {
@@ -100,6 +109,10 @@ export class Review {
 
     const latestText =
       workspace.kind === "drafting" ? null : await this.planText(workspace.version, workspace.dir);
+
+    if (workspace.kind !== "drafting" && options.unchanged === "keep" && latestText === plan) {
+      return { ok: true, version: workspace.version, kept: true };
+    }
 
     const gated = gateVersion(workspace, latestText, plan);
 

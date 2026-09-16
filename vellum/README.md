@@ -28,9 +28,9 @@ References, loaded one at a time: `program-design.md` (signatures, call-stack an
 `/vellum:start` enters the mode. The hooks module creates `plans/<date>/wip-<sid8>/`, tells Claude to put the plan and its artifacts there, starts one review server per session on `127.0.0.1` (it exits on its own once the session's heartbeat stops) and opens the page. While the mode is live, `Edit`, `Write` and `NotebookEdit` under the project and outside the working directory are refused with a reason Claude reads; inside it they pass without a prompt; a path outside the project is no change to the codebase and follows the session's own permission flow, so the session's scratchpad passes there without a prompt; a lock that fails refuses the call rather than letting it past; every other tool follows the session's own permission flow, and a Bash command that a settings allow rule would approve asks instead. The native plan mode is untouched and stays available for a plan that needs no review page.
 
 1. The page lists the working directory's renderable files from the start: Markdown, HTML in a sandboxed iframe, images. `[` and `]` move between documents; an artifact can sit beside the plan. A comment sent before the first version is written to `.review/v0.feedback-<n>.md` and reaches Claude as a prompt at its next idle: it revises the file and goes on.
-2. Claude writes `plan.md` at the directory's root and calls `mcp__vellum__submit`: the text is saved as `.review/vN.md`, the page shows it, Claude ends its turn. The same text keeps its version; after a feedback, a submit is a new version.
+2. Claude writes `plan.md` at the directory's root and ends its turn: the module submits the text, saved as `.review/vN.md`, and the page shows it. The same text keeps its version, so a turn that only asks a question opens none. `mcp__vellum__submit` submits before the turn ends; after a feedback, that explicit call is a new version even with the same text.
 3. Comments: select text in a Markdown document, or Pinpoint a block, a code block, a table cell or a diagram; in an HTML mockup, Pinpoint an element and Ctrl+click to add another. The box under the comments takes a general comment. Code blocks are coloured and Mermaid blocks are drawn.
-4. **Send feedback** writes `.review/vN.feedback.md` (path, then lines and quote or selector and text, then the comment, for each) and submits a prompt: Claude reads the file, revises, calls `mcp__vellum__submit` again, `vN+1` in the same turn.
+4. **Send feedback** writes `.review/vN.feedback.md` (path, then lines and quote or selector and text, then the comment, for each) and submits a prompt: Claude reads the file, revises, and `vN+1` is submitted when its turn ends.
 5. **Approve** renames the directory to the slug of the plan's title (`-2` on collision, `plan` without a title), rewrites the links in every text file of it, and submits a prompt naming the final directory. The mode closes and the lock lifts.
 
 `/vellum:stop` leaves the mode without a plan; the directory is kept. `/clear`, and a `/resume` that lands in another session, suspend it: timers stopped, the session's record kept, so resuming that session later finds its directory. The status bar reads `vellum: planning`, then `vellum: plan vN under review`.
@@ -42,7 +42,7 @@ References, loaded one at a time: `program-design.md` (signatures, call-stack an
 ## Layout
 
 ```
-hooks/register.ts     the mode's hooks (session.start, skill.prompt, tool.check, tool.call on submit)
+hooks/register.ts     the mode's hooks (session.start, skill.prompt, command.run, tool.check, tool.call on submit, turn.complete)
 hooks/host.ts         `Host`: one member per `$` call, the port the other files take
 hooks/mode.ts         the machine: idle | live, and restore / connect / close
 hooks/lock.ts         the write policy, pure
@@ -68,6 +68,7 @@ types/claude-code.d.ts the function hooks contract, written by `/plugin-types ve
 | `command.run` | `command=clear\|resume` | Suspends the mode after the command ran, when the session id changed: timers stopped, the record kept. |
 | `tool.check` | | The lock. Its `.catch` denies whatever the failure, so a hook that throws or overruns cannot open it. |
 | `tool.call` | `tool=mcp__vellum__submit` | Gates the plan and names the version, without running a tool. |
+| `turn.complete` | | Gates `plan.md` after a main-loop turn answered while the mode is live; an unchanged text is kept. |
 
 ### What it calls on `$`
 

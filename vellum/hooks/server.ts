@@ -17,12 +17,18 @@ import {
 // Well under the hook's own budget: the way in also probes and reads the store before it starts.
 const START_TIMEOUT_MS = 5_000;
 
+/**
+ * What a submit does with a `plan.md` whose text is the version under review: `record` opens
+ * a new version after a feedback, as the model's explicit call means it; `keep` never does.
+ */
+export type Unchanged = "record" | "keep";
+
 /** The review server's client: every route, the token header and the page's address. */
 export type ReviewServer = {
   readonly info: ServerInfo;
   readonly url: string;
   alive: () => Promise<boolean>;
-  gate: () => Promise<GateWire>;
+  gate: (unchanged: Unchanged) => Promise<GateWire>;
   pending: () => Promise<PendingWire>;
   open: () => Promise<void>;
   heartbeat: () => Promise<void>;
@@ -52,7 +58,10 @@ export function reach(host: Host, info: ServerInfo): ReviewServer {
         (response) => response.ok,
         () => false,
       ),
-    gate: () => api(host, info, "/api/gate", { method: "POST", body: "{}" }).then(parseGate),
+    gate: (unchanged) =>
+      api(host, info, "/api/gate", { method: "POST", body: JSON.stringify({ unchanged }) }).then(
+        parseGate,
+      ),
     pending: () => api(host, info, "/api/pending").then((response) => parsePending(response.text)),
     open: () => told("/api/open"),
     heartbeat: () => told("/api/heartbeat"),

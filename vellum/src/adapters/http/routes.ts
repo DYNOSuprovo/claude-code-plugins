@@ -1,7 +1,7 @@
 import { realpath } from "node:fs/promises";
 import { join, sep } from "node:path";
 
-import type { Review } from "../../app/review.ts";
+import type { GateOptions, Review } from "../../app/review.ts";
 import { parseProjectPath } from "../../domain/paths.ts";
 import type {
   Anchor,
@@ -125,6 +125,14 @@ function badRequest(): Response {
   return new Response("bad request", { status: 400 });
 }
 
+async function parseGateOptions(request: Request): Promise<GateOptions> {
+  const body: unknown = await request.json().catch(() => null);
+
+  return isRecord(body) && body.unchanged === "keep"
+    ? { unchanged: "keep" }
+    : { unchanged: "record" };
+}
+
 /** The tag goes before the last `</body>`, or at the end of a document without one. */
 function withFrameScript(html: string, tag: string): string {
   const at = html.lastIndexOf("</body>");
@@ -214,7 +222,7 @@ async function api(context: RouteContext, request: Request, route: string): Prom
   }
 
   if (route === "POST /api/gate") {
-    const gated = await review.gate();
+    const gated = await review.gate(await parseGateOptions(request));
 
     if (!gated.ok) {
       const refused: GateAnswer = { error: gated.error };
