@@ -1,7 +1,6 @@
 # Testing a plugin from source
 
 How to validate a plugin (skills, permissions, flow) before a release.
-Every rule below was paid for during the git-sweep 3.0.0 fusion.
 
 ## Launch a test session
 
@@ -14,8 +13,8 @@ command claude --permission-mode default --plugin-dir <repo>/<plugin>
   does not check for `--permission-mode` before doing so.
 - `--plugin-dir` reads the plugin source at process launch. No version bump,
   no cache write, no `plugin-cache-sync`.
-- Since 2.1.265 the flag also accepts a folder of plugins: every child with a
-  manifest loads, and children added or removed while running are picked up.
+- The flag also accepts a folder of plugins: every child with a manifest
+  loads, and children added or removed while running are picked up.
   It does nothing on this repo's root, whose `.claude-plugin/` holds only
   `marketplace.json` — the root is read as a plugin candidate and no child
   loads. Measured by diffing transcripts with and without the flag: identical.
@@ -23,9 +22,9 @@ command claude --permission-mode default --plugin-dir <repo>/<plugin>
   carries no `.claude-plugin/`.
 - The flag adds, it never replaces. Installed plugins, external ones included,
   stay loaded beside what it reads from disk. A plugin that is both installed
-  and passed to the flag loads once, from the flag: the debug log of 2.1.270
-  says `Plugin "github-flow" from --plugin-dir overrides installed version`,
-  and its hooks fire once.
+  and passed to the flag loads once, from the flag: the debug log says
+  `Plugin "<name>" from --plugin-dir overrides installed version`, and its
+  hooks fire once.
 - A skill that rewrites history needs a clean tree, and the tree that holds
   the skill under edit is dirty by definition. Run the session in a second
   worktree (`git worktree add /tmp/t <branch>`) while `--plugin-dir` keeps
@@ -72,13 +71,13 @@ command claude -p --permission-mode default --setting-sources project \
 - The final JSON object lists each denial in `permission_denials`. An
   `is_error` tool result also marks a non-zero exit, such as `test -f` on a
   missing file: read each one before calling it a gap.
-- `AskUserQuestion` was not available in `-p` on Claude Code 2.1.270. Put the
-  answers in the prompt, or record that the flow needs a person.
+- `AskUserQuestion` is not available in `-p`. Put the answers in the prompt,
+  or record that the flow needs a person.
 - The `/<skill>` must open the prompt. Written after other text, it reaches
   the model as a `Skill` tool call, and a skill that carries `allowed-tools`
   prompts on that call in `default` mode: the `-p` run records a `Skill`
   denial with `Execute skill: <plugin>:<skill>` and the model improvises from
-  the file. The same skill without `allowed-tools` runs. Measured on 2.1.270.
+  the file. The same skill without `allowed-tools` runs.
 - A background task ends about five seconds after the final result, so a flow
   that waits for a background exit notification (`pair-planning`) stops there.
 - A flow that writes under `~` runs against a throwaway home:
@@ -128,8 +127,7 @@ Transcripts live at `~/.claude/projects/<cwd-slug>/<session-id>.jsonl`.
   blocked until a `Read(path)` rule covers it; an `Edit(path)` rule alone
   does not. `cp` needs `Edit(path)` on its source as well, and a flag
   (`cp -f`) prompts whatever the rules say. `ls -l` on a
-  symlink also checks the link target; `readlink` does not. Measured on
-  Claude Code 2.1.270.
+  symlink also checks the link target; `readlink` does not.
 - Past the executable, quotes in a rule are literal:
   `Bash(ln -sf "${CLAUDE_PLUGIN_ROOT}/x" *)` matches only the quoted command.
   A rule quoted around the executable, `Bash("${CLAUDE_PLUGIN_ROOT}/x":*)`,
@@ -148,7 +146,7 @@ Transcripts live at `~/.claude/projects/<cwd-slug>/<session-id>.jsonl`.
   `default` mode it prompts every time; only a fixed known-safe list
   (`NODE_ENV`-style) is stripped, and `deny`/`ask` rules match past any
   assignment. Keep the executable first: `git -c sequence.editor=x rebase`
-  matches `Bash(git -c sequence.editor=:*)` (measured on git 1.0.1).
+  matches `Bash(git -c sequence.editor=:*)`.
   Source: https://code.claude.com/docs/en/permissions#process-wrappers.
 - The session exports `GIT_EDITOR=true`. It outranks `-c core.editor`, so a
   `core.editor="cp msg"` override never runs and a squash keeps git's
@@ -173,7 +171,7 @@ Transcripts live at `~/.claude/projects/<cwd-slug>/<session-id>.jsonl`.
 
 A `hooks/hooks.json` under the plugin loads with `--plugin-dir` like the
 skills do: the debug log says `Read hooks.json for plugin <name>` and
-`Loading hooks from plugin: <name>`. Measured on 2.1.270 with `github-flow`.
+`Loading hooks from plugin: <name>`.
 
 - Pipe a payload first. A command hook is a script on stdin, so
   `printf '{"session_id":"t","cwd":"/x","tool_input":{...}}' | HOME=<tmp> bun
@@ -198,7 +196,7 @@ skills do: the debug log says `Read hooks.json for plugin <name>` and
 
 A plugin whose `hooks/hooks.json` names `modules` is a hooks module: one
 TypeScript file exporting `register(on, options)`, run by the engine in an
-environment of its own. Measured on 2.1.272 with `vellum`.
+environment of its own.
 
 - Launch with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` until function hooks ship
   publicly. Without it the module never loads and the plugin's skills run as
@@ -222,7 +220,7 @@ environment of its own. Measured on 2.1.272 with `vellum`.
   again in a fresh environment and every pending timer of the old one dies.
   State the module must keep across a reload goes to `$.store`.
 - `claude plugin test <dir>` runs `*.test.ts` files that import
-  `claude-code/testing` in the engine's environment. Two limits on 2.1.272:
+  `claude-code/testing` in the engine's environment. Two limits:
   its `$` has no `classic` noun, so a `classic.PermissionRequest` hook cannot
   be raised from a test; and `bun test` at the repo root picks the same
   `*.test.ts` files up and fails on the import. `vellum` tests its module with
@@ -233,19 +231,57 @@ environment of its own. Measured on 2.1.272 with `vellum`.
   handed to the session by `$.prompt.submit`, which runs once the session is
   idle. The prompt shows as `Prompt from the <plugin> plugin`, framed by
   Claude Code as a message to address; a text that points at a file the
-  session can read worked on Opus 5 and Sonnet 5 (`spike-results.md` in
-  `plans/2026-09-15/plan-review-rewrite/`, facts 5 to 9).
+  session can read works (`spike-results.md` in
+  `plans/2026-09-15/plan-review-rewrite/`).
 - `$.process.run` reads the whole output, so a server started from a hook
   must be spawned detached by a launcher that relays one line and exits.
   Nothing tells a detached process that the session ended: give it a
   heartbeat from `$.clock.every` and let it exit when the beat stops.
 
+### What the contract and the docs say
+
+Read from `vellum/types/claude-code.d.ts` (symbol names below) and from the
+official docs (page § section). Neither is measured in a session; each is
+what the engine's own text commits to. Function hooks are early access and
+absent from the public docs: the `.d.ts` is their only reference.
+
+- `tool.check` (`ToolCheckInput`, `ToolCheckDecision`) fires when the engine
+  decides whether a call may run, after `tool.call` and `PreToolUse`.
+  `next(e)` is the engine's own verdict `{ decision, reason?, rule? }`; a hook
+  may return any `allow | ask | deny`, and the last word up the chain wins.
+  `deny`'s `reason` is what the model reads. Its input has no agent id: it
+  fires for subagents too.
+- `$.tool.register` (`ToolSpec`) declares `mcp__<plugin>__<name>`; a
+  `tool.call` hook on that name serves it by returning `{ result }` without
+  `next`, and a call no hook answers fails. `$.command.register`
+  (`CommandSpec`) declares `/<name>`, served by a `command.run` hook returning
+  `{ text }`. Both reject until `session.start`, whose first raise is awaited,
+  so registering there lists them by turn one (`'session.start'`). `/clear`
+  does not raise `session.start` again.
+- `$.prompt.submit` (`PromptSubmitInput`, `PromptSubmitResult`) runs when the
+  session is idle; its promise resolves once the prompt entered or was queued
+  behind the running turn, not when it is delivered. A prompt queued mid-turn
+  lands at the next idle, however far away.
+- A hook's budget is about ten seconds of real time (`Mock.clock`); the
+  engine skips a hook that overruns it and runs what is beneath in its place.
+- Bash's built-in read-only set runs without a prompt "in every mode"
+  (permissions § Read-only commands), and plan mode adds nothing for Bash:
+  commands outside the set go through the session's regular permission flow
+  (permission-modes § plan mode). What plan mode changes is file edits:
+  "never auto-approved, even when an allow rule matches", and file-modifying
+  shell commands such as `touch` and `rm` too (agent-sdk permissions § Plan
+  mode).
+- `Stop` hooks "don't fire on user interrupts" (hooks-guide § Limitations).
+  Interrupting while a hook callback is pending cancels the pending tool call
+  (agent-sdk hooks § Hook timeout). A command hook that outlives the answer
+  the user gave in the terminal keeps running until its own timeout
+  (`spike-results.md`).
+
 ## Prompt audit
 
 `/claude-api prompt-audit "<plugin>/skills"` finds text written for an
 older model or an older backend: fossil sentences, hardcoded depths, gold
-outputs the model copies, descriptions without a trigger clause. One pass
-over `git/skills` found the `rebase` fossil and three `squash` defects.
+outputs the model copies, descriptions without a trigger clause.
 Run it on a plugin before its release bump; apply only the hunks the test
 session above confirms. Skills here are written by agents under the owner's
 prompting, so no line carries an author's measured intent: a recent commit
@@ -256,21 +292,22 @@ date does not exempt a pattern, numeric length caps included.
 `bengous-plugins` is registered as a `directory` source pointing at this
 working tree, so the catalog is the tree and there is no fetch step.
 
-- An install is a copy, not a link: `git/README.md` holds inode 59059395 here
-  and 59085089 in the cache. An installed plugin is therefore frozen at the
-  state it was installed from, and a later `git switch` does not reach it.
+- An install is a copy, not a link: `ls -i` shows a different inode for a
+  file in the tree and its cache copy. An installed plugin is therefore
+  frozen at the state it was installed from, and a later `git switch` does
+  not reach it.
 - Update detection reads the catalog's `version` field and nothing else.
   Rewrite a `SKILL.md` in full, leave `plugin.json` at the same version, and
   the cache stays untouched. Bump the version, then run
   `claude plugin update <name>` and restart. Each version lands in its own
-  directory, so `1.0.0/` and `1.0.1/` coexist.
+  directory, so the old and the new version coexist.
 - Plugin state lives in four places, none of which `--plugin-dir` writes to:
   `~/.claude/settings.json` for `enabledPlugins` and `extraKnownMarketplaces`,
   `known_marketplaces.json` for where each catalog is read,
   `installed_plugins.json` for version, path and scope, and `cache/` for the
   copies.
 - Unresolved: whether an interactive session auto-updates from a `directory`
-  marketplace. `bengous-plugins` carries `autoUpdate: true`, yet four `-p`
-  sessions left a pending bump uninstalled, one with
+  marketplace. `bengous-plugins` carries `autoUpdate: true`, yet repeated `-p`
+  sessions left a pending bump uninstalled, one of them with
   `FORCE_AUTOUPDATE_PLUGINS=1`. Headless may skip the background updater.
   Until someone measures an interactive session, update by hand.
