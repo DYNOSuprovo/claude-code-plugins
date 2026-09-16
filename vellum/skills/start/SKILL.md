@@ -1,5 +1,5 @@
 ---
-name: plan
+name: start
 description: >
   Write a plan the way its reviewer reads it: open choices settled first, the plan ordered by what the reviewer is most likely to change, interfaces and files before mechanics, vertical slices each closed by a check, then a fresh session to implement. Use when a design choice is open, the change crosses several modules or interfaces, a refactor reshapes a contract, or the user asks for a thorough plan or a frontier plan. Not for a change you can describe in one sentence.
 ---
@@ -41,6 +41,8 @@ A diagram or a mockup worth showing: `references/visual.md`
 ## 4. Hand off
 
 Iterate on the plan with the reviewer until it is approved. A large change, or a plan no human will read, goes through the `plan-reviewer` agent first.
+
+The skill text ends with a `Working directory:` line and a `Review page:` line. Print both in your first message: the link is how the reviewer reaches the page, and nothing else shows it.
 
 With a working directory, the plan is `plan.md` at its root. Once the plan and its artifacts are ready, call `mcp__vellum__submit` and end your turn: it opens them in the reviewer's browser, and the review comes back as a prompt from the vellum plugin. "Changes requested" names a feedback file: read it, revise `plan.md` and the files it names, call `mcp__vellum__submit` again. "Approved" names the final directory the plan now lives in.
 

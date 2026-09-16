@@ -41,7 +41,7 @@ export type Live = {
 };
 
 /**
- * The vellum mode, entered by `/vellum:plan` and left by Approve or `/vellum:stop`. While
+ * The vellum mode, entered by `/vellum:start` and left by Approve or `/vellum:stop`. While
  * `live` a server answers, the lock holds, and the browser's decision is polled. What is
  * under review lives on the server's disk; every transition here is an engine event or an
  * answer from that server.
@@ -133,7 +133,7 @@ async function enter(host: Host, state: State, live: Live, settle: Settle): Prom
 }
 
 /**
- * Leaves the mode. What was relayed stays in the store: a `/vellum:plan` after a stop reuses
+ * Leaves the mode. What was relayed stays in the store: a `/vellum:start` after a stop reuses
  * the session's directory, and what Claude already read must not be named again.
  */
 export async function close(host: Host, state: State): Promise<State> {

@@ -20,7 +20,7 @@ export * from "./other-id.ts";
 
 export * from "./other-workdir.ts";
 
-export * from "./plan-prompt.ts";
+export * from "./start-prompt.ts";
 
 export * from "./poll-ms.ts";
 

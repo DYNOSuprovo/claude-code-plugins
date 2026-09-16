@@ -8,7 +8,7 @@ import {
   HEARTBEAT_MS,
   OTHER_ID,
   OTHER_WORKDIR,
-  PLAN_PROMPT,
+  START_PROMPT,
   relayed,
   reply,
   SERVER,
@@ -52,10 +52,12 @@ describe("skill.prompt", () => {
   test("starts the server once, stores it, and appends the working directory", async ($, on) => {
     const seen = world(on);
 
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
 
-    expect(await $.skill.prompt(PLAN_PROMPT)).toEqual({
-      text: `t\n\nWorking directory: ${WORKDIR}`,
+    expect(await $.skill.prompt(START_PROMPT)).toEqual({
+      text:
+        `t\n\nWorking directory: ${WORKDIR}\n` +
+        `Review page: http://127.0.0.1:${SERVER.port}/t/${SERVER.token}/`,
     });
 
     expect(seen.runs).toHaveLength(1);
@@ -74,13 +76,13 @@ describe("skill.prompt", () => {
   test("returns the skill text without a directory when the launcher cannot start", async ($, on) => {
     world(on, { launch: { deny: "ENOENT bun" } });
 
-    expect(await $.skill.prompt(PLAN_PROMPT)).toEqual({ text: "t" });
+    expect(await $.skill.prompt(START_PROMPT)).toEqual({ text: "t" });
   });
 
   test("restarts the server when the stored one is dead", async ($, on) => {
     const seen = world(on, { stored: storedSession({ ...SERVER, port: 1 }) });
 
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
 
     expect(seen.paths[0]).toBe("/api/review");
     expect(seen.runs).toHaveLength(1);
@@ -94,8 +96,10 @@ describe("skill.prompt", () => {
       stored: storedSession({ ...SERVER, port: 1 }, "/elsewhere", workdir),
     });
 
-    expect(await $.skill.prompt(PLAN_PROMPT)).toEqual({
-      text: `t\n\nWorking directory: ${workdir}`,
+    expect(await $.skill.prompt(START_PROMPT)).toEqual({
+      text:
+        `t\n\nWorking directory: ${workdir}\n` +
+        `Review page: http://127.0.0.1:${SERVER.port}/t/${SERVER.token}/`,
     });
 
     expect(seen.runs[0]?.slice(5)).toEqual(["--project", "/elsewhere", "--workdir", workdir]);
@@ -104,9 +108,9 @@ describe("skill.prompt", () => {
   test("a session id the live server does not belong to starts a second one", async ($, on) => {
     const seen = world(on);
 
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
     seen.id = OTHER_ID;
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
 
     expect(seen.runs).toHaveLength(2);
     expect(seen.runs[1]).toContain(OTHER_WORKDIR);
@@ -126,7 +130,7 @@ describe("tool.check", () => {
   test("in the mode a write under the project and outside the working directory is denied", async ($, on) => {
     world(on);
     on("tool.check", () => ENGINE);
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
 
     expect(await $.tool.check({ tool: "Edit", input: { file_path: `${CWD}/src/cli.ts` } })).toEqual(
       {
@@ -139,7 +143,7 @@ describe("tool.check", () => {
   test("in the mode a write under the working directory is allowed, whatever the session's mode", async ($, on) => {
     world(on);
     on("tool.check", () => ({ decision: "deny", reason: "the session refuses every write" }));
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
 
     expect(
       await $.tool.check({ tool: "Write", input: { file_path: `${WORKDIR}plan.md` } }),
@@ -151,7 +155,7 @@ describe("tool.check", () => {
     const answers = [ruled, { decision: "allow" } as const];
     world(on);
     on("tool.check", () => answers.shift() ?? ruled);
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
     const checked = () => $.tool.check({ tool: "Bash", input: { command: "mkdir -p out" } });
 
     expect(await checked(), "the rule decided, so the person does").toEqual({
@@ -165,7 +169,7 @@ describe("tool.check", () => {
   test("a session directory the engine refuses fails the lock closed", async ($, on) => {
     const seen = world(on);
     on("tool.check", () => ENGINE);
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
     seen.refuseCwd = "boom";
 
     expect(await $.tool.check({ tool: "Edit", input: { file_path: `${CWD}/src/cli.ts` } })).toEqual(
@@ -189,7 +193,7 @@ describe("tool.check", () => {
   test("in the mode a write outside the project follows the session's own flow", async ($, on) => {
     world(on);
     on("tool.check", () => ENGINE);
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
     const file_path = "/tmp/claude-1000/project/session/scratchpad/issue.md";
 
     expect(await $.tool.check({ tool: "Write", input: { file_path } })).toEqual(ENGINE);
@@ -199,7 +203,7 @@ describe("tool.check", () => {
     const engine = { decision: "allow", rule: "WebFetch(domain:x.test)" } as const;
     world(on);
     on("tool.check", () => engine);
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
 
     expect(await $.tool.check({ tool: "WebFetch", input: { url: "https://x.test" } })).toEqual(
       engine,
@@ -212,7 +216,7 @@ describe("tool.call mcp__vellum__submit", () => {
 
   test("posts the gate and names the version, without running the tool", async ($, on) => {
     const seen = world(on);
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
 
     expect(await $.tool.call({ tool: submit })).toEqual({
       result:
@@ -226,7 +230,7 @@ describe("tool.call mcp__vellum__submit", () => {
     world(on, {
       routes: { "/api/gate": () => reply(409, { error: `write plan.md in ${WORKDIR} first` }) },
     });
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
 
     expect(await $.tool.call({ tool: submit })).toEqual({
       deny: `write plan.md in ${WORKDIR} first`,
@@ -237,16 +241,16 @@ describe("tool.call mcp__vellum__submit", () => {
     world(on);
 
     expect(await $.tool.call({ tool: submit })).toEqual({
-      deny: "no vellum planning in progress; run /vellum:plan",
+      deny: "no vellum planning in progress; run /vellum:start",
     });
   });
 
   test("a server that does not answer is a deny too", async ($, on) => {
     world(on, { routes: { "/api/gate": () => null } });
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
 
     expect(await $.tool.call({ tool: submit })).toEqual({
-      deny: "the vellum review server is not answering; run /vellum:plan again",
+      deny: "the vellum review server is not answering; run /vellum:start again",
     });
   });
 });
@@ -254,7 +258,7 @@ describe("tool.call mcp__vellum__submit", () => {
 describe("skill.prompt vellum:stop", () => {
   test("closes the mode, keeps the directory, and stops every timer", async ($, on) => {
     const seen = world(on);
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
 
     expect(await $.skill.prompt(STOP_PROMPT)).toEqual({
       text: `t\n\nvellum planning closed; ${WORKDIR} is kept`,
@@ -270,7 +274,7 @@ describe("skill.prompt vellum:stop", () => {
 
   test("keeps the relayed record, so a plan after a stop names no batch twice", async ($, on) => {
     const seen = world(on, { stored: { [`relayed:${SESSION_ID}`]: relayed(2) } });
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
     await $.skill.prompt(STOP_PROMPT);
 
     expect(seen.store.get(`relayed:${SESSION_ID}`)).toEqual(relayed(2));
@@ -291,7 +295,7 @@ describe("command.run", () => {
   test("/clear closes the mode it finds live", async ($, on) => {
     const seen = world(on);
     on("command.run", () => ({}));
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
     await $.command.run(typedCommand("clear"));
 
     const from = seen.paths.length;
@@ -305,7 +309,7 @@ describe("command.run", () => {
   test("/resume closes it the same way", async ($, on) => {
     const seen = world(on);
     on("command.run", () => ({}));
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
     await $.command.run(typedCommand("resume"));
 
     expect(seen.store.has(`session:${SESSION_ID}`)).toBe(false);
@@ -330,7 +334,7 @@ describe("the decision comes back as a prompt", () => {
     const CHANGES = { kind: "feedback", version: 1, path: feedback };
     let pending: typeof NONE | typeof CHANGES = NONE;
     const seen = world(on, { routes: { "/api/pending": () => reply(200, pending) } });
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
     await tick(seen);
 
     expect(seen.prompts).toEqual([]);
@@ -353,7 +357,7 @@ describe("the decision comes back as a prompt", () => {
       routes: { "/api/pending": () => reply(200, { kind: "approved", version: 2, dir: FINAL }) },
     });
 
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
     await tick(seen);
 
     expect(seen.prompts).toEqual([
@@ -371,7 +375,7 @@ describe("the decision comes back as a prompt", () => {
     let batches = [batch(1)];
     const drafts = () => reply(200, { kind: "drafts", batches });
     const seen = world(on, { routes: { "/api/pending": drafts } });
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
     await tick(seen);
     await tick(seen);
 
@@ -430,7 +434,7 @@ describe("the decision comes back as a prompt", () => {
       stored: { [`relayed:${SESSION_ID}`]: relayed(2) },
     });
 
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
     await tick(seen);
 
     expect(seen.store.has(`relayed:${SESSION_ID}`)).toBe(false);
@@ -442,7 +446,7 @@ describe("the decision comes back as a prompt", () => {
     });
 
     seen.drop = "refused";
-    await $.skill.prompt(PLAN_PROMPT);
+    await $.skill.prompt(START_PROMPT);
     await tick(seen);
 
     expect(seen.prompts).toEqual([]);

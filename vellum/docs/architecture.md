@@ -10,7 +10,7 @@ where phases 2 and 3 land in it.
 ```mermaid
 flowchart LR
   subgraph engine["Claude Code (the engine)"]
-    CC["the session<br/>/vellum:plan · mcp__vellum__submit · /vellum:stop"]
+    CC["the session<br/>/vellum:start · mcp__vellum__submit · /vellum:stop"]
     M["hooks/<br/>register.ts · mode.ts: idle · live"]
     CC -- "session.start · skill.prompt<br/>tool.check · tool.call" --> M
     M -- "$.prompt.submit<br/>deny / result / text" --> CC
@@ -84,7 +84,7 @@ sequenceDiagram
   participant M as hooks module
   participant S as vellum serve
   participant B as page
-  CC->>M: skill.prompt vellum:plan
+  CC->>M: skill.prompt vellum:start
   M->>S: start (detached), GET /api/review, POST /api/open
   S-->>B: the page opens on the working directory's files
   M-->>CC: skill text + "Working directory: plans/<date>/wip-<sid8>/"
@@ -166,7 +166,7 @@ vellum/
     mode.ts                    State, Session, Live, and the transitions
     lock.ts, relay.ts          the write policy and the poll's prompts, pure where they can be
     server.ts, parse.ts        the review server's client, and the boundary parser
-  skills/plan/, skills/stop/   the way in and the way out, both `vellum:`-namespaced
+  skills/start/, skills/stop/  the way in and the way out, both `vellum:`-namespaced
   src/
     domain/                    pure, no IO, no Bun, no node:*
       paths.ts                 brands and parsers
