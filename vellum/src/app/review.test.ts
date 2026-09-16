@@ -99,6 +99,14 @@ describe("Review", () => {
     expect(await review.pending()).toEqual({ kind: "approved", version: V1, dir: FINAL as never });
   });
 
+  test("approve puts the approved text back in plan.md, over a revision not submitted", async () => {
+    const { review, root } = await gated();
+    writeFileSync(join(root, WIP, "plan.md"), "# Notification settings\n\nrevised\n");
+    await review.decide({ kind: "approve" });
+    expect(read(root, `${FINAL}plan.md`)).toBe(read(root, `${FINAL}.review/v1.md`));
+    expect(read(root, `${FINAL}plan.md`)).toContain(`${FINAL}mockup.html`);
+  });
+
   test("a rename that fails shows its error and leaves the plan under review", async () => {
     const { review, root } = await gated();
     chmodSync(join(root, DATED), 0o500);
