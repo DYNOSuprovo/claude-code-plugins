@@ -33,7 +33,7 @@ References, loaded one at a time: `program-design.md` (signatures, call-stack an
 4. **Send feedback** writes `.review/vN.feedback.md` (path, then lines and quote or selector and text, then the comment, for each) and submits a prompt: Claude reads the file, revises, calls `mcp__vellum__submit` again, `vN+1` in the same turn.
 5. **Approve** renames the directory to the slug of the plan's title (`-2` on collision, `plan` without a title), rewrites the links in every text file of it, and submits a prompt naming the final directory. The mode closes and the lock lifts.
 
-`/vellum:stop` leaves the mode without a plan; the directory is kept. `/clear` and `/resume` close it too, since either forgets the session the mode belonged to. The status bar reads `vellum: planning`, then `vellum: plan vN under review`.
+`/vellum:stop` leaves the mode without a plan; the directory is kept. `/clear`, and a `/resume` that lands in another session, suspend it: timers stopped, the session's record kept, so resuming that session later finds its directory. The status bar reads `vellum: planning`, then `vellum: plan vN under review`.
 
 ## Agent
 
@@ -65,7 +65,7 @@ types/claude-code.d.ts the function hooks contract, written by `/plugin-types ve
 | `session.start` | | Registers the `submit` tool, and picks the mode back up when the stored server still answers. |
 | `skill.prompt` | `skill=vellum:start` | Enters the mode: reaches or starts the server, then appends the working directory and the page's link to the skill's text. |
 | `skill.prompt` | `skill=vellum:stop` | Leaves the mode and says which directory is kept. |
-| `command.run` | `command=clear\|resume` | Closes the mode after the command ran: either forgets the session the mode belonged to. |
+| `command.run` | `command=clear\|resume` | Suspends the mode after the command ran, when the session id changed: timers stopped, the record kept. |
 | `tool.check` | | The lock. Its `.catch` denies whatever the failure, so a hook that throws or overruns cannot open it. |
 | `tool.call` | `tool=mcp__vellum__submit` | Gates the plan and names the version, without running a tool. |
 

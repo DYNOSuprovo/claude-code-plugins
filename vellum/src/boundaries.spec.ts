@@ -40,21 +40,17 @@ describe("dependency direction", () => {
     ).toEqual([]);
   });
 
-  test("hooks/ imports claude-code, its own siblings, and protocol.ts as types only", () => {
-    const stray = sources("hooks").flatMap((file) => {
-      const named = `${file.slice(ROOT.length + 1)} imports`;
-      const lines = readFileSync(file, "utf8").matchAll(/^(import type )?.*?from\s+"([^"]+)";$/gmu);
+  test("hooks/ runs on claude-code and its own siblings alone; src/ reaches it as types only", () => {
+    // The transpiler drops a type-only import, so `import type … from "../src/protocol.ts"`
+    // never shows here, and a value import from anywhere but a sibling does.
+    const transpiler = new Bun.Transpiler({ loader: "ts" });
 
-      return [...lines].flatMap((line) => {
-        const [, asType, specifier = ""] = line;
-
-        if (specifier === "claude-code" || /^\.\/[a-z-]+\.ts$/u.test(specifier)) return [];
-
-        return specifier === "../src/protocol.ts" && asType !== undefined
-          ? []
-          : [`${named} ${specifier}`];
-      });
-    });
+    const stray = sources("hooks").flatMap((file) =>
+      transpiler
+        .scanImports(readFileSync(file, "utf8"))
+        .filter(({ path }) => path !== "claude-code" && !/^\.\/[a-z-]+\.ts$/u.test(path))
+        .map(({ path, kind }) => `${file.slice(ROOT.length + 1)} imports ${path} (${kind})`),
+    );
 
     expect(stray).toEqual([]);
   });
