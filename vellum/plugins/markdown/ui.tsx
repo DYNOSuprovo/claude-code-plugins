@@ -230,15 +230,17 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const [wash, setWash] = useState<Wash | null>(null);
   const container = useRef<HTMLElement>(null);
 
+  const shown = props.source ?? text;
+
   const content = useMemo(() => {
-    if (text === null) return null;
-    const tree = toTree(text);
+    if (shown === null) return null;
+    const tree = toTree(shown);
     const changes = props.changes === null ? null : changesOf(tree, props.changes);
 
     const atEnd = (changes?.removedAtEnd ?? []).map((run) => removedBlock(run));
 
     return [...toVNodes(tree.children, changes), ...atEnd];
-  }, [text, props.changes]);
+  }, [shown, props.changes]);
 
   useEffect(() => {
     void fetch(docUrl(props.doc))

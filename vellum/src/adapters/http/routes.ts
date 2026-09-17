@@ -3,11 +3,12 @@ import { join, sep } from "node:path";
 
 import type { GateOptions, Review } from "../../app/review.ts";
 import { isQuickLabel } from "../../domain/feedback.ts";
-import { parseProjectPath } from "../../domain/paths.ts";
+import { parseProjectPath, parseVersion } from "../../domain/paths.ts";
 import type {
   Anchor,
   Annotation,
   Decision,
+  Edit,
   ElementRef,
   GateAnswer,
   Mark,
@@ -121,18 +122,35 @@ function parseAnnotation(value: unknown): Annotation | null {
     : { id: value.id, doc: doc.value, anchor, mark };
 }
 
+/** `null` is a decision without an edit, so a refusal is no `null`: the parsed edit comes wrapped. */
+function parseEdit(value: unknown): { readonly value: Edit | null } | null {
+  if (value === null) return { value: null };
+
+  if (!isRecord(value) || typeof value.version !== "number" || typeof value.text !== "string") {
+    return null;
+  }
+
+  const version = parseVersion(value.version);
+
+  return version.ok ? { value: { version: version.value, text: value.text } } : null;
+}
+
 async function parseDecision(request: Request): Promise<Decision | null> {
   const body: unknown = await request.json().catch(() => null);
 
   if (!isRecord(body)) return null;
 
-  if (body.kind === "approve") return { kind: "approve" };
+  const edit = parseEdit(body.edit);
+
+  if (edit === null) return null;
+
+  if (body.kind === "approve") return { kind: "approve", edit: edit.value };
 
   if (body.kind !== "feedback" || !Array.isArray(body.annotations)) return null;
   const annotations = body.annotations.map(parseAnnotation);
 
   return annotations.every((annotation) => annotation !== null)
-    ? { kind: "feedback", annotations }
+    ? { kind: "feedback", edit: edit.value, annotations }
     : null;
 }
 

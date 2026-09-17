@@ -9,6 +9,8 @@ export type RendererProps = {
   readonly doc: DocRef;
   readonly annotations: readonly Annotation[];
   readonly annotate: (annotation: Omit<Annotation, "id">) => void;
+  /** The reviewer's unsent edit of this document, rendered in place of the file. */
+  readonly source: string | null;
   /** The changes to mark while "Changes since" is on; `null` when it is off or the document is not the plan. */
   readonly changes: LineDiff | null;
 };

@@ -9,7 +9,7 @@ import type { PlanWorkspace } from "./domain/workspace.ts";
 
 export type { DiffRun, LineDiff } from "./domain/diff.ts";
 
-export { countChanges, lineDiff } from "./domain/diff.ts";
+export { countChanges, lineDiff, shiftAnnotations } from "./domain/diff.ts";
 
 export type {
   Anchor,
@@ -20,9 +20,11 @@ export type {
   QuickLabel,
 } from "./domain/feedback.ts";
 
-export { DELETE_SENTENCE, QUICK_LABELS } from "./domain/feedback.ts";
+export { DELETE_SENTENCE, QUICK_LABELS, retargetAnnotations } from "./domain/feedback.ts";
 
-export type { Decision } from "./domain/review.ts";
+export type { Decision, Edit } from "./domain/review.ts";
+
+export { editOnLoad } from "./domain/review.ts";
 
 export type { Pending, PlanWorkspace } from "./domain/workspace.ts";
 

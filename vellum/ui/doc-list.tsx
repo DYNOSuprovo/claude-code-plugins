@@ -1,5 +1,5 @@
 import type { DocRef } from "../src/protocol.ts";
-import { annotations, currentDoc, docs, planDoc, select } from "./state.ts";
+import { annotations, currentDoc, docs, editing, planDoc, select } from "./state.ts";
 
 function kindOf(doc: DocRef): string {
   if (doc.mediaType === "text/markdown") return "Markdown";
@@ -35,7 +35,7 @@ export function DocList(): preact.JSX.Element {
   );
 
   return (
-    <nav class="rail" aria-label="Documents">
+    <nav class="rail" aria-label="Documents" inert={editing.value !== null}>
       {plan !== null && item(plan, "Plan", plan.path.split("/").at(-1)?.replace(".md", "") ?? "")}
       <h5>Artifacts</h5>
       {linked.length === 0 && <div class="empty">No files yet</div>}

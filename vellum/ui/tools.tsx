@@ -8,12 +8,14 @@ const METHODS: readonly (readonly [InputMethod, string])[] = [
 
 /**
  * The controls over the document: Select|Pinpoint while a pane takes comments, Beside the plan
- * while an artifact shows, Changes since while the plan is drawn and has a version before it.
+ * while an artifact shows, Edit while the plan under review shows, Changes since while the plan
+ * is drawn and has a version before it.
  */
-export function Tools(): preact.JSX.Element {
+export function Tools(props: { readonly onEdit: () => void }): preact.JSX.Element {
   const plan = planDoc.value;
   const doc = currentDoc.value;
   const beside = plan !== null && doc !== null && doc.path !== plan.path;
+  const editable = plan !== null && !beside && review.value?.workspace.kind === "inReview";
   const planDrawn = plan !== null && (!beside || split.value);
   const since = planDrawn ? (review.value?.plan?.previous?.version ?? null) : null;
 
@@ -50,6 +52,14 @@ export function Tools(): preact.JSX.Element {
           />{" "}
           Beside the plan
         </label>
+      )}
+      {editable && (
+        <>
+          <span class="sep" />
+          <button class="btn small" type="button" onClick={props.onEdit}>
+            Edit
+          </button>
+        </>
       )}
       {since !== null && (
         <>

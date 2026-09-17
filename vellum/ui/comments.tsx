@@ -2,7 +2,15 @@ import { useState } from "preact/hooks";
 
 import type { Anchor, Annotation, Mark } from "../src/protocol.ts";
 import { DELETE_SENTENCE, QUICK_LABELS } from "../src/protocol.ts";
-import { addAnnotation, annotations, currentDoc, locked, removeAnnotation } from "./state.ts";
+import {
+  addAnnotation,
+  annotations,
+  currentDoc,
+  editing,
+  locked,
+  removeAnnotation,
+  review,
+} from "./state.ts";
 
 /** What the card says above the quotes: general, the lines of the passages, or the elements. */
 function whereOf(anchor: Anchor): string {
@@ -45,11 +53,13 @@ function MarkWords(props: { readonly mark: Mark }): preact.JSX.Element {
 
 function Card(props: { readonly annotation: Annotation }): preact.JSX.Element {
   const { annotation } = props;
+  const dir = review.value?.workspace.dir ?? "";
+  const doc = annotation.doc.startsWith(dir) ? annotation.doc.slice(dir.length) : annotation.doc;
 
   return (
     <div class="card">
-      <div class="where">
-        {annotation.doc} · {whereOf(annotation.anchor)}
+      <div class="where" title={annotation.doc}>
+        {doc} · {whereOf(annotation.anchor)}
       </div>
       {quotesOf(annotation.anchor).map((quote) => (
         <div class={annotation.mark.kind === "delete" ? "quote struck" : "quote"} key={quote.key}>
@@ -85,7 +95,7 @@ export function Comments(): preact.JSX.Element {
   };
 
   return (
-    <aside class="comments" aria-label="Comments">
+    <aside class="comments" aria-label="Comments" inert={editing.value !== null}>
       <header>
         Comments <span>{list.length}</span>
       </header>

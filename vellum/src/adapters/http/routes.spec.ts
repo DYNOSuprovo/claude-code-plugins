@@ -46,6 +46,12 @@ function wipDir(): WipDir {
 
 type Drafting = {
   readonly dir: string;
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- an unparsed decision is the case under test: the route's parser is what grants the type.
+  readonly decide: (decision: {
+    readonly kind: string;
+    readonly edit?: unknown;
+    readonly annotations?: unknown;
+  }) => Promise<Response>;
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- an unparsed annotation is the case under test: the route's parser is what grants the type.
   readonly send: (annotation: {
     readonly anchor: unknown;
@@ -68,20 +74,23 @@ function drafting(): Drafting {
     heartbeat: () => {},
   });
 
-  return {
-    dir,
-    send: (annotation) =>
-      handler(
-        new Request("http://x/api/decision", {
-          method: "POST",
-          headers: { [TOKEN_HEADER]: "t" },
-          body: JSON.stringify({
-            kind: "feedback",
-            annotations: [{ id: "a", doc: `${WIP}mockup.html`, ...annotation }],
-          }),
-        }),
-      ),
-  };
+  const decide: Drafting["decide"] = (decision) =>
+    handler(
+      new Request("http://x/api/decision", {
+        method: "POST",
+        headers: { [TOKEN_HEADER]: "t" },
+        body: JSON.stringify(decision),
+      }),
+    );
+
+  const send: Drafting["send"] = (annotation) =>
+    decide({
+      kind: "feedback",
+      edit: null,
+      annotations: [{ id: "a", doc: `${WIP}mockup.html`, ...annotation }],
+    });
+
+  return { dir, decide, send };
 }
 
 beforeAll(async () => {
@@ -242,6 +251,18 @@ describe("routes", () => {
     expect((await send({ anchor: { kind: "global" }, mark: { kind: "delete" } })).status).toBe(400);
   });
 
+  test("edit is null, or a version and a text: missing or malformed is refused", async () => {
+    const { decide } = drafting();
+    expect((await decide({ kind: "feedback", annotations: [] })).status).toBe(400);
+    expect((await decide({ kind: "approve" })).status).toBe(400);
+    expect((await decide({ kind: "approve", edit: "# Q\n" })).status).toBe(400);
+    expect((await decide({ kind: "approve", edit: { version: 0, text: "# Q\n" } })).status).toBe(
+      400,
+    );
+    expect((await decide({ kind: "approve", edit: { version: 1 } })).status).toBe(400);
+    expect((await decide({ kind: "feedback", edit: null, annotations: [] })).status).toBe(200);
+  });
+
   test("a delete mark is taken on a text anchor", async () => {
     const { dir, send } = drafting();
     const passage = { quote: "the old gate", prefix: "", suffix: "", lines: [12, 14] };
@@ -270,7 +291,7 @@ describe("routes", () => {
     const bad = await fetch(url("/api/decision"), {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ kind: "feedback", annotations: [{ id: 1 }] }),
+      body: JSON.stringify({ kind: "feedback", edit: null, annotations: [{ id: 1 }] }),
     });
 
     expect(bad.status).toBe(400);
@@ -280,6 +301,7 @@ describe("routes", () => {
       headers: headers(),
       body: JSON.stringify({
         kind: "feedback",
+        edit: null,
         annotations: [
           {
             id: "a",
@@ -293,7 +315,7 @@ describe("routes", () => {
 
     expect(empty.status).toBe(400);
 
-    const approve = await post("/api/decision", JSON.stringify({ kind: "approve" }));
+    const approve = await post("/api/decision", JSON.stringify({ kind: "approve", edit: null }));
     expect(approve.status).toBe(200);
 
     const pending = await fetch(url("/api/pending"), { headers: headers() });

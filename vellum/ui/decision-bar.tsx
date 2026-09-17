@@ -1,6 +1,15 @@
 import type { PlanWorkspace } from "../src/protocol.ts";
 import { countChanges } from "../src/protocol.ts";
-import { annotations, decide, error, locked, planChanges, review } from "./state.ts";
+import {
+  annotations,
+  decide,
+  edited,
+  editing,
+  error,
+  locked,
+  planChanges,
+  review,
+} from "./state.ts";
 
 type Status = { readonly label: string; readonly tone: "" | "sent" | "ok" | "err" };
 
@@ -84,8 +93,8 @@ export function DecisionBar(): preact.JSX.Element {
           <button
             class="btn"
             type="button"
-            disabled={locked.value}
-            onClick={() => void decide({ kind: "approve" })}
+            disabled={locked.value || editing.value !== null}
+            onClick={() => void decide({ kind: "approve", edit: edited.value })}
           >
             Approve
           </button>
@@ -93,8 +102,12 @@ export function DecisionBar(): preact.JSX.Element {
         <button
           class="btn send"
           type="button"
-          disabled={locked.value || count === 0}
-          onClick={() => void decide({ kind: "feedback", annotations: annotations.value })}
+          disabled={
+            locked.value || editing.value !== null || (count === 0 && edited.value === null)
+          }
+          onClick={() =>
+            void decide({ kind: "feedback", edit: edited.value, annotations: annotations.value })
+          }
         >
           Send feedback {count > 0 && <span class="badge">{count}</span>}
         </button>
@@ -106,7 +119,8 @@ export function DecisionBar(): preact.JSX.Element {
             <button
               class="btn small"
               type="button"
-              onClick={() => void decide({ kind: "approve" })}
+              disabled={editing.value !== null}
+              onClick={() => void decide({ kind: "approve", edit: null })}
             >
               Retry approval
             </button>
