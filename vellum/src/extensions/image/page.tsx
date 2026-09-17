@@ -1,5 +1,5 @@
+import type { RendererProps, PageExtension } from "../../core/extension.ts";
 import { docUrl } from "../../core/page/api.ts";
-import type { RendererProps, PageExtension } from "../page.ts";
 
 function ImageDoc(props: RendererProps): preact.JSX.Element {
   return (

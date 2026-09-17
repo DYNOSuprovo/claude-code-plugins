@@ -3,6 +3,7 @@ import type { ComponentChild } from "preact";
 import { h } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
+import type { RendererProps, PageExtension } from "../../core/extension.ts";
 import { passageFromRange, passageFromSelection, rangeFor } from "../../core/page/anchoring.ts";
 import { docUrl, fileUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
@@ -10,7 +11,6 @@ import { paint } from "../../core/page/highlights.ts";
 import { activeMethod, docs, holding, locked, select } from "../../core/page/state.ts";
 import type { Passage } from "../../core/protocol.ts";
 import { parseProjectPath } from "../../core/server/domain/paths.ts";
-import type { RendererProps, PageExtension } from "../page.ts";
 import type { Changes, RemovedRun } from "./changes.ts";
 import { changesOf, removedLabel } from "./changes.ts";
 import type { Target } from "./pinpoint.ts";

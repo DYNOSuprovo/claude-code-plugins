@@ -38,7 +38,7 @@ function setup(): Setup {
   if (!workdir.ok) throw new Error(workdir.error);
 
   return {
-    review: new Review({ project: root, workdir: workdir.value, plugins: serverExtensions }),
+    review: new Review({ project: root, workdir: workdir.value, extensions: serverExtensions }),
     root,
   };
 }

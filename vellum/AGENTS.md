@@ -18,14 +18,16 @@ src/core/server/adapters/      http/routes.ts, http/serve.ts, fs.ts, browser.ts:
 src/core/server/app/review.ts  the use case: read, decide, apply
 src/core/server/domain/        pure, no IO: paths, workspace, review, feedback, diff, slug, links
 src/core/server/cli.ts         the entry point: `start` spawns `serve` detached
-src/core/protocol.ts           what crosses HTTP and a plugin boundary; JSON
+src/core/protocol.ts           what crosses HTTP and an extension boundary; JSON
+src/core/extension.ts          the contract an extension fills: PageExtension, ServerExtension
 src/core/page/                 the Preact page
-src/extensions/<kind>/         one document kind, server half (server.ts) and page half (page.tsx)
+src/extensions/<id>/           one extension, a file per place it plugs in: page.tsx, server.ts
+src/extensions/page.ts, server.ts  the two registries, the only way the core reaches an extension
 ```
 
 Dependencies point toward `src/core/server/domain/`, held by `src/boundaries.spec.ts`. The rules of each
-zone load with its files, from `.claude/rules/`: `hooks.md`, `server.md`, `page.md`,
-`tests.md`. The drawings, the assessment and where the next phases land: `docs/architecture.md`.
+zone load with its files, from `.claude/rules/`: `engine.md`, `server.md`, `page.md`,
+`extensions.md`, `tests.md`. The drawings, the assessment and where the next phases land: `docs/architecture.md`.
 
 ## Commands
 

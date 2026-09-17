@@ -1,6 +1,7 @@
 import { isAbsolute, join, normalize, relative } from "node:path";
 
-import type { DocLink, LinkRoots, ServerExtension } from "../../core/protocol.ts";
+import type { ServerExtension } from "../../core/extension.ts";
+import type { DocLink, LinkRoots } from "../../core/protocol.ts";
 import { mediaTypeOf } from "../../core/protocol.ts";
 import { parseProjectPath } from "../../core/server/domain/paths.ts";
 

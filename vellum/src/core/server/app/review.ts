@@ -1,4 +1,5 @@
-import type { DocRef, ReviewView, ServerExtension } from "../../protocol.ts";
+import type { ServerExtension } from "../../extension.ts";
+import type { DocRef, ReviewView } from "../../protocol.ts";
 import {
   finalize as renameWorkspace,
   listFiles,
@@ -30,7 +31,7 @@ import {
 export type ReviewOptions = {
   readonly project: string;
   readonly workdir: WipDir;
-  readonly plugins: readonly ServerExtension[];
+  readonly extensions: readonly ServerExtension[];
 };
 
 export type DecisionResult =
@@ -266,8 +267,8 @@ export class Review {
     const seen = new Set<string>([planDoc, ...listed.map((doc) => doc.path)]);
     const docs: DocRef[] = [];
 
-    for (const plugin of this.options.plugins) {
-      for (const doc of plugin.linkedDocs?.(plan, roots) ?? []) {
+    for (const extension of this.options.extensions) {
+      for (const doc of extension.linkedDocs?.(plan, roots) ?? []) {
         if (seen.has(doc.path)) continue;
         const modified = await modifiedAt(project, doc.path);
 

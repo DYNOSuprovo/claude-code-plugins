@@ -23,8 +23,9 @@ write under the project root, `http/routes.ts` bodies, paths and status codes,
   `parseProjectPath` grant `WipDir`, `Version`, `ProjectPath`. Past the parser: no `typeof`,
   no `as`, no re-check. A `ParseResult` is returned where the caller decides; anything else
   throws, and the route turns it into an answer.
-- `src/core/protocol.ts` is the one place a value crossing HTTP or a plugin boundary is typed; it
-  re-exports the domain types it carries, never redefines them.
+- `src/core/protocol.ts` is the one place a value crossing HTTP or an extension boundary is
+  typed; it re-exports the domain types it carries, never redefines them. What an extension
+  hands the core is typed beside it, in `src/core/extension.ts`.
 - A new domain concept gets its address in `domain/` before its first line.
 - A version is a text somebody handed over for review, Claude through `gate` or the reviewer
   through a decision that carries an `Edit`. `decideOn` decides all of it, purely: the version
