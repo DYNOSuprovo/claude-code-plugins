@@ -216,7 +216,7 @@ an environment of its own. It may import siblings, under the rule on `$` below.
   it only into a function declared in the file that registers the hook, and
   refuses a noun passed on its own (`$.store is used as a value`). Every other
   file takes a plain record of closures instead, bound where `$` is in scope
-  (`vellum/hooks/host.ts`, `mods/diff/hooks/host/host.ts`).
+  (`vellum/src/core/engine/host.ts`, `mods/diff/hooks/host/host.ts`).
 - `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate <plugin>` reads
   the module's source and prints what it hooks (`skill.prompt{skill=...}`)
   and every `$` call with the function that makes it. It needs no login and
@@ -241,12 +241,14 @@ an environment of its own. It may import siblings, under the rule on `$` below.
   `claude-code/testing` in the engine's environment. It takes no argument but
   the directory, and two rules follow from that: it loads the module from
   `<dir>/hooks/hooks.json` only, refusing a `modules` entry that climbs out
-  (`path-traversal`), and it collects every `*.test.ts` below `<dir>`. So the
-  kit runs from the plugin root, and a `bun:test` suite elsewhere in the
-  plugin fails that run unless it is named otherwise: `vellum` names its
-  server and page suites `*.spec.ts`, and keeps `*.test.ts` for the kit's own
-  under `vellum/tests/`. `bun test` would pick those up and fail on the
-  import, so the repo's `bunfig.toml` ignores `vellum/tests/**`.
+  of the plugin (`path-traversal`; `vellum` names
+  `../src/core/engine/register.ts`, inside it), and it collects every
+  `*.test.ts` below `<dir>`. So the kit runs from the plugin root, and a
+  `bun:test` suite elsewhere in the plugin fails that run unless it is named
+  otherwise: `vellum` names its server and page suites `*.spec.ts`, and keeps
+  `*.test.ts` for the kit's own, beside the module in
+  `vellum/src/core/engine/`. `bun test` would pick those up and fail on the
+  import, so the repo's `bunfig.toml` ignores `vellum/**/*.test.ts`.
 - The kit's `$` has no `classic` noun, so a `classic.PermissionRequest` hook
   cannot be raised from a test.
 - A hook answers within its dispatch's budget, about ten seconds. What must
@@ -413,7 +415,7 @@ What the debug log proves, and what it does not:
   The log names the tree: `Read hooks.json for plugin <name> (enabled=true):
   <repo>/<plugin>/hooks/hooks.json`, the skills load from
   `<repo>/<plugin>/skills`, and a server the module spawns carries
-  `<repo>/<plugin>/src/cli.ts` in its argv. Every plugin of that marketplace
+  `<repo>/<plugin>/src/core/server/cli.ts` in its argv. Every plugin of that marketplace
   resolves the same way in one log, while plugins of a `github` marketplace
   resolve under `cache/`. So `plugin.register: <name> (user,
   <name>@<marketplace>)` is the line that proves the install path was taken;

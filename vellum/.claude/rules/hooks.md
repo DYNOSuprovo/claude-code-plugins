@@ -1,12 +1,14 @@
 ---
 paths:
   - "hooks/**"
+  - "src/core/engine/**"
 ---
 
 # The hooks module
 
-Seven files, each importing `claude-code`, a sibling `./<name>.ts`, or `import type` from
-`../src/protocol.ts`, and nothing else. Held by `src/boundaries.spec.ts`.
+`hooks/hooks.json` is what Claude Code reads, and it names `src/core/engine/register.ts`. Seven
+files there, each importing `claude-code`, a sibling `./<name>.ts`, or `import type` from
+`../protocol.ts`, and nothing else. Held by `src/boundaries.spec.ts`.
 
 ```
 register.ts  the engine adapter: the one `let state`, one hook per event, and `hostOf`
@@ -72,7 +74,7 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
   `unknown` and are parsed in `parse.ts`. Past it: no `typeof`, no `as`, no re-check. The
   brands (`SessionId`, `Token`, `ProjectDir`, `Workdir`) are minted there and nowhere else.
 - The server's JSON is typed from the server's own types: `parse.ts` imports `Pending` and
-  `GateAnswer` from `../src/protocol.ts` as types, and `Json<T>` strips the domain's brands,
+  `GateAnswer` from `../protocol.ts` as types, and `Json<T>` strips the domain's brands,
   which the module reads but never grants. A field the server adds or renames fails `tsgo` in
   the parser.
 - Saving the file under `--plugin-dir` reloads the module in a fresh environment and every
@@ -86,6 +88,6 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
   server, and an approval drops the record: the next plan's batches count from one again.
   The approval's prompt names the reviewer's notes file first when the pending carries one; the
   module reads the path and never the file.
-- Tests run under the engine's own `$` (`claude plugin test vellum`, files in `tests/`):
+- Tests run under the engine's own `$` (`claude plugin test vellum`, the `*.test.ts` files beside the module):
   `bun test` cannot host that environment. The world beneath the module is answered by the
-  kit's `mock.clock` and the `on(...)` hooks of `tests/fixtures/`. Nothing else is faked.
+  kit's `mock.clock` and the `on(...)` hooks of `fixtures/`. Nothing else is faked.

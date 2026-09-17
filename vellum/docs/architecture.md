@@ -11,31 +11,31 @@ where phases 2 and 3 landed in it.
 flowchart LR
   subgraph engine["Claude Code (the engine)"]
     CC["the session<br/>/vellum:start · mcp__vellum__submit · /vellum:stop"]
-    M["hooks/<br/>register.ts · mode.ts: idle · live"]
+    M["src/core/engine/<br/>register.ts · mode.ts: idle · live"]
     CC -- "session.start · skill.prompt · command.run<br/>tool.check · tool.call · turn.complete" --> M
     M -- "$.prompt.submit<br/>deny / result / text" --> CC
   end
   subgraph server["vellum serve (one Bun process per session)"]
-    R["src/adapters/http/routes.ts<br/>token, status codes"]
-    A["src/app/review.ts<br/>read → decide → apply"]
-    T["src/domain/*<br/>pure: states, decisions, paths, feedback text"]
-    W["src/adapters/fs.ts<br/>plans/&lt;date&gt;/wip-&lt;sid8&gt;/"]
+    R["src/core/server/adapters/http/routes.ts<br/>token, status codes"]
+    A["src/core/server/app/review.ts<br/>read → decide → apply"]
+    T["src/core/server/domain/*<br/>pure: states, decisions, paths, feedback text"]
+    W["src/core/server/adapters/fs.ts<br/>plans/&lt;date&gt;/wip-&lt;sid8&gt;/"]
     R --> A --> T
     A --> W
   end
   subgraph page["Browser page (Preact, bundled by Bun.serve)"]
-    U["ui/*<br/>list · decision bar · comments · anchoring"]
-    P["plugins/*/ui.tsx<br/>markdown · html · image"]
+    U["src/core/page/*<br/>list · decision bar · comments · anchoring"]
+    P["src/extensions/*/page.tsx<br/>markdown · html · image"]
     U --> P
   end
   M -- "HTTP /api/*<br/>x-vellum-token" --> R
   U -- "HTTP /api/*, /t/&lt;token&gt;/files, SSE" --> R
-  A -. "plugins/*/server.ts<br/>linkedDocs, pure" .-> A
+  A -. "src/extensions/*/server.ts<br/>linkedDocs, pure" .-> A
   F[("plans/&lt;date&gt;/wip-&lt;sid8&gt;/<br/>plan.md, .review/vN.md, vN.feedback.md,<br/>vN.notes.md, draft.json")]
   W --> F
 ```
 
-`src/protocol.ts` is the one contract the three share: every value that crosses HTTP or a
+`src/core/protocol.ts` is the one contract the three share: every value that crosses HTTP or a
 plugin boundary is typed there and is JSON.
 
 ## What kind of architecture this is
@@ -51,7 +51,7 @@ plain modules with no interface and no injection).
 | Hooks module | ports and adapters, `Host` the port | the engine's events (`session.start`, `skill.prompt`, `command.run`, `tool.check`, `tool.call`, `turn.complete`) | the engine's `$` (clock, store, http, process, prompt, tool), answered by the kit in tests |
 | Server | ports and adapters, domain / app / adapters | `adapters/http/routes.ts` | the file system through `adapters/fs.ts`, real in tests (a temp directory) |
 | Page | a store of signals and components | the reviewer's clicks | `/api`, the files route, SSE |
-| `plugins/<kind>/` | feature slices: one document kind = one folder with its server half and its UI half | | |
+| `src/extensions/<kind>/` | feature slices: one document kind = one folder with its server half and its page half | | |
 
 Four levels of ceremony exist for the same principle; this is the lightest. The next one
 up, ports as interfaces with a fake each and a contract test per port, is one hour away
@@ -62,19 +62,19 @@ and repositories) answer needs this plugin does not have.
 What moved to reach this shape, and why:
 
 1. `src/workspace/` (pure parsing next to `readdir` and `rename`) split into
-   `src/domain/` (paths, slug, links, the workspace state from a listing) and
-   `src/adapters/fs.ts` (the listing, the reads and writes, the rename).
+   `domain/` (paths, slug, links, the workspace state from a listing) and
+   `adapters/fs.ts` (the listing, the reads and writes, the rename).
 2. `src/server/review.ts` lost its `Bun.file` and `Bun.write` calls to the adapter and became
-   `src/app/review.ts`: read, decide, apply, in one screen.
-3. `src/protocol.ts` re-exports the domain types it carries (`PlanWorkspace`, `Pending`,
+   `app/review.ts`: read, decide, apply, in one screen.
+3. `protocol.ts` re-exports the domain types it carries (`PlanWorkspace`, `Pending`,
    `Decision`, `Anchor`, `Annotation`) instead of defining them; the page depends on the
    contract, the server on the domain.
-4. `ui/state.ts` split into `ui/api.ts` (token, routes, SSE) and the store.
+4. The page's `state.ts` split into `api.ts` (token, routes, SSE) and the store.
 5. `src/boundaries.spec.ts` holds the direction: an import that fails it is in the wrong
    layer, not a test to loosen.
 
 Phases 2 and 3 added domain concepts (element anchors, drafting feedback, marks, the line
-diff, the reviewer's edit, approval notes, drafts); each got its address in `src/domain/` before
+diff, the reviewer's edit, approval notes, drafts); each got its address in `domain/` before
 its first line.
 
 ## A review round
@@ -126,7 +126,8 @@ outside it, serves
 `mcp__vellum__submit`, and polls `GET /api/pending` once a second until it closes: drafting
 batches, then the review's decision, each relayed as a prompt.
 
-The server, derived from the directory plus a memory overlay (`src/domain/workspace.ts`, `workspaceOf`):
+The server, derived from the directory plus a memory overlay
+(`src/core/server/domain/workspace.ts`, `workspaceOf`):
 
 ```mermaid
 stateDiagram-v2
@@ -155,59 +156,64 @@ its own, in `$.store`: how many batches it already named, so a reload never repe
 
 | Feature | Pure part | Adapter part | Page part |
 |---|---|---|---|
-| Comment on an HTML element (#105) | `ElementRef`, the `Anchor` variant `element` and its line in the feedback text; `plugins/html/pick.ts` and `ui/selection.ts` | `frame.js` built once at `startServer` and injected into `text/html` responses, `postMessage` across the sandbox | the HTML renderer bridges the frame and opens the Composer over the iframe |
-| Coloured code and Mermaid (#105) | `rehype-highlight` in the `toTree` pipeline, so the hast keeps `data-lines`; the target kind `diagram` and `diagramPassage` in `plugins/markdown/pinpoint.ts` | | the Markdown renderer turns a `mermaid` block into a `figure`, draws it after the mount, and boxes it where text is highlighted |
-| Diff `vN-1` / `vN` (#106) | `domain/diff.ts`: `lineDiff` over the `diff` package, `countChanges`; `plugins/markdown/changes.ts`: which block carries a mark, where a removed run goes | `/api/review` returns the previous version's text | `planChanges` computed once; the count beside the version, the "Changes since" toggle, the marks and the text-free removed blocks in the Markdown renderer |
+| Comment on an HTML element (#105) | `ElementRef`, the `Anchor` variant `element` and its line in the feedback text; `extensions/html/pick.ts` and `page/selection.ts` | `frame.js` built once at `startServer` and injected into `text/html` responses, `postMessage` across the sandbox | the HTML renderer bridges the frame and opens the Composer over the iframe |
+| Coloured code and Mermaid (#105) | `rehype-highlight` in the `toTree` pipeline, so the hast keeps `data-lines`; the target kind `diagram` and `diagramPassage` in `extensions/markdown/pinpoint.ts` | | the Markdown renderer turns a `mermaid` block into a `figure`, draws it after the mount, and boxes it where text is highlighted |
+| Diff `vN-1` / `vN` (#106) | `domain/diff.ts`: `lineDiff` over the `diff` package, `countChanges`; `extensions/markdown/changes.ts`: which block carries a mark, where a removed run goes | `/api/review` returns the previous version's text | `planChanges` computed once; the count beside the version, the "Changes since" toggle, the marks and the text-free removed blocks in the Markdown renderer |
 | Delete marks and quick labels (#106) | `Mark` on `Annotation`, `QUICK_LABELS` with the sentence Claude reads, in `domain/feedback.ts` | `parseMark` in the boundary block of `routes.ts` | the Composer's label row and "Delete this", the card's chip and struck quote |
-| Direct edit (#106) | `Edit`, `decideOn` (the edit is `vN+1`, refused on another version), `editOnLoad`, `landedAnnotations` in `domain/review.ts`; `shiftLines`, `shiftAnnotations` in `domain/diff.ts` | `parseEdit`; `Review.decide` writes `plan.md`, then the version file | `ui/editor.tsx` and `ui/caret.ts`; `edited`, `editing`, `finishEdit`, `settleEdit` in `state.ts` |
-| Approval notes (#106) | `formatNotes`, `notesFile`, `approved.notes` read off the final directory's listing, `Pending.approved.notes` | the notes file written before the rename; `hooks/relay.ts` names it in the approval's prompt | the decision bar's one popover state: notes, and the warning before unsent comments are discarded |
+| Direct edit (#106) | `Edit`, `decideOn` (the edit is `vN+1`, refused on another version), `editOnLoad`, `landedAnnotations` in `domain/review.ts`; `shiftLines`, `shiftAnnotations` in `domain/diff.ts` | `parseEdit`; `Review.decide` writes `plan.md`, then the version file | `page/editor.tsx` and `page/caret.ts`; `edited`, `editing`, `finishEdit`, `settleEdit` in `state.ts` |
+| Approval notes (#106) | `formatNotes`, `notesFile`, `approved.notes` read off the final directory's listing, `Pending.approved.notes` | the notes file written before the rename; `engine/relay.ts` names it in the approval's prompt | the decision bar's one popover state: notes, and the warning before unsent comments are discarded |
 | Drafts (#106) | `Draft`, `DRAFT_FILE`, `takesComments` | `GET` and `PUT /api/draft`, stored and never read back; removed by a decision that lands | `start`: restore, load, then save at every change, in order |
 
-Every one added a pure part first; `src/domain/` is where a new domain concept goes, and a
-renderer's own choice stays beside its `ui.tsx`.
+Every one added a pure part first; `src/core/server/domain/` is where a new domain concept
+goes, and a renderer's own choice stays beside its `page.tsx`.
 
 ## The tree
 
 ```
 vellum/
-  hooks/
-    register.ts                the one `let state`, one hook per event, and `hostOf($)`
-    host.ts                    `Host`: one member per `$` call the module makes
-    mode.ts                    State, Session, Live, and the transitions
-    lock.ts, relay.ts          the write policy and the poll's prompts, pure where they can be
-    server.ts, parse.ts        the review server's client, and the boundary parser
-  skills/start/, skills/stop/  the way in and the way out, both `vellum:`-namespaced
+  hooks/hooks.json               what Claude Code reads: it names src/core/engine/register.ts, and nothing else lives there
+  skills/start/, skills/stop/    the way in and the way out, both `vellum:`-namespaced
   src/
-    domain/                    pure, no IO, no Bun, no node:*
-      paths.ts                 brands and parsers
-      slug.ts, links.ts
-      workspace.ts             PlanWorkspace from a listing, Memory, Pending, workspaceOf, pendingOf, takesComments
-      review.ts                Decision, Edit, Draft, gateVersion, decideOn, editOnLoad, slugFor
-      feedback.ts              Anchor, Mark, Annotation, FeedbackHeading, formatFeedback, formatNotes
-      diff.ts                  LineDiff, lineDiff, countChanges, shiftLines, shiftAnnotations
-    app/
-      review.ts                the use case: read the directory, decide, apply
-    adapters/
-      fs.ts                    the listings, the reads and writes, the rename and rewrite
-      http/routes.ts, http/serve.ts
-      browser.ts               open the page
-    protocol.ts                the JSON contract; re-exports the domain types it carries
-    cli.ts                     the entry point: start | serve
-    boundaries.spec.ts         the dependency direction
-  ui/
-    api.ts                     the client: token, routes, SSE
-    state.ts, app.tsx, …       the store and the components
-    tools.tsx                  the controls row over the document: Select|Pinpoint, Beside the plan, Edit, Changes since
-    editor.tsx, caret.ts       the plan's source editor, opened on the line the reviewer was reading
-    selection.ts               what a Ctrl+click keeps, shared by both pinpoints
-    anchoring.ts, highlights.ts
-  plugins/<kind>/{server.ts,ui.tsx}   one folder per document kind
-  plugins/markdown/tree.ts            Markdown to hast, coloured, every element with its source lines
-  plugins/markdown/pinpoint.ts        the target under the pointer: pure choice, thin DOM adapter
-  plugins/markdown/changes.ts         the marked blocks and the removed runs' places: pure choice
-  plugins/html/pick.ts                selectors, targets and labels: pure choice
-  plugins/html/frame.ts               the script inside the sandboxed mockup; messages.ts is its contract
-  plugins/index.ts, plugins/server.ts two registries: one bundle is a browser's
+    core/
+      protocol.ts                the JSON contract; re-exports the domain types it carries
+      engine/                    the hooks module, run by Claude Code
+        register.ts              the one `let state`, one hook per event, and `hostOf($)`
+        host.ts                  `Host`: one member per `$` call the module makes
+        mode.ts                  State, Session, Live, and the transitions
+        lock.ts, relay.ts        the write policy and the poll's prompts, pure where they can be
+        server.ts, parse.ts      the review server's client, and the boundary parser
+        *.test.ts, fixtures/     the kit's tests and the hooks that answer beneath the module
+      server/                    one Bun process per session
+        cli.ts                   the entry point: start | serve
+        domain/                  pure, no IO, no Bun, no node:*
+          paths.ts               brands and parsers
+          slug.ts, links.ts
+          workspace.ts           PlanWorkspace from a listing, Memory, Pending, workspaceOf, pendingOf, takesComments
+          review.ts              Decision, Edit, Draft, gateVersion, decideOn, editOnLoad, slugFor
+          feedback.ts            Anchor, Mark, Annotation, FeedbackHeading, formatFeedback, formatNotes
+          diff.ts                LineDiff, lineDiff, countChanges, shiftLines, shiftAnnotations
+        app/
+          review.ts              the use case: read the directory, decide, apply
+        adapters/
+          fs.ts                  the listings, the reads and writes, the rename and rewrite
+          http/routes.ts, http/serve.ts
+          browser.ts             open the page
+      page/                      the Preact page, bundled for the browser
+        api.ts                   the client: token, routes, SSE
+        state.ts, app.tsx, …     the store and the components
+        tools.tsx                the controls row over the document: Select|Pinpoint, Beside the plan, Edit, Changes since
+        editor.tsx, caret.ts     the plan's source editor, opened on the line the reviewer was reading
+        selection.ts             what a Ctrl+click keeps, shared by both pinpoints
+        anchoring.ts, highlights.ts
+    extensions/
+      page.ts, server.ts         two registries: one bundle is a browser's
+      <kind>/{server.ts,page.tsx}  one folder per document kind
+      markdown/tree.ts           Markdown to hast, coloured, every element with its source lines
+      markdown/pinpoint.ts       the target under the pointer: pure choice, thin DOM adapter
+      markdown/changes.ts        the marked blocks and the removed runs' places: pure choice
+      html/pick.ts               selectors, targets and labels: pure choice
+      html/frame.ts              the script inside the sandboxed mockup; messages.ts is its contract
+    boundaries.spec.ts           the dependency direction
 ```
 
 A test of `domain/` is a plain call; a test of `app/` uses a temp directory through the real
