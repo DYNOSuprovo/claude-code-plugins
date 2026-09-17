@@ -1,4 +1,6 @@
-import type { PlanWorkspace } from "../src/protocol.ts";
+import { useEffect, useRef, useState } from "preact/hooks";
+
+import type { Annotation, PlanWorkspace } from "../src/protocol.ts";
 import { countChanges } from "../src/protocol.ts";
 import {
   annotations,
@@ -65,6 +67,96 @@ function titleOf(plan: string | undefined): string {
   return /^#\s+(.+?)\s*$/mu.exec(plan ?? "")?.[1] ?? "Plan";
 }
 
+/**
+ * The notes popover: the note typed so far, and the unsent comments as they were when the
+ * reviewer agreed to lose them, or when the popover opened on none. Comments that changed since
+ * bring the warning back.
+ */
+type Notes = {
+  readonly kind: "notes";
+  readonly text: string;
+  readonly agreed: readonly Annotation[];
+};
+
+/**
+ * What "Approve anyway" goes on to: the approval at once, the notes popover, or the approval the
+ * notes popover asked for, where Cancel returns with the note intact.
+ */
+type Next =
+  | { readonly kind: "approve" }
+  | { readonly kind: "notes" }
+  | { readonly kind: "noted"; readonly notes: Notes };
+
+/** The one popover under the bar: the notes, or the warning that stands before `next`. */
+type Popover = { readonly kind: "closed" } | Notes | { readonly kind: "warn"; readonly next: Next };
+
+const CLOSED: Popover = { kind: "closed" };
+
+type NotesProps = {
+  readonly text: string;
+  readonly onInput: (text: string) => void;
+  readonly onApprove: () => void;
+  readonly onCancel: () => void;
+};
+
+function ApprovalNotes(props: NotesProps): preact.JSX.Element {
+  const textarea = useRef<HTMLTextAreaElement>(null);
+
+  // `autofocus` is honoured once per document, and the composer may have taken it already.
+  useEffect(() => textarea.current?.focus(), []);
+
+  return (
+    <div class="popover pop-bar" role="dialog" aria-label="Approval notes">
+      <label for="approval-notes">Notes for Claude, read before its first action</label>
+      <textarea
+        id="approval-notes"
+        rows={3}
+        ref={textarea}
+        value={props.text}
+        onInput={(event) => props.onInput(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) props.onApprove();
+        }}
+      />
+      <div class="row">
+        <button class="btn small" type="button" onClick={props.onCancel}>
+          Cancel
+        </button>
+        <button class="btn small" type="button" onClick={props.onApprove}>
+          Approve <kbd>Ctrl</kbd> <kbd>↵</kbd>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+type WarningProps = {
+  readonly count: number;
+  readonly onApprove: () => void;
+  readonly onCancel: () => void;
+};
+
+function UnsentWarning(props: WarningProps): preact.JSX.Element {
+  const one = props.count === 1;
+
+  return (
+    <div class="popover pop-bar" role="dialog" aria-label="Unsent comments">
+      <div class="warn-text">
+        {one ? "1 comment is not sent." : `${props.count} comments are not sent.`}
+      </div>
+      <div>Approving discards {one ? "it" : "them"}.</div>
+      <div class="row">
+        <button class="btn small" type="button" onClick={props.onCancel}>
+          Cancel
+        </button>
+        <button class="btn small send" type="button" onClick={props.onApprove}>
+          Approve anyway
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function DecisionBar(): preact.JSX.Element {
   const view = review.value;
   const workspace = view?.workspace;
@@ -73,6 +165,30 @@ export function DecisionBar(): preact.JSX.Element {
   const count = annotations.value.length;
   const since = view?.plan?.previous?.version;
   const changed = planChanges.value === null ? null : countChanges(planChanges.value);
+  const [popover, setPopover] = useState<Popover>(CLOSED);
+  const close = (): void => setPopover(CLOSED);
+  const held = locked.value || editing.value !== null;
+  // After a failed rename the first attempt's files stand: "Retry approval" is the one approve left.
+  const stuck = workspace?.kind === "inReview" && workspace.finalizeError !== null;
+
+  const approve = (notes: string): void => {
+    close();
+    void decide({ kind: "approve", edit: edited.value, notes });
+  };
+
+  const proceed = (next: Next): void => {
+    if (next.kind === "notes") setPopover({ kind: "notes", text: "", agreed: annotations.value });
+    else approve(next.kind === "noted" ? next.notes.text : "");
+  };
+
+  /** Every way to an approval: unsent comments the reviewer has not agreed to lose put the warning first. */
+  const ask = (next: Next): void => {
+    const unsent = annotations.value;
+    const agreed = next.kind === "noted" && next.notes.agreed === unsent;
+
+    if (unsent.length === 0 || agreed) proceed(next);
+    else setPopover({ kind: "warn", next });
+  };
 
   return (
     <>
@@ -90,27 +206,50 @@ export function DecisionBar(): preact.JSX.Element {
         {status !== null && <span class={`status ${status.tone}`}>{status.label}</span>}
         <span class="spacer" />
         {workspace?.kind !== "drafting" && (
-          <button
-            class="btn"
-            type="button"
-            disabled={locked.value || editing.value !== null}
-            onClick={() => void decide({ kind: "approve", edit: edited.value })}
-          >
-            Approve
-          </button>
+          <>
+            <button
+              class="btn"
+              type="button"
+              disabled={held || stuck}
+              onClick={() => ask({ kind: "approve" })}
+            >
+              Approve
+            </button>
+            <button
+              class="btn"
+              type="button"
+              disabled={held || stuck}
+              onClick={() => ask({ kind: "notes" })}
+            >
+              Approve with notes…
+            </button>
+          </>
         )}
         <button
           class="btn send"
           type="button"
-          disabled={
-            locked.value || editing.value !== null || (count === 0 && edited.value === null)
-          }
+          disabled={held || (count === 0 && edited.value === null)}
           onClick={() =>
             void decide({ kind: "feedback", edit: edited.value, annotations: annotations.value })
           }
         >
           Send feedback {count > 0 && <span class="badge">{count}</span>}
         </button>
+        {popover.kind === "notes" && !held && (
+          <ApprovalNotes
+            text={popover.text}
+            onInput={(text) => setPopover({ ...popover, text })}
+            onApprove={() => ask({ kind: "noted", notes: popover })}
+            onCancel={close}
+          />
+        )}
+        {popover.kind === "warn" && !held && (
+          <UnsentWarning
+            count={count}
+            onApprove={() => proceed(popover.next)}
+            onCancel={() => setPopover(popover.next.kind === "noted" ? popover.next.notes : CLOSED)}
+          />
+        )}
       </div>
       {banner !== null && (
         <div class={`banner ${banner.tone}`}>
@@ -120,7 +259,7 @@ export function DecisionBar(): preact.JSX.Element {
               class="btn small"
               type="button"
               disabled={editing.value !== null}
-              onClick={() => void decide({ kind: "approve", edit: null })}
+              onClick={() => void decide({ kind: "approve", edit: null, notes: "" })}
             >
               Retry approval
             </button>

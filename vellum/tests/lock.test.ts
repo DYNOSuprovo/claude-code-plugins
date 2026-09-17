@@ -1,9 +1,9 @@
 import { describe, expect, test, tier } from "claude-code/testing";
 
 import { lockVerdict, type Verdict } from "../hooks/lock.ts";
-import { editedPath, projectDir } from "../hooks/parse.ts";
+import { editedPath, parsePending, projectDir } from "../hooks/parse.ts";
 import { submitResult } from "../hooks/relay.ts";
-import { CWD, WORKDIR } from "./fixtures/index.ts";
+import { approved, CWD, FINAL, WORKDIR } from "./fixtures/index.ts";
 
 tier("user");
 
@@ -84,5 +84,21 @@ describe("submitResult", () => {
     expect(submitResult({ error: "write plan.md in x/ first" })).toEqual({
       deny: "write plan.md in x/ first",
     });
+  });
+});
+
+describe("parsePending", () => {
+  test("an approval's notes are a path or null", () => {
+    const notes = `${FINAL}.review/v3.notes.md`;
+
+    expect(parsePending(JSON.stringify(approved(3, notes)))).toEqual(approved(3, notes));
+    expect(parsePending(JSON.stringify(approved(3)))).toEqual(approved(3));
+  });
+
+  test("an approval whose notes are missing or no string is nothing to relay", () => {
+    const { notes: _, ...bare } = approved(3);
+
+    expect(parsePending(JSON.stringify(bare))).toEqual({ kind: "none" });
+    expect(parsePending(JSON.stringify({ ...bare, notes: 3 }))).toEqual({ kind: "none" });
   });
 });

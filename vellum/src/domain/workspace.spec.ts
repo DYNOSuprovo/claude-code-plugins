@@ -22,7 +22,7 @@ const inReview: PlanWorkspace = {
 
 const changesRequested: PlanWorkspace = { kind: "changesRequested", dir: DIR, version: V1 };
 
-const approved: PlanWorkspace = { kind: "approved", dir: FINAL, version: V1 };
+const approved: PlanWorkspace = { kind: "approved", dir: FINAL, version: V1, notes: false };
 
 function listing(...names: string[]): ReadonlySet<string> {
   return new Set(names);
@@ -61,9 +61,20 @@ describe("workspaceFromListing", () => {
   test("a final directory is approved, and an empty one is an error", () => {
     expect(workspaceFromListing(FINAL, listing("v3.md"))).toEqual({
       ok: true,
-      value: { kind: "approved", dir: FINAL, version: 3 as never },
+      value: { kind: "approved", dir: FINAL, version: 3 as never, notes: false },
     });
     expect(workspaceFromListing(FINAL, listing()).ok).toBe(false);
+  });
+
+  test("a final directory with the approved version's notes file says so; an earlier version's does not count", () => {
+    const noted = listing("v2.md", "v2.notes.md", "v3.md", "v3.notes.md");
+    expect(workspaceFromListing(FINAL, noted)).toMatchObject({
+      value: { version: 3, notes: true },
+    });
+    const earlier = listing("v2.md", "v2.notes.md", "v3.md");
+    expect(workspaceFromListing(FINAL, earlier)).toMatchObject({
+      value: { version: 3, notes: false },
+    });
   });
 });
 
@@ -80,11 +91,12 @@ describe("workspaceOf", () => {
   });
 
   test("the approved memory wins over the directory, which was renamed", () => {
-    const memory = { kind: "approved", version: V1, dir: FINAL } as const;
+    const memory = { kind: "approved", version: V1, dir: FINAL, notes: true } as const;
     expect(workspaceOf(drafting, memory)).toEqual({
       kind: "approved",
       dir: FINAL,
       version: V1,
+      notes: true,
     });
   });
 });
@@ -109,7 +121,11 @@ describe("pendingOf", () => {
       { kind: "drafts", batches: [{ batch: 1, path: `${DIR}.review/v0.feedback-1.md` }] },
     ],
     [changesRequested, { kind: "feedback", version: V1, path: `${DIR}.review/v1.feedback.md` }],
-    [approved, { kind: "approved", version: V1, dir: FINAL }],
+    [approved, { kind: "approved", version: V1, dir: FINAL, notes: null }],
+    [
+      { ...approved, notes: true },
+      { kind: "approved", version: V1, dir: FINAL, notes: `${FINAL}.review/v1.notes.md` },
+    ],
   ] as const)("reads what $kind leaves pending", (workspace, expected) => {
     expect(pendingOf(workspace)).toEqual(expected as never);
   });

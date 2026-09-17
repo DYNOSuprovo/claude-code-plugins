@@ -70,9 +70,11 @@ const GENERAL_NO = {
   mark: { kind: "comment", body: "No." },
 } as const;
 
-const APPROVE = { kind: "approve", edit: null } as const;
+const APPROVE = { kind: "approve", edit: null, notes: "" } as const;
 
 const SAY_NO = { kind: "feedback", edit: null, annotations: [GENERAL_NO] } as const;
+
+const NOTES_TITLE = "# Plan approved: the reviewer's notes";
 
 function read(root: string, path: string): string {
   return readFileSync(join(root, path), "utf8");
@@ -136,7 +138,7 @@ describe("Review", () => {
 
   test("approve with an edit leaves the edited text in the final plan.md, links rewritten", async () => {
     const { review, root } = await gated();
-    const result = await review.decide({ kind: "approve", edit: EDIT_OF_V1 });
+    const result = await review.decide({ ...APPROVE, edit: EDIT_OF_V1 });
     expect(result).toMatchObject({ ok: true, workspace: { kind: "approved", version: 2 } });
     expect(read(root, `${FINAL}plan.md`)).toEndWith("edited by the reviewer\n");
     expect(read(root, `${FINAL}plan.md`)).toContain(`${FINAL}mockup.html`);
@@ -159,7 +161,7 @@ describe("Review", () => {
   test("an approve with an edit whose rename failed is retried without the edit, and approves v2", async () => {
     const { review, root } = await gated();
     chmodSync(join(root, DATED), 0o500);
-    const failed = await review.decide({ kind: "approve", edit: EDIT_OF_V1 });
+    const failed = await review.decide({ ...APPROVE, edit: EDIT_OF_V1 });
     chmodSync(join(root, DATED), 0o700);
     const stuck = { kind: "inReview", version: 2, finalizeError: expect.any(String) };
     expect(failed).toMatchObject({ ok: false, workspace: stuck });
@@ -169,15 +171,39 @@ describe("Review", () => {
     expect(read(root, `${FINAL}.review/v1.md`)).toBe(PLAN.replaceAll(WIP, FINAL));
   });
 
+  test("approve with a note writes the notes file before the rename: the final directory holds it, links rewritten", async () => {
+    const { review, root } = await gated();
+    const result = await review.decide({ ...APPROVE, notes: `Start from ${WIP}mockup.html.` });
+    expect(result).toMatchObject({ ok: true, workspace: { kind: "approved", notes: true } });
+    expect(read(root, `${FINAL}.review/v1.notes.md`)).toBe(
+      `${NOTES_TITLE} (v1)\n\nStart from ${FINAL}mockup.html.\n`,
+    );
+    const [dir, notes] = [FINAL as never, `${FINAL}.review/v1.notes.md` as never];
+    expect(await review.pending()).toEqual({ kind: "approved", version: V1, dir, notes });
+  });
+
+  test("an approve retried after a failed rename carries no note, and still reports the first attempt's", async () => {
+    const { review, root } = await gated();
+    chmodSync(join(root, DATED), 0o500);
+    await review.decide({ kind: "approve", edit: EDIT_OF_V1, notes: "Slice 1 only." });
+    chmodSync(join(root, DATED), 0o700);
+    const retried = await review.decide(APPROVE);
+    expect(retried).toMatchObject({ ok: true, workspace: { version: 2, notes: true } });
+    expect(read(root, `${FINAL}.review/v2.notes.md`)).toBe(
+      `${NOTES_TITLE} (v2)\n\nThe reviewer edited plan.md directly (v1 → v2): read plan.md again.\n\nSlice 1 only.\n`,
+    );
+  });
+
   test("approve renames the directory at once and leaves it pending with its name", async () => {
     const { review, root } = await gated();
     const result = await review.decide(APPROVE);
     expect(result).toEqual({
       ok: true,
-      workspace: { kind: "approved", dir: FINAL as never, version: V1 },
+      workspace: { kind: "approved", dir: FINAL as never, version: V1, notes: false },
     });
     expect(read(root, `${FINAL}.review/v1.md`)).toContain(`${FINAL}mockup.html`);
-    expect(await review.pending()).toEqual({ kind: "approved", version: V1, dir: FINAL as never });
+    const dir = FINAL as never;
+    expect(await review.pending()).toEqual({ kind: "approved", version: V1, dir, notes: null });
   });
 
   test("approve puts the approved text back in plan.md, over a revision not submitted", async () => {

@@ -144,7 +144,11 @@ async function parseDecision(request: Request): Promise<Decision | null> {
 
   if (edit === null) return null;
 
-  if (body.kind === "approve") return { kind: "approve", edit: edit.value };
+  if (body.kind === "approve") {
+    return typeof body.notes === "string"
+      ? { kind: "approve", edit: edit.value, notes: body.notes }
+      : null;
+  }
 
   if (body.kind !== "feedback" || !Array.isArray(body.annotations)) return null;
   const annotations = body.annotations.map(parseAnnotation);

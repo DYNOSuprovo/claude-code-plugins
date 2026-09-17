@@ -36,7 +36,9 @@ function feedbackPrompt(pending: Extract<PendingWire, { kind: "feedback" }>): st
 }
 
 function approvedPrompt(pending: Extract<PendingWire, { kind: "approved" }>): string {
-  return `Plan v${pending.version} approved. It lives at ${pending.dir}. Implement it here or in a fresh session.`;
+  const notes = pending.notes === null ? "" : ` Read ${pending.notes} first: the reviewer's notes.`;
+
+  return `Plan v${pending.version} approved.${notes} It lives at ${pending.dir}. Implement it here or in a fresh session.`;
 }
 
 /**

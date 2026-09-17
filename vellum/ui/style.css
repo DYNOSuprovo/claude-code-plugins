@@ -37,7 +37,7 @@ body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.5 va
 button:focus-visible, textarea:focus-visible { outline: 2px solid var(--redline); outline-offset: 2px; }
 
 .app { background: var(--sheet); height: 100%; display: flex; flex-direction: column; overflow: hidden; }
-.bar { display: flex; align-items: center; gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.bar { display: flex; align-items: center; gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; position: relative; }
 .brand { font-weight: 700; letter-spacing: 0.01em; }
 .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50ch; }
 .version { font-size: 0.8rem; color: var(--graphite); border: 1px solid var(--rule); border-radius: 9px; padding: 0 7px; }
@@ -147,6 +147,9 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: #fff;
 .popover .quote { color: var(--graphite); font-style: italic; margin-bottom: 6px; }
 textarea { width: 100%; font: 0.9rem/1.4 var(--ui); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; resize: vertical; background: #fff; color: var(--ink); }
 .row { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+.pop-bar { top: calc(100% + 6px); right: 14px; width: 320px; z-index: 3; }
+.pop-bar label { display: block; margin-bottom: 6px; }
+.warn-text { color: var(--redline); font-weight: 600; margin-bottom: 4px; }
 .labels { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .chip { font: 600 0.74rem var(--ui); border: 1px solid var(--rule); border-radius: 9px; padding: 2px 8px; background: var(--tint); color: var(--ink); cursor: pointer; }
 .chip.del { border-color: var(--redline); color: var(--redline); background: transparent; }
