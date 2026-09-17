@@ -16,7 +16,8 @@ function sources(dir: string): string[] {
         entry.isFile() &&
         /\.tsx?$/u.test(entry.name) &&
         !entry.name.includes(".test.") &&
-        !entry.name.includes(".spec."),
+        !entry.name.includes(".spec.") &&
+        !entry.parentPath.split("/").includes("fixtures"),
     )
     .map((entry) => join(entry.parentPath, entry.name));
 }
@@ -34,18 +35,21 @@ function offending(dir: string, forbidden: RegExp): string[] {
 }
 
 describe("dependency direction", () => {
-  test("src/domain imports no runtime, no adapter, no application, no page", () => {
+  test("core/server/domain imports no runtime, no adapter, no application, no page", () => {
     expect(
-      offending("src/domain", /^(node:|bun|\.\.\/(adapters|app|protocol)|\.\.\/\.\.\/ui)/u),
+      offending(
+        "src/core/server/domain",
+        /^(node:|bun|\.\.\/(adapters|app)|\.\.\/\.\.\/(protocol|page))/u,
+      ),
     ).toEqual([]);
   });
 
-  test("hooks/ runs on claude-code and its own siblings alone; src/ reaches it as types only", () => {
-    // The transpiler drops a type-only import, so `import type … from "../src/protocol.ts"`
+  test("core/engine runs on claude-code and its own siblings alone; the rest reaches it as types only", () => {
+    // The transpiler drops a type-only import, so `import type … from "../protocol.ts"`
     // never shows here, and a value import from anywhere but a sibling does.
     const transpiler = new Bun.Transpiler({ loader: "ts" });
 
-    const stray = sources("hooks").flatMap((file) =>
+    const stray = sources("src/core/engine").flatMap((file) =>
       transpiler
         .scanImports(readFileSync(file, "utf8"))
         .filter(({ path }) => path !== "claude-code" && !/^\.\/[a-z-]+\.ts$/u.test(path))
@@ -56,12 +60,12 @@ describe("dependency direction", () => {
   });
 
   test("the page and its renderers never import the server side", () => {
-    const forbidden = /^(node:|bun$|.*\/src\/(app|adapters)\/)/u;
-    expect(offending("ui", forbidden)).toEqual([]);
-    expect(offending("plugins", /^(.*\/src\/(app|adapters)\/)/u)).toEqual([]);
+    const forbidden = /^(node:|bun$|.*\/server\/(app|adapters)\/)/u;
+    expect(offending("src/core/page", forbidden)).toEqual([]);
+    expect(offending("src/extensions", /^(.*\/server\/(app|adapters)\/)/u)).toEqual([]);
   });
 
-  test("the server never imports the page", () => {
-    expect(offending("src", /\/ui\/(?!index\.html)/u)).toEqual([]);
+  test("the server, the engine and the protocol never import the page", () => {
+    expect(offending("src/core", /\/page\/(?!index\.html)/u)).toEqual([]);
   });
 });

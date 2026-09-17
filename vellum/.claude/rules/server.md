@@ -1,16 +1,18 @@
 ---
 paths:
-  - "src/**"
+  - "src/core/server/**"
+  - "src/core/protocol.ts"
 ---
 
 # The server
 
-Hexagonal with a functional core. `src/domain/` is pure functions over immutable data: no
-`node:*`, no `bun`, no adapter, app or page import. `src/app/review.ts` is the one use case:
-read through the adapter, decide in the domain, apply files, memory and listeners.
-`src/adapters/` are plain modules, no interface, no injection: `fs.ts` every read and write
-under the project root, `http/routes.ts` bodies, paths and status codes, `http/serve.ts`
-binding and the page bundle, `browser.ts` the opener. Direction held by `boundaries.spec.ts`.
+Hexagonal with a functional core, under `src/core/server/`. `domain/` is pure functions over
+immutable data: no `node:*`, no `bun`, no adapter, app or page import. `app/review.ts` is the
+one use case: read through the adapter, decide in the domain, apply files, memory and
+listeners. `adapters/` are plain modules, no interface, no injection: `fs.ts` every read and
+write under the project root, `http/routes.ts` bodies, paths and status codes,
+`http/serve.ts` binding and the page bundle, `browser.ts` the opener. Direction held by
+`src/boundaries.spec.ts`.
 
 - Decide, then apply. Read everything first, take the decision as a pure function of plain
   values in `domain/`, then write files, timers and prompts through `adapters/`.
@@ -21,7 +23,7 @@ binding and the page bundle, `browser.ts` the opener. Direction held by `boundar
   `parseProjectPath` grant `WipDir`, `Version`, `ProjectPath`. Past the parser: no `typeof`,
   no `as`, no re-check. A `ParseResult` is returned where the caller decides; anything else
   throws, and the route turns it into an answer.
-- `protocol.ts` is the one place a value crossing HTTP or a plugin boundary is typed; it
+- `src/core/protocol.ts` is the one place a value crossing HTTP or a plugin boundary is typed; it
   re-exports the domain types it carries, never redefines them.
 - A new domain concept gets its address in `domain/` before its first line.
 - A version is a text somebody handed over for review, Claude through `gate` or the reviewer

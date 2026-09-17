@@ -45,20 +45,21 @@ References, loaded one at a time: `program-design.md` (signatures, call-stack an
 ## Layout
 
 ```
-hooks/register.ts     the mode's hooks (session.start, skill.prompt, command.run, tool.check, tool.call on submit, turn.complete)
-hooks/host.ts         `Host`: one member per `$` call, the port the other files take
-hooks/mode.ts         the machine: idle | live, and restore / connect / close
-hooks/lock.ts         the write policy, pure
-hooks/relay.ts        what the poll says to Claude, and what it remembers
-hooks/server.ts       the review server's client: every route, the token header, the launcher
-hooks/parse.ts        the boundary: unknown to types, and where the module's brands are minted
-src/cli.ts            `start` spawns `serve` detached; `serve` is the review server
-src/domain/           pure: paths, workspace states, decisions, the feedback and notes texts, the line diff, slug, links
-src/app/review.ts     the use case: read, decide, apply
-src/adapters/         http (routes, the page bundled by Bun.serve from ui/index.html), fs, browser
-ui/                   the Preact page: document list, decision bar, comments, text anchoring, the plan's editor
-plugins/              rendering plugins (markdown with highlight and Mermaid, html with its frame script, image); a third party sends a PR
-types/claude-code.d.ts the function hooks contract, written by `/plugin-types vellum/types`
+hooks/hooks.json                 what Claude Code reads: it names the hooks module, src/core/engine/register.ts
+src/core/engine/register.ts      the mode's hooks (session.start, skill.prompt, command.run, tool.check, tool.call on submit, turn.complete)
+src/core/engine/host.ts          `Host`: one member per `$` call, the port the other files take
+src/core/engine/mode.ts          the machine: idle | live, and restore / connect / close
+src/core/engine/lock.ts          the write policy, pure
+src/core/engine/relay.ts         what the poll says to Claude, and what it remembers
+src/core/engine/server.ts        the review server's client: every route, the token header, the launcher
+src/core/engine/parse.ts         the boundary: unknown to types, and where the module's brands are minted
+src/core/server/cli.ts           `start` spawns `serve` detached; `serve` is the review server
+src/core/server/domain/          pure: paths, workspace states, decisions, the feedback and notes texts, the line diff, slug, links
+src/core/server/app/review.ts    the use case: read, decide, apply
+src/core/server/adapters/        http (routes, the page bundled by Bun.serve from src/core/page/index.html), fs, browser
+src/core/page/                   the Preact page: document list, decision bar, comments, text anchoring, the plan's editor
+src/extensions/                  one folder per document kind (markdown with highlight and Mermaid, html with its frame script, image); a third party sends a PR
+types/claude-code.d.ts           the function hooks contract, written by `/plugin-types vellum/types`
 ```
 
 ### What it hooks
@@ -82,7 +83,7 @@ types/claude-code.d.ts the function hooks contract, written by `/plugin-types ve
 | `$.session.cwd` | Where the session runs now, to resolve a relative path the lock reads. |
 | `$.store.get`, `$.store.set`, `$.store.delete` | The session's server and what the poll already relayed, so a module reload repeats neither. |
 | `$.http.fetch` | Every call to the review server, with the token header. |
-| `$.process.run` | Spawns the detached server, `bun src/cli.ts start`. |
+| `$.process.run` | Spawns the detached server, `bun src/core/server/cli.ts start`. |
 | `$.clock.every` | The poll, once a second, and the heartbeat that keeps the server alive. |
 | `$.prompt.submit` | Hands Claude a drafting batch, a feedback or the approval, once the session is idle. |
 | `$.ui.status` | The line under the prompt: planning, then the version under review. |
