@@ -10,6 +10,7 @@ import {
 import type { FeedbackHeading } from "../domain/feedback.ts";
 import { formatFeedback } from "../domain/feedback.ts";
 import type { FinalDir, ProjectPath, Version, WipDir } from "../domain/paths.ts";
+import { parseVersion } from "../domain/paths.ts";
 import type { Decision } from "../domain/review.ts";
 import { decideOn, gateVersion, slugFor } from "../domain/review.ts";
 import type { Memory, Pending, PlanWorkspace } from "../domain/workspace.ts";
@@ -188,11 +189,17 @@ export class Review {
 
     const doc = this.planDoc(workspace.version, workspace.dir);
     const text = await this.planText(workspace.version, workspace.dir);
+    const before = parseVersion(workspace.version - 1);
+
+    const previous = before.ok
+      ? { version: before.value, text: await this.planText(before.value, workspace.dir) }
+      : null;
+
     const draft = projectPath(`${workspace.dir}${PLAN_FILE}`);
     const files = listed.filter((file) => file.path !== draft);
     const linked = await this.linkedDocs(text, doc, workspace.dir, files);
 
-    return { workspace, plan: { doc, text }, docs: [...files, ...linked] };
+    return { workspace, plan: { doc, text, previous }, docs: [...files, ...linked] };
   }
 
   private async linkedDocs(

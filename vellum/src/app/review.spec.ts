@@ -141,6 +141,14 @@ describe("Review", () => {
     ]);
   });
 
+  test("view carries no previous text at v1, and v1's text at v2", async () => {
+    const { review, root } = await gated();
+    expect((await review.view()).plan?.previous).toBeNull();
+    writeFileSync(join(root, WIP, "plan.md"), `${PLAN}more\n`);
+    await review.gate();
+    expect((await review.view()).plan?.previous).toEqual({ version: V1, text: PLAN });
+  });
+
   test("view once approved lists the final directory's files, the plan's copy left out", async () => {
     const { review, root } = await gated();
     writeFileSync(join(root, WIP, "unlinked.md"), "# Unlinked\n");

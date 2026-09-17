@@ -1,16 +1,21 @@
 import type { InputMethod } from "./state.ts";
-import { currentDoc, inputMethod, planDoc, split } from "./state.ts";
+import { currentDoc, inputMethod, planDoc, review, showChanges, split } from "./state.ts";
 
 const METHODS: readonly (readonly [InputMethod, string])[] = [
   ["select", "Select"],
   ["pinpoint", "Pinpoint"],
 ];
 
-/** The controls over the document: Select|Pinpoint while a pane takes comments, Beside the plan while an artifact shows. */
+/**
+ * The controls over the document: Select|Pinpoint while a pane takes comments, Beside the plan
+ * while an artifact shows, Changes since while the plan is drawn and has a version before it.
+ */
 export function Tools(): preact.JSX.Element {
   const plan = planDoc.value;
   const doc = currentDoc.value;
   const beside = plan !== null && doc !== null && doc.path !== plan.path;
+  const planDrawn = plan !== null && (!beside || split.value);
+  const since = planDrawn ? (review.value?.plan?.previous?.version ?? null) : null;
 
   const pinpointable =
     doc?.mediaType === "text/markdown" || doc?.mediaType === "text/html" || (beside && split.value);
@@ -45,6 +50,21 @@ export function Tools(): preact.JSX.Element {
           />{" "}
           Beside the plan
         </label>
+      )}
+      {since !== null && (
+        <>
+          <span class="sep" />
+          <label class="toggle">
+            <input
+              type="checkbox"
+              checked={showChanges.value}
+              onChange={(event) => {
+                showChanges.value = event.currentTarget.checked;
+              }}
+            />{" "}
+            Changes since v{since}
+          </label>
+        </>
       )}
     </div>
   );

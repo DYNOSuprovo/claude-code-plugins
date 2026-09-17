@@ -1,7 +1,8 @@
 import { computed, signal } from "@preact/signals";
 
 import type { ProjectPath } from "../src/domain/paths.ts";
-import type { Annotation, Decision, DocRef, ReviewView } from "../src/protocol.ts";
+import type { Annotation, Decision, DocRef, LineDiff, ReviewView } from "../src/protocol.ts";
+import { lineDiff } from "../src/protocol.ts";
 import { fetchReview, postDecision, subscribe } from "./api.ts";
 
 export const review = signal<ReviewView | null>(null);
@@ -21,6 +22,9 @@ export const inputMethod = signal<InputMethod>("select");
 /** Ctrl or Meta held down: a pinpoint click adds to the set instead of replacing it. */
 export const holding = signal(false);
 
+/** "Changes since" is off at every load: the reviewer reads the plan itself first. */
+export const showChanges = signal(false);
+
 export const error = signal<string | null>(null);
 
 export const planDoc = computed<DocRef | null>(() => {
@@ -31,6 +35,20 @@ export const planDoc = computed<DocRef | null>(() => {
     ? null
     : { path: plan.doc, mediaType: "text/markdown", modified: 0 };
 });
+
+const planText = computed(() => review.value?.plan?.text ?? null);
+
+const previousText = computed(() => review.value?.plan?.previous?.text ?? null);
+
+/**
+ * The plan against the version before it, `null` at v1. Computed from the two texts, not from
+ * `review`: every workspace event loads a new view, and the same texts keep the same diff.
+ */
+export const planChanges = computed<LineDiff | null>(() =>
+  planText.value === null || previousText.value === null
+    ? null
+    : lineDiff(previousText.value, planText.value),
+);
 
 export const docs = computed<readonly DocRef[]>(() => {
   const plan = planDoc.value;

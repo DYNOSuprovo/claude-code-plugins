@@ -71,6 +71,10 @@ describe("pickTarget", () => {
   test("a figure is a diagram at 0", () => {
     expect(pickTarget(["figure"], "inside")).toEqual({ index: 0, kind: "diagram" });
   });
+
+  test("a removed block is no target, even inside a list item", () => {
+    expect(pickTarget(["div", "details", "li", "ul"], "inside")).toBeNull();
+  });
 });
 
 describe("diagramPassage", () => {
