@@ -49,7 +49,7 @@ const GENERAL_NO = {
   id: "a",
   doc: `${WIP}.review/v1.md` as never,
   anchor: { kind: "global" },
-  body: "No.",
+  mark: { kind: "comment", body: "No." },
 } as const;
 
 function read(root: string, path: string): string {

@@ -142,6 +142,9 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: #fff;
 .popover .quote { color: var(--graphite); font-style: italic; margin-bottom: 6px; }
 textarea { width: 100%; font: 0.9rem/1.4 var(--ui); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; resize: vertical; background: #fff; color: var(--ink); }
 .row { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+.labels { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.chip { font: 600 0.74rem var(--ui); border: 1px solid var(--rule); border-radius: 9px; padding: 2px 8px; background: var(--tint); color: var(--ink); cursor: pointer; }
+.chip.del { border-color: var(--redline); color: var(--redline); background: transparent; }
 
 .comments { width: 310px; flex: none; border-left: 1px solid var(--rule); display: flex; flex-direction: column; background: var(--tint); }
 .comments header { padding: 10px 14px; font-weight: 600; border-bottom: 1px solid var(--rule); display: flex; justify-content: space-between; }
@@ -150,6 +153,8 @@ textarea { width: 100%; font: 0.9rem/1.4 var(--ui); border: 1px solid var(--rule
 .card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; font-size: 0.86rem; }
 .card .where { color: var(--graphite); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card .quote { font-family: var(--prose); font-style: italic; margin: 2px 0 4px; }
+.card .quote.struck { text-decoration: line-through; text-decoration-color: var(--redline); }
+.card .chip { cursor: default; display: inline-block; margin: 2px 0; }
 .card .actions { display: flex; gap: 10px; margin-top: 4px; }
 .card .actions button { font: 500 0.78rem var(--ui); border: 0; background: none; color: var(--graphite); padding: 0; cursor: pointer; text-decoration: underline; }
 .none { color: var(--graphite); font-size: 0.86rem; padding: 6px; }

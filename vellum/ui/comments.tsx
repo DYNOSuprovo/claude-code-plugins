@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 
-import type { Anchor, Annotation } from "../src/protocol.ts";
+import type { Anchor, Annotation, Mark } from "../src/protocol.ts";
+import { DELETE_SENTENCE, QUICK_LABELS } from "../src/protocol.ts";
 import { addAnnotation, annotations, currentDoc, locked, removeAnnotation } from "./state.ts";
 
 /** What the card says above the quotes: general, the lines of the passages, or the elements. */
@@ -27,6 +28,21 @@ function quotesOf(anchor: Anchor): readonly { readonly key: string; readonly tex
   return anchor.elements.map((element) => ({ key: element.selector, text: element.text }));
 }
 
+function MarkWords(props: { readonly mark: Mark }): preact.JSX.Element {
+  const { mark } = props;
+
+  if (mark.kind === "comment") return <div>{mark.body}</div>;
+
+  if (mark.kind === "delete") return <div>{DELETE_SENTENCE}</div>;
+
+  return (
+    <div>
+      <span class="chip">{QUICK_LABELS[mark.label].name}</span>
+      {mark.body !== "" && <div>{mark.body}</div>}
+    </div>
+  );
+}
+
 function Card(props: { readonly annotation: Annotation }): preact.JSX.Element {
   const { annotation } = props;
 
@@ -36,11 +52,11 @@ function Card(props: { readonly annotation: Annotation }): preact.JSX.Element {
         {annotation.doc} · {whereOf(annotation.anchor)}
       </div>
       {quotesOf(annotation.anchor).map((quote) => (
-        <div class="quote" key={quote.key}>
+        <div class={annotation.mark.kind === "delete" ? "quote struck" : "quote"} key={quote.key}>
           “{quote.text}”
         </div>
       ))}
-      <div>{annotation.body}</div>
+      <MarkWords mark={annotation.mark} />
       {!locked.value && (
         <div class="actions">
           <button type="button" onClick={() => removeAnnotation(annotation.id)}>
@@ -60,7 +76,11 @@ export function Comments(): preact.JSX.Element {
 
   const add = (): void => {
     if (doc === null || draft.trim() === "") return;
-    addAnnotation({ doc: doc.path, anchor: { kind: "global" }, body: draft.trim() });
+    addAnnotation({
+      doc: doc.path,
+      anchor: { kind: "global" },
+      mark: { kind: "comment", body: draft.trim() },
+    });
     setDraft("");
   };
 

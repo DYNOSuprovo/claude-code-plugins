@@ -388,10 +388,10 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
           top={draft.top}
           left={draft.left}
           onCancel={() => setDraft(null)}
-          onSubmit={(body) => {
+          onSubmit={(mark) => {
             const [first, ...rest] = draft.chosen;
             const passages = [first.passage, ...rest.map((one) => one.passage)] as const;
-            props.annotate({ doc: props.doc.path, anchor: { kind: "text", passages }, body });
+            props.annotate({ doc: props.doc.path, anchor: { kind: "text", passages }, mark });
             setDraft(null);
             document.getSelection()?.removeAllRanges();
           }}

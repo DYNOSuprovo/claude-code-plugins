@@ -13,6 +13,13 @@ import type { Started } from "./serve.ts";
 
 const WIP = "plans/2026-09-15/wip-4c2a9d93/";
 
+const BIGGER = { kind: "comment", body: "bigger" };
+
+const CARD = {
+  kind: "element",
+  elements: [{ selector: "#pricing > div.card", text: "Pro", label: "div.card" }],
+};
+
 let started: Started;
 
 let root: string;
@@ -35,6 +42,46 @@ function wipDir(): WipDir {
   if (!parsed.ok) throw new Error(parsed.error);
 
   return parsed.value;
+}
+
+type Drafting = {
+  readonly dir: string;
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- an unparsed annotation is the case under test: the route's parser is what grants the type.
+  readonly send: (annotation: {
+    readonly anchor: unknown;
+    readonly mark?: unknown;
+  }) => Promise<Response>;
+};
+
+/** A review still drafting, behind its own handler: a feedback sent there writes `v0.feedback-<n>.md`. */
+function drafting(): Drafting {
+  const dir = mkdtempSync(join(tmpdir(), "vellum-decision-"));
+  mkdirSync(join(dir, WIP, ".review"), { recursive: true });
+  const review = new Review({ project: dir, workdir: wipDir(), plugins: serverPlugins });
+
+  const handler = createHandler({
+    token: "t",
+    project: dir,
+    review,
+    frameScript: "",
+    openBrowser: () => {},
+    heartbeat: () => {},
+  });
+
+  return {
+    dir,
+    send: (annotation) =>
+      handler(
+        new Request("http://x/api/decision", {
+          method: "POST",
+          headers: { [TOKEN_HEADER]: "t" },
+          body: JSON.stringify({
+            kind: "feedback",
+            annotations: [{ id: "a", doc: `${WIP}mockup.html`, ...annotation }],
+          }),
+        }),
+      ),
+  };
 }
 
 beforeAll(async () => {
@@ -165,38 +212,58 @@ describe("routes", () => {
   });
 
   test("a decision carries an element anchor; an element without a selector is refused", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "vellum-element-"));
-    mkdirSync(join(dir, WIP, ".review"), { recursive: true });
-    const review = new Review({ project: dir, workdir: wipDir(), plugins: serverPlugins });
-
-    const handler = createHandler({
-      token: "t",
-      project: dir,
-      review,
-      frameScript: "",
-      openBrowser: () => {},
-      heartbeat: () => {},
-    });
-
-    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- an unparsed anchor is the case under test: the route's parser is what grants the type.
-    const decide = (anchor: unknown): Promise<Response> =>
-      handler(
-        new Request("http://x/api/decision", {
-          method: "POST",
-          headers: { [TOKEN_HEADER]: "t" },
-          body: JSON.stringify({
-            kind: "feedback",
-            annotations: [{ id: "a", doc: `${WIP}mockup.html`, anchor, body: "bigger" }],
-          }),
-        }),
-      );
-
-    const element = { selector: "#pricing > div.card", text: "Pro", label: "div.card" };
-    expect((await decide({ kind: "element", elements: [element] })).status).toBe(200);
+    const { dir, send } = drafting();
+    expect((await send({ anchor: CARD, mark: BIGGER })).status).toBe(200);
     expect(await Bun.file(join(dir, WIP, ".review/v0.feedback-1.md")).text()).toContain(
       'element `#pricing > div.card` (div.card): "Pro"',
     );
-    expect((await decide({ kind: "element", elements: [{ text: "Pro" }] })).status).toBe(400);
+    const unnamed = { kind: "element", elements: [{ text: "Pro" }] };
+    expect((await send({ anchor: unnamed, mark: BIGGER })).status).toBe(400);
+  });
+
+  test("a decision with a label mark round-trips to the feedback file", async () => {
+    const { dir, send } = drafting();
+    const mark = { kind: "label", label: "verify", body: "Bun.serve or the watcher?" };
+    expect((await send({ anchor: CARD, mark })).status).toBe(200);
+    expect(await Bun.file(join(dir, WIP, ".review/v0.feedback-1.md")).text()).toContain(
+      "   Verify this against the code or the docs, and cite what you read.\n   Bun.serve or the watcher?\n",
+    );
+  });
+
+  test("an unknown label is refused", async () => {
+    const { send } = drafting();
+    const mark = { kind: "label", label: "nitpick", body: "" };
+    expect((await send({ anchor: CARD, mark })).status).toBe(400);
+  });
+
+  test("a delete mark is taken on an element and refused on a global anchor", async () => {
+    const { send } = drafting();
+    expect((await send({ anchor: CARD, mark: { kind: "delete" } })).status).toBe(200);
+    expect((await send({ anchor: { kind: "global" }, mark: { kind: "delete" } })).status).toBe(400);
+  });
+
+  test("a delete mark is taken on a text anchor", async () => {
+    const { dir, send } = drafting();
+    const passage = { quote: "the old gate", prefix: "", suffix: "", lines: [12, 14] };
+    const anchor = { kind: "text", passages: [passage] };
+    expect((await send({ anchor, mark: { kind: "delete" } })).status).toBe(200);
+    expect(await Bun.file(join(dir, WIP, ".review/v0.feedback-1.md")).text()).toContain(
+      'lines 12–14: "the old gate"\n   Delete this.\n',
+    );
+  });
+
+  test("a comment or a label without a body is refused", async () => {
+    const { send } = drafting();
+    expect((await send({ anchor: CARD, mark: { kind: "comment" } })).status).toBe(400);
+    expect((await send({ anchor: CARD, mark: { kind: "label", label: "verify" } })).status).toBe(
+      400,
+    );
+  });
+
+  test("an annotation without a mark, or with one of an unknown kind, is refused", async () => {
+    const { send } = drafting();
+    expect((await send({ anchor: CARD })).status).toBe(400);
+    expect((await send({ anchor: CARD, mark: { kind: "shout", body: "x" } })).status).toBe(400);
   });
 
   test("decision round-trips over HTTP, and approve finalizes at once", async () => {
@@ -218,7 +285,7 @@ describe("routes", () => {
             id: "a",
             doc: `${WIP}.review/v1.md`,
             anchor: { kind: "text", passages: [] },
-            body: "x",
+            mark: { kind: "comment", body: "x" },
           },
         ],
       }),
