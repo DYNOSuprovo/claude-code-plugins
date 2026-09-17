@@ -45,12 +45,34 @@ async function gated(plan = PLAN): Promise<Setup> {
   return s;
 }
 
+/** A review at v2: `plan.md` gated, revised by one line, gated again. */
+async function gatedTwice(): Promise<Setup> {
+  const s = await gated();
+  writeFileSync(join(s.root, WIP, "plan.md"), `${PLAN}more\n`);
+  await s.review.gate();
+
+  return s;
+}
+
+const EDITED = `${PLAN}edited by the reviewer\n`;
+
+const EDITED_NOTE =
+  "The reviewer edited plan.md directly (v2 → v3): keep those edits. plan.md is now v3: an item that names `.review/v3.md` gives plan.md's lines.";
+
+const EDIT_OF_V1 = { version: V1, text: EDITED } as const;
+
+const EDIT_OF_V2 = { version: 2 as never, text: EDITED } as const;
+
 const GENERAL_NO = {
   id: "a",
   doc: `${WIP}.review/v1.md` as never,
   anchor: { kind: "global" },
   mark: { kind: "comment", body: "No." },
 } as const;
+
+const APPROVE = { kind: "approve", edit: null } as const;
+
+const SAY_NO = { kind: "feedback", edit: null, annotations: [GENERAL_NO] } as const;
 
 function read(root: string, path: string): string {
   return readFileSync(join(root, path), "utf8");
@@ -73,14 +95,14 @@ describe("Review", () => {
   test("the same plan.md keeps its version under review, and reopens it after a feedback", async () => {
     const { review } = await gated();
     expect(await review.gate()).toEqual({ ok: true, version: V1, kept: true });
-    await review.decide({ kind: "feedback", annotations: [] });
+    await review.decide({ kind: "feedback", edit: null, annotations: [] });
     expect(await review.gate()).toEqual({ ok: true, version: 2 as never, kept: false });
     expect(await review.workspace()).toMatchObject({ kind: "inReview", version: 2 });
   });
 
   test("asked to keep an unchanged plan.md, the gate keeps its version after a feedback too", async () => {
     const { review } = await gated();
-    await review.decide({ kind: "feedback", annotations: [] });
+    await review.decide({ kind: "feedback", edit: null, annotations: [] });
     expect(await review.gate({ unchanged: "keep" })).toEqual({ ok: true, version: V1, kept: true });
     expect(await review.workspace()).toMatchObject({ kind: "changesRequested" });
     expect(await review.gate({ unchanged: "record" })).toEqual({
@@ -92,17 +114,64 @@ describe("Review", () => {
 
   test("feedback writes the file the pending names, and the version is decided", async () => {
     const { review, root } = await gated();
-    const first = await review.decide({ kind: "feedback", annotations: [GENERAL_NO] });
+    const first = await review.decide(SAY_NO);
     expect(first).toMatchObject({ ok: true, workspace: { kind: "changesRequested" } });
     const path = `${WIP}.review/v1.feedback.md` as never;
     expect(await review.pending()).toEqual({ kind: "feedback", version: V1, path });
     expect(read(root, `${WIP}.review/v1.feedback.md`)).toContain("No.");
-    expect((await review.decide({ kind: "approve" })).ok).toBe(false);
+    expect((await review.decide(APPROVE)).ok).toBe(false);
+  });
+
+  test("feedback with an edit writes the version, plan.md and a feedback file that names both", async () => {
+    const { review, root } = await gatedTwice();
+    const annotations = [{ ...GENERAL_NO, doc: `${WIP}.review/v2.md` as never }];
+    const result = await review.decide({ kind: "feedback", edit: EDIT_OF_V2, annotations });
+    expect(result).toMatchObject({ ok: true, workspace: { kind: "changesRequested", version: 3 } });
+    expect(read(root, `${WIP}.review/v3.md`)).toBe(EDITED);
+    expect(read(root, `${WIP}plan.md`)).toBe(EDITED);
+    expect(read(root, `${WIP}.review/v3.feedback.md`)).toBe(
+      `# Plan review: changes requested (v3)\n\n${EDITED_NOTE}\n\n1. \`${WIP}.review/v3.md\`, general\n   No.\n`,
+    );
+  });
+
+  test("approve with an edit leaves the edited text in the final plan.md, links rewritten", async () => {
+    const { review, root } = await gated();
+    const result = await review.decide({ kind: "approve", edit: EDIT_OF_V1 });
+    expect(result).toMatchObject({ ok: true, workspace: { kind: "approved", version: 2 } });
+    expect(read(root, `${FINAL}plan.md`)).toEndWith("edited by the reviewer\n");
+    expect(read(root, `${FINAL}plan.md`)).toContain(`${FINAL}mockup.html`);
+    expect(read(root, `${FINAL}.review/v1.md`)).not.toContain("edited by the reviewer");
+  });
+
+  test("after a feedback with an edit, the gate keeps v3 for the edit and opens v4 for Claude's revision", async () => {
+    const { review, root } = await gatedTwice();
+    await review.decide({ kind: "feedback", edit: EDIT_OF_V2, annotations: [] });
+    expect(await review.gate({ unchanged: "keep" })).toEqual({
+      ok: true,
+      version: 3 as never,
+      kept: true,
+    });
+    writeFileSync(join(root, WIP, "plan.md"), `${EDITED}revised by Claude\n`);
+    expect(await review.gate({ unchanged: "keep" })).toMatchObject({ version: 4, kept: false });
+    expect(read(root, `${WIP}.review/v3.md`)).toBe(EDITED);
+  });
+
+  test("an approve with an edit whose rename failed is retried without the edit, and approves v2", async () => {
+    const { review, root } = await gated();
+    chmodSync(join(root, DATED), 0o500);
+    const failed = await review.decide({ kind: "approve", edit: EDIT_OF_V1 });
+    chmodSync(join(root, DATED), 0o700);
+    const stuck = { kind: "inReview", version: 2, finalizeError: expect.any(String) };
+    expect(failed).toMatchObject({ ok: false, workspace: stuck });
+    const retried = await review.decide(APPROVE);
+    expect(retried).toMatchObject({ ok: true, workspace: { kind: "approved", version: 2 } });
+    expect(read(root, `${FINAL}plan.md`)).toEndWith("edited by the reviewer\n");
+    expect(read(root, `${FINAL}.review/v1.md`)).toBe(PLAN.replaceAll(WIP, FINAL));
   });
 
   test("approve renames the directory at once and leaves it pending with its name", async () => {
     const { review, root } = await gated();
-    const result = await review.decide({ kind: "approve" });
+    const result = await review.decide(APPROVE);
     expect(result).toEqual({
       ok: true,
       workspace: { kind: "approved", dir: FINAL as never, version: V1 },
@@ -114,7 +183,7 @@ describe("Review", () => {
   test("approve puts the approved text back in plan.md, over a revision not submitted", async () => {
     const { review, root } = await gated();
     writeFileSync(join(root, WIP, "plan.md"), "# Notification settings\n\nrevised\n");
-    await review.decide({ kind: "approve" });
+    await review.decide(APPROVE);
     expect(read(root, `${FINAL}plan.md`)).toBe(read(root, `${FINAL}.review/v1.md`));
     expect(read(root, `${FINAL}plan.md`)).toContain(`${FINAL}mockup.html`);
   });
@@ -122,7 +191,7 @@ describe("Review", () => {
   test("a rename that fails shows its error and leaves the plan under review", async () => {
     const { review, root } = await gated();
     chmodSync(join(root, DATED), 0o500);
-    const result = await review.decide({ kind: "approve" });
+    const result = await review.decide(APPROVE);
     chmodSync(join(root, DATED), 0o700);
     expect(result).toMatchObject({
       ok: false,
@@ -152,7 +221,7 @@ describe("Review", () => {
   test("view once approved lists the final directory's files, the plan's copy left out", async () => {
     const { review, root } = await gated();
     writeFileSync(join(root, WIP, "unlinked.md"), "# Unlinked\n");
-    await review.decide({ kind: "approve" });
+    await review.decide(APPROVE);
     const view = await review.view();
     expect(view.plan?.doc).toBe(`${FINAL}.review/v1.md` as never);
     expect(view.docs.map((doc) => doc.path)).toEqual([
@@ -179,7 +248,7 @@ describe("Review", () => {
 
   test("a batch sent just before the gate is still pending after it", async () => {
     const { review, root } = setup();
-    await review.decide({ kind: "feedback", annotations: [GENERAL_NO] });
+    await review.decide(SAY_NO);
     writeFileSync(join(root, WIP, "plan.md"), PLAN);
     await review.gate();
     expect(await review.pending()).toEqual({
@@ -190,10 +259,10 @@ describe("Review", () => {
 
   test("a feedback while drafting writes the next batch and leaves it pending", async () => {
     const { review, root } = setup();
-    const first = await review.decide({ kind: "feedback", annotations: [GENERAL_NO] });
+    const first = await review.decide(SAY_NO);
     expect(first).toMatchObject({ ok: true, workspace: { kind: "drafting", batches: 1 } });
     expect(read(root, `${WIP}.review/v0.feedback-1.md`)).toStartWith("# Drafting feedback 1");
-    await review.decide({ kind: "feedback", annotations: [GENERAL_NO] });
+    await review.decide(SAY_NO);
     expect(await review.pending()).toEqual({
       kind: "drafts",
       batches: [

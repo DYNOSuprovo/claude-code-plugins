@@ -1,4 +1,5 @@
 import type { ProjectPath, Version } from "./paths.ts";
+import { PLAN_FILE, versionFile } from "./workspace.ts";
 
 /** One place in a document: a quote with its context and source lines. */
 export type Passage = {
@@ -59,6 +60,17 @@ export type Annotation = {
   readonly mark: Mark;
 };
 
+/** The annotations of `from` named on `to` instead: an edit's text is the next version's file, line for line. */
+export function retargetAnnotations(
+  annotations: readonly Annotation[],
+  from: ProjectPath,
+  to: ProjectPath,
+): readonly Annotation[] {
+  return annotations.map((annotation) =>
+    annotation.doc === from ? { ...annotation, doc: to } : annotation,
+  );
+}
+
 function indent(words: string): string {
   return words.trim().split("\n").join("\n   ");
 }
@@ -88,15 +100,26 @@ function placesOf(anchor: Anchor): readonly string[] {
   );
 }
 
-/** Which round the comments belong to: a version under review, or a batch sent while drafting. */
+/**
+ * Which round the comments belong to: a version under review, or a batch sent while drafting.
+ * `editedFrom` is the version the reviewer edited to make this one, `null` when it is Claude's.
+ */
 export type FeedbackHeading =
-  | { readonly kind: "review"; readonly version: Version }
+  | { readonly kind: "review"; readonly version: Version; readonly editedFrom: Version | null }
   | { readonly kind: "draft"; readonly batch: number };
 
-function headingOf(heading: FeedbackHeading): string {
-  return heading.kind === "review"
-    ? `# Plan review: changes requested (v${heading.version})`
-    : `# Drafting feedback ${heading.batch}`;
+/** The heading, then what Claude must know before the items: the plan on disk is the reviewer's own text. */
+function openingOf(heading: FeedbackHeading): readonly string[] {
+  if (heading.kind === "draft") return [`# Drafting feedback ${heading.batch}`];
+  const title = `# Plan review: changes requested (v${heading.version})`;
+
+  if (heading.editedFrom === null) return [title];
+  const { version, editedFrom } = heading;
+
+  return [
+    title,
+    `The reviewer edited ${PLAN_FILE} directly (v${editedFrom} → v${version}): keep those edits. ${PLAN_FILE} is now v${version}: an item that names \`${versionFile(version)}\` gives ${PLAN_FILE}'s lines.`,
+  ];
 }
 
 /** The text Claude reads: one numbered item per annotation, the place first, the mark in words under it. */
@@ -118,5 +141,5 @@ export function formatFeedback(
     return `${index + 1}. ${where}\n   ${indent(wordsOf(annotation.mark))}`;
   });
 
-  return `${headingOf(heading)}\n\n${items.join("\n\n")}\n`;
+  return `${[...openingOf(heading), ...items].join("\n\n")}\n`;
 }

@@ -6,6 +6,8 @@ import { formatFeedback } from "./feedback.ts";
 
 const DOC = "plans/2026-09-15/wip-4c2a9d93/.review/v2.md" as never;
 
+const V2 = { kind: "review", version: 2 as never, editedFrom: null } as const;
+
 const PASSAGE = { quote: "persist per user", prefix: "", suffix: "", lines: [14, 14] } as const;
 
 test("formatFeedback numbers the comments, quotes text anchors, names general ones", () => {
@@ -24,7 +26,7 @@ test("formatFeedback numbers the comments, quotes text anchors, names general on
     },
   ];
 
-  expect(formatFeedback(annotations, { kind: "review", version: 2 as never })).toBe(
+  expect(formatFeedback(annotations, V2)).toBe(
     [
       "# Plan review: changes requested (v2)",
       "",
@@ -53,7 +55,7 @@ test("formatFeedback lists the passages of a comment that points to several plac
     mark: { kind: "comment", body: "These two say the same thing." },
   };
 
-  expect(formatFeedback([annotation], { kind: "review", version: 2 as never })).toBe(
+  expect(formatFeedback([annotation], V2)).toBe(
     [
       "# Plan review: changes requested (v2)",
       "",
@@ -83,7 +85,7 @@ test("formatFeedback names the selector, the label and the text of an element an
     mark: { kind: "comment", body: "The price must stand out." },
   };
 
-  expect(formatFeedback([annotation], { kind: "review", version: 2 as never })).toBe(
+  expect(formatFeedback([annotation], V2)).toBe(
     [
       "# Plan review: changes requested (v2)",
       "",
@@ -112,7 +114,7 @@ test("formatFeedback gives each element of a comment its own bullet", () => {
     mark: { kind: "comment", body: "The price must stand out on both cards." },
   };
 
-  expect(formatFeedback([annotation], { kind: "review", version: 2 as never })).toBe(
+  expect(formatFeedback([annotation], V2)).toBe(
     [
       "# Plan review: changes requested (v2)",
       "",
@@ -143,7 +145,7 @@ type Passages = Extract<Annotation["anchor"], { readonly kind: "text" }>["passag
 function marked(mark: Annotation["mark"], passages: Passages = [PASSAGE]): string {
   const annotation = { id: "a", doc: DOC, anchor: { kind: "text", passages }, mark } as const;
 
-  return formatFeedback([annotation], { kind: "review", version: 2 as never });
+  return formatFeedback([annotation], V2);
 }
 
 test("a delete mark prints Delete this. under its place", () => {
@@ -193,5 +195,25 @@ test("a mark on several places prints once, under the list of places", () => {
       "   Delete this.",
       "",
     ].join("\n"),
+  );
+});
+
+const EDITED_NOTE =
+  "The reviewer edited plan.md directly (v2 → v3): keep those edits. plan.md is now v3: an item that names `.review/v3.md` gives plan.md's lines.";
+
+const V3_EDITED = { kind: "review", version: 3 as never, editedFrom: 2 as never } as const;
+
+test("a review of an edited plan says so under the heading, before the items", () => {
+  const anchor = { kind: "text", passages: [PASSAGE] } as const;
+  const annotation = { id: "a", doc: DOC, anchor, mark: { kind: "delete" } } as const;
+
+  expect(formatFeedback([annotation], V3_EDITED)).toBe(
+    `# Plan review: changes requested (v3)\n\n${EDITED_NOTE}\n\n1. \`${DOC}\` lines 14–14: "persist per user"\n   Delete this.\n`,
+  );
+});
+
+test("an edit with no comment leaves the heading and that paragraph", () => {
+  expect(formatFeedback([], V3_EDITED)).toBe(
+    `# Plan review: changes requested (v3)\n\n${EDITED_NOTE}\n`,
   );
 });

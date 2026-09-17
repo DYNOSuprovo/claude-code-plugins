@@ -1,18 +1,23 @@
 import { render } from "preact";
-import { useEffect } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 
 import { uiPlugins } from "../plugins/index.ts";
 import type { DocRef } from "../src/protocol.ts";
+import { lineAtTop } from "./caret.ts";
 import { Comments } from "./comments.tsx";
 import { DecisionBar } from "./decision-bar.tsx";
 import { DocList } from "./doc-list.tsx";
+import { Editor } from "./editor.tsx";
 import {
   addAnnotation,
   annotations,
   currentDoc,
+  edited,
+  editing,
   holding,
   listen,
   loadReview,
+  openEditor,
   planChanges,
   planDoc,
   showChanges,
@@ -23,6 +28,7 @@ import { Tools } from "./tools.tsx";
 
 function Doc(props: { readonly doc: DocRef }): preact.JSX.Element {
   const { doc } = props;
+  const isPlan = doc.path === planDoc.value?.path;
 
   const renderer = uiPlugins
     .flatMap((plugin) => plugin.renderers ?? [])
@@ -37,7 +43,8 @@ function Doc(props: { readonly doc: DocRef }): preact.JSX.Element {
         doc={doc}
         annotations={annotations.value.filter((a) => a.doc === doc.path)}
         annotate={addAnnotation}
-        changes={showChanges.value && doc.path === planDoc.value?.path ? planChanges.value : null}
+        source={isPlan ? (edited.value?.text ?? null) : null}
+        changes={showChanges.value && isPlan ? planChanges.value : null}
       />
     </div>
   );
@@ -46,6 +53,26 @@ function Doc(props: { readonly doc: DocRef }): preact.JSX.Element {
 function Panes(): preact.JSX.Element {
   const plan = planDoc.value;
   const doc = currentDoc.value;
+  const panes = useRef<HTMLDivElement>(null);
+  const session = editing.value;
+  const beside = plan !== null && doc !== null && doc.path !== plan.path;
+
+  const head = doc !== null && (
+    <div class="doc-head">
+      <span class="path">{doc.path}</span>
+      {edited.value !== null && !beside && <span class="edited">edited, not sent</span>}
+    </div>
+  );
+
+  // Before the empty state: an open editor keeps its Cancel whatever the document list became.
+  if (session !== null) {
+    return (
+      <div class="docs">
+        {head}
+        <Editor version={session.version} base={session.base} line={session.line} />
+      </div>
+    );
+  }
 
   if (doc === null) {
     return (
@@ -55,15 +82,13 @@ function Panes(): preact.JSX.Element {
     );
   }
 
-  const beside = plan !== null && doc.path !== plan.path;
+  const startEdit = (): void => openEditor(panes.current === null ? 1 : lineAtTop(panes.current));
 
   return (
     <div class="docs">
-      <div class="doc-head">
-        <span class="path">{doc.path}</span>
-      </div>
-      <Tools />
-      <div class="panes">
+      {head}
+      <Tools onEdit={startEdit} />
+      <div class="panes" ref={panes}>
         {beside && split.value && plan !== null && <Doc doc={plan} />}
         <Doc doc={doc} />
       </div>

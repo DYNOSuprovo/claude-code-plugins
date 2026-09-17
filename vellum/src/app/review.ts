@@ -127,9 +127,20 @@ export class Review {
 
   public async decide(decision: Decision): Promise<DecisionResult> {
     const workspace = await this.workspace();
-    const decided = decideOn(workspace, decision);
+
+    const latestText =
+      workspace.kind === "drafting" ? null : await this.planText(workspace.version, workspace.dir);
+
+    const decided = decideOn(workspace, latestText, decision);
 
     if (decided.kind === "refused") return { ok: false, workspace };
+    const { project, workdir } = this.options;
+
+    // `plan.md` first: if the version's write fails, the next gate records the edit as the next version.
+    if (decided.kind !== "draftFeedback" && decided.edit !== null) {
+      await writeText(project, projectPath(`${workdir}${PLAN_FILE}`), decided.edit.text);
+      await writeText(project, decided.edit.path, decided.edit.text);
+    }
 
     if (decided.kind === "approve") return await this.approve(decided.version);
 
@@ -137,13 +148,12 @@ export class Review {
       const heading: FeedbackHeading =
         decided.kind === "draftFeedback"
           ? { kind: "draft", batch: decided.batch }
-          : { kind: "review", version: decided.version };
+          : { kind: "review", version: decided.version, editedFrom: decided.editedFrom };
 
-      await writeText(
-        this.options.project,
-        decided.path,
-        formatFeedback(decision.annotations, heading),
-      );
+      const annotations =
+        decided.kind === "draftFeedback" ? decision.annotations : decided.annotations;
+
+      await writeText(project, decided.path, formatFeedback(annotations, heading));
     }
 
     return { ok: true, workspace: await this.notify() };
