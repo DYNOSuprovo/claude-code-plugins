@@ -1,6 +1,13 @@
 /* oxlint-disable anti-slop/require-safety-comment-for-type-assertion -- fixtures and expectations here are branded values (Version, ProjectPath, WipDir) written as literals: the brand is the parser's to grant, and the test is what checks the parser. */
 import { describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -75,6 +82,8 @@ const APPROVE = { kind: "approve", edit: null, notes: "" } as const;
 const SAY_NO = { kind: "feedback", edit: null, annotations: [GENERAL_NO] } as const;
 
 const NOTES_TITLE = "# Plan approved: the reviewer's notes";
+
+const DRAFT = `${WIP}.review/draft.json`;
 
 function read(root: string, path: string): string {
   return readFileSync(join(root, path), "utf8");
@@ -192,6 +201,30 @@ describe("Review", () => {
     expect(read(root, `${FINAL}.review/v2.notes.md`)).toBe(
       `${NOTES_TITLE} (v2)\n\nThe reviewer edited plan.md directly (v1 → v2): read plan.md again.\n\nSlice 1 only.\n`,
     );
+  });
+
+  test("a feedback that lands deletes the draft; a refused decision keeps it", async () => {
+    const { review, root } = await gated();
+    writeFileSync(join(root, DRAFT), "{}");
+    expect((await review.decide({ ...APPROVE, edit: EDIT_OF_V2 })).ok).toBe(false);
+    expect(existsSync(join(root, DRAFT))).toBe(true);
+    expect((await review.decide(SAY_NO)).ok).toBe(true);
+    expect(existsSync(join(root, DRAFT))).toBe(false);
+  });
+
+  test("a feedback while drafting deletes the draft too", async () => {
+    const { review, root } = setup();
+    writeFileSync(join(root, DRAFT), "{}");
+    await review.decide(SAY_NO);
+    expect(existsSync(join(root, DRAFT))).toBe(false);
+  });
+
+  test("an approve that lands leaves no draft.json in the final directory", async () => {
+    const { review, root } = await gated();
+    writeFileSync(join(root, DRAFT), "{}");
+    await review.decide(APPROVE);
+    expect(existsSync(join(root, FINAL, ".review/v1.md"))).toBe(true);
+    expect(existsSync(join(root, FINAL, ".review/draft.json"))).toBe(false);
   });
 
   test("approve renames the directory at once and leaves it pending with its name", async () => {

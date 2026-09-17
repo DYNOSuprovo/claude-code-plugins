@@ -1,5 +1,5 @@
 import { watch } from "node:fs";
-import { readdir, rename, stat } from "node:fs/promises";
+import { readdir, rename, rm, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 import { rewriteLinks } from "../domain/links.ts";
@@ -70,10 +70,20 @@ export function watchFiles(project: string, workdir: WipDir, onChange: () => voi
 }
 
 /** The plan the model writes at the working directory's root; `null` when it wrote none yet. */
-export async function readPlan(project: string, workdir: WipDir): Promise<string | null> {
-  const file = Bun.file(join(project, workdir, PLAN_FILE));
+export function readPlan(project: string, workdir: WipDir): Promise<string | null> {
+  return readTextIfAny(project, projectPath(`${workdir}${PLAN_FILE}`));
+}
+
+/** The file's text, `null` when there is no such file. */
+export async function readTextIfAny(project: string, path: ProjectPath): Promise<string | null> {
+  const file = Bun.file(join(project, path));
 
   return (await file.exists()) ? await file.text() : null;
+}
+
+/** A file that is not there is already removed. */
+export async function removeFile(project: string, path: ProjectPath): Promise<void> {
+  await rm(join(project, path), { force: true });
 }
 
 export function readText(project: string, path: ProjectPath): Promise<string> {

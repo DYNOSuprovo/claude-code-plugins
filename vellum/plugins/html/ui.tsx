@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import type { ElementRef } from "../../src/protocol.ts";
 import { docUrl } from "../../ui/api.ts";
 import { Composer } from "../../ui/composer.tsx";
-import { holding, inputMethod } from "../../ui/state.ts";
+import { activeMethod, holding, locked } from "../../ui/state.ts";
 import type { RendererProps, UiPlugin } from "../index.ts";
 import type { FrameToPage, PageToFrame, PickBox } from "./messages.ts";
 
@@ -28,7 +28,8 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
   const frame = useRef<HTMLIFrameElement>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [frameHolding, setFrameHolding] = useState(false);
-  const method = inputMethod.value;
+  // On a locked page the frame is told `select`, where it picks nothing and outlines nothing.
+  const method = activeMethod.value ?? "select";
   const held = holding.value;
 
   const selectors = props.annotations.flatMap((annotation) =>
@@ -63,7 +64,7 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
 
       if (message.type === "vellum:holding") setFrameHolding(message.holding);
 
-      if (message.type === "vellum:pick") {
+      if (message.type === "vellum:pick" && !locked.value) {
         const [first, ...rest] = message.elements;
 
         setDraft(first === undefined ? null : { elements: [first, ...rest], box: message.box });

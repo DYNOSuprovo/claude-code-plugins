@@ -8,6 +8,7 @@ import type {
   Anchor,
   Annotation,
   Decision,
+  Draft,
   Edit,
   ElementRef,
   GateAnswer,
@@ -122,6 +123,13 @@ function parseAnnotation(value: unknown): Annotation | null {
     : { id: value.id, doc: doc.value, anchor, mark };
 }
 
+function parseAnnotations(value: unknown): readonly Annotation[] | null {
+  if (!Array.isArray(value)) return null;
+  const annotations = value.map((annotation: unknown) => parseAnnotation(annotation));
+
+  return annotations.every((annotation) => annotation !== null) ? annotations : null;
+}
+
 /** `null` is a decision without an edit, so a refusal is no `null`: the parsed edit comes wrapped. */
 function parseEdit(value: unknown): { readonly value: Edit | null } | null {
   if (value === null) return { value: null };
@@ -150,12 +158,20 @@ async function parseDecision(request: Request): Promise<Decision | null> {
       : null;
   }
 
-  if (body.kind !== "feedback" || !Array.isArray(body.annotations)) return null;
-  const annotations = body.annotations.map(parseAnnotation);
+  const annotations = body.kind === "feedback" ? parseAnnotations(body.annotations) : null;
 
-  return annotations.every((annotation) => annotation !== null)
-    ? { kind: "feedback", edit: edit.value, annotations }
-    : null;
+  return annotations === null ? null : { kind: "feedback", edit: edit.value, annotations };
+}
+
+/** The same annotations and the same edit a decision carries, so a restored draft can be sent as it is. */
+async function parseDraft(request: Request): Promise<Draft | null> {
+  const body: unknown = await request.json().catch(() => null);
+
+  if (!isRecord(body)) return null;
+  const annotations = parseAnnotations(body.annotations);
+  const edit = parseEdit(body.edit);
+
+  return annotations === null || edit === null ? null : { annotations, edit: edit.value };
 }
 
 /* oxlint-enable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type */
@@ -282,6 +298,22 @@ async function api(context: RouteContext, request: Request, route: string): Prom
     const result = await review.decide(decision);
 
     return Response.json({ workspace: result.workspace }, { status: result.ok ? 200 : 409 });
+  }
+
+  if (route === "GET /api/draft") {
+    const draft = await review.draft();
+
+    return draft === null
+      ? new Response(null, { status: 204 })
+      : new Response(draft, { headers: { "content-type": "application/json" } });
+  }
+
+  if (route === "PUT /api/draft") {
+    const draft = await parseDraft(request);
+
+    if (draft === null) return badRequest();
+
+    return new Response(null, { status: (await review.saveDraft(draft)) ? 204 : 409 });
   }
 
   return new Response("not found", { status: 404 });

@@ -24,6 +24,9 @@ export function notesFile(version: Version): string {
   return `${REVIEW_DIR}/v${version}.notes.md`;
 }
 
+/** The page's unsent work, kept for a reload; a decision that lands removes it. */
+export const DRAFT_FILE = `${REVIEW_DIR}/draft.json`;
+
 /** A batch of comments sent before the first version; `v0` sorts under no version. */
 export function draftFeedbackFile(batch: number): string {
   return `${REVIEW_DIR}/v0.feedback-${batch}.md`;
@@ -157,6 +160,14 @@ export function workspaceOf(disk: PlanWorkspace, memory: Memory): PlanWorkspace 
   }
 
   return disk;
+}
+
+/**
+ * Comments are taken before the first version and on a version under review. In any other state
+ * nothing the reviewer adds could be sent, and no decision would remove a draft that holds it.
+ */
+export function takesComments(workspace: PlanWorkspace): boolean {
+  return workspace.kind === "drafting" || workspace.kind === "inReview";
 }
 
 /** Read off the workspace; nothing is kept beside it. */

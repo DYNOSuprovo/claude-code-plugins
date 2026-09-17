@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { PlanWorkspace } from "./workspace.ts";
-import { pendingOf, workspaceFromListing, workspaceOf } from "./workspace.ts";
+import { pendingOf, takesComments, workspaceFromListing, workspaceOf } from "./workspace.ts";
 
 const DIR = "plans/2026-09-15/wip-4c2a9d93/" as never;
 
@@ -98,6 +98,16 @@ describe("workspaceOf", () => {
       version: V1,
       notes: true,
     });
+  });
+});
+
+describe("takesComments", () => {
+  test.each([drafting, inReview])("comments are taken on $kind", (workspace) => {
+    expect(takesComments(workspace)).toBe(true);
+  });
+
+  test.each([changesRequested, approved])("no comment is taken on $kind", (workspace) => {
+    expect(takesComments(workspace)).toBe(false);
   });
 });
 
