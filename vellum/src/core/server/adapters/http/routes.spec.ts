@@ -90,7 +90,7 @@ type Drafting = {
 function drafting(): Drafting {
   const dir = mkdtempSync(join(tmpdir(), "vellum-decision-"));
   mkdirSync(join(dir, WIP, ".review"), { recursive: true });
-  const review = new Review({ project: dir, workdir: wipDir(), plugins: serverExtensions });
+  const review = new Review({ project: dir, workdir: wipDir(), extensions: serverExtensions });
 
   const handler = createHandler({
     token: "t",
@@ -248,7 +248,7 @@ describe("routes", () => {
 
   test("open reaches the browser only while no tab listens", async () => {
     let opened = 0;
-    const review = new Review({ project: root, workdir: wipDir(), plugins: serverExtensions });
+    const review = new Review({ project: root, workdir: wipDir(), extensions: serverExtensions });
 
     const handler = createHandler({
       token: "t",

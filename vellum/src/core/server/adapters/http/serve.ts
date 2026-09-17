@@ -34,6 +34,8 @@ const WATCHDOG_PERIOD_MS = 5_000;
  * has no wrapper, and its minified names would collide with the mockup's own (`_`, `a`, `r`).
  */
 async function buildFrameScript(): Promise<string> {
+  // TODO: the one place the core names an extension by path; an extension should hand the
+  // server its own script once a server half can carry one.
   const entry = join(import.meta.dir, "../../../../extensions/html/frame.ts");
   const built = await Bun.build({ entrypoints: [entry], minify: true, format: "iife" });
   const output = built.outputs[0];
@@ -51,7 +53,7 @@ export async function startServer(options: ServeOptions): Promise<Started> {
   const review = new Review({
     project: options.project,
     workdir: options.workdir,
-    plugins: serverExtensions,
+    extensions: serverExtensions,
   });
 
   // The page hears of every file Claude writes; the approval renames the directory, and there the watch ends.

@@ -2,8 +2,8 @@ import type { ProjectPath, Version } from "./server/domain/paths.ts";
 import type { PlanWorkspace } from "./server/domain/workspace.ts";
 
 /**
- * What crosses HTTP between the hooks module, the server and the page, and what crosses a
- * plugin boundary. Everything here is JSON. The domain types it carries are re-exported,
+ * What crosses HTTP between the hooks module, the server and the page, and what crosses an
+ * extension boundary. Everything here is JSON. The domain types it carries are re-exported,
  * never redefined.
  */
 
@@ -37,7 +37,7 @@ export type GateAnswer =
 
 export type MediaType = "text/markdown" | "text/html" | `image/${string}`;
 
-/** A document a plugin proposes; the server checks it exists before it becomes a `DocRef`. */
+/** A document an extension proposes; the server checks it exists before it becomes a `DocRef`. */
 export type DocLink = { readonly path: ProjectPath; readonly mediaType: MediaType };
 
 /** `modified` is the file's mtime in ms: the page refetches a document when it changes. */
@@ -55,12 +55,6 @@ export type ReviewView = {
 };
 
 export type LinkRoots = { readonly project: string; readonly planDir: string };
-
-/** A server plugin proposes documents linked from the plan; the server keeps those that exist. */
-export type ServerExtension = {
-  readonly id: string;
-  readonly linkedDocs?: (plan: string, roots: LinkRoots) => readonly DocLink[];
-};
 
 export function mediaTypeOf(path: string): MediaType | null {
   const extension = path.split(".").at(-1)?.toLowerCase() ?? "";

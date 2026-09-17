@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 
+import type { RendererProps, PageExtension } from "../../core/extension.ts";
 import { docUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { activeMethod, holding, locked } from "../../core/page/state.ts";
 import type { ElementRef } from "../../core/protocol.ts";
-import type { RendererProps, PageExtension } from "../page.ts";
 import type { FrameToPage, PageToFrame, PickBox } from "./messages.ts";
 
 type Draft = {

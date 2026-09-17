@@ -58,7 +58,8 @@ src/core/server/domain/          pure: paths, workspace states, decisions, the f
 src/core/server/app/review.ts    the use case: read, decide, apply
 src/core/server/adapters/        http (routes, the page bundled by Bun.serve from src/core/page/index.html), fs, browser
 src/core/page/                   the Preact page: document list, decision bar, comments, text anchoring, the plan's editor
-src/extensions/                  one folder per document kind (markdown with highlight and Mermaid, html with its frame script, image); a third party sends a PR
+src/core/extension.ts            the contract an extension fills: PageExtension, ServerExtension
+src/extensions/                  one folder per extension, today the document kinds (markdown with highlight and Mermaid, html with its frame script, image); a third party sends a PR
 types/claude-code.d.ts           the function hooks contract, written by `/plugin-types vellum/types`
 ```
 

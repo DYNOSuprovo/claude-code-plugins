@@ -16,8 +16,9 @@ and `page.tsx` the renderer, registered in `src/extensions/server.ts` and
 no build step, so what the page imports costs nothing at `cli start`.
 
 - `src/core/page/` and `src/extensions/` never import `src/core/server/app` or
-  `src/core/server/adapters`; they depend on `src/core/protocol.ts` only. `src/core/server/`
-  never imports the page beyond `index.html`. Held by
+  `src/core/server/adapters`; they depend on `src/core/protocol.ts`, on `src/core/extension.ts`
+  and on the domain's pure `paths.ts`. `src/core/server/` never imports the page beyond
+  `index.html`. What an extension may import, and how one is added: `extensions.md`. Held by
   `src/boundaries.spec.ts`.
 - Everything crossing `/api` is JSON and typed in `src/core/protocol.ts`; a new field lands there
   first.

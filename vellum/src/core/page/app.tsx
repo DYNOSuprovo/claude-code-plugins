@@ -30,7 +30,7 @@ function Doc(props: { readonly doc: DocRef }): preact.JSX.Element {
   const isPlan = doc.path === planDoc.value?.path;
 
   const renderer = pageExtensions
-    .flatMap((plugin) => plugin.renderers ?? [])
+    .flatMap((extension) => extension.renderers ?? [])
     .find((candidate) => candidate.accepts(doc));
 
   if (renderer === undefined) return <div class="waiting">No renderer for {doc.mediaType}</div>;
