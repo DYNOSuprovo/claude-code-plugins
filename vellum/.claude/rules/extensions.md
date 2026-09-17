@@ -13,6 +13,9 @@ the core: `page.tsx` declares a `PageExtension` (its renderers), `server.ts` a
 `grill`, the first extension the hooks module calls; until then no extension touches
 `src/core/engine/`.
 
+- Read the code before this text, smallest first: `image/page.tsx` is a whole extension,
+  `markdown/server.ts` a server half, `html/pick.ts` with `pick.spec.ts` a helper and its
+  test. They compile and they are tested, so they cannot drift; copy their shape.
 - To add one: the folder, its halves, and one line per registry (`src/extensions/page.ts`,
   `src/extensions/server.ts`). A half is `export const <name>: PageExtension = { id: "<id>", … }`
   (or `ServerExtension`), and its `id` is the folder's name. Nothing else in `src/core/`
@@ -21,7 +24,10 @@ the core: `page.tsx` declares a `PageExtension` (its renderers), `server.ts` a
 - An extension imports `src/core/` and its own folder, never `../<another>/`. From
   `src/core/page/` it imports the files `PAGE_SURFACE` lists in `src/boundaries.spec.ts`: one
   more is a decision to take, not a convenience.
-- A helper and its `*.spec.ts` live in the folder, beside the half that uses them.
+- A helper and its `*.spec.ts` live in the folder, beside the half that uses them: its choice
+  is a pure function tested with `bun test`, its DOM part a thin adapter, since the page has
+  no DOM implementation to test against.
+- A new document kind is a new extension, never a branch in an existing renderer.
 - An option or a flag exists when someone asked to turn it, never in advance. Config files,
   manifests and `enabled` land with `grill`; their design is `docs/architecture.md`
   § Extensions.

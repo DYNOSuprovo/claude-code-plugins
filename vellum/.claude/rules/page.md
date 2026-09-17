@@ -8,10 +8,9 @@ paths:
 
 `src/core/page/` is the Preact page: `api.ts` the client (token, routes, SSE), `state.ts` the store of
 signals, `*.tsx` the components, `anchoring.ts` and `highlights.ts` the text selection,
-`editor.tsx` and `caret.ts` the plan's source editor.
-`src/extensions/<kind>/` is one document kind: `server.ts` pure (candidates in, linked docs out)
-and `page.tsx` the renderer, registered in `src/extensions/server.ts` and
-`src/extensions/page.ts`. One bundle is a browser's: `Bun.serve` builds it from
+`editor.tsx` and `caret.ts` the plan's source editor. The renderers are the page halves of
+the extensions; what an extension is and how one is added is `extensions.md`, which loads
+with the same files. One bundle is a browser's: `Bun.serve` builds it from
 `src/core/page/index.html` at the first request for the page,
 no build step, so what the page imports costs nothing at `cli start`.
 
@@ -48,11 +47,6 @@ no build step, so what the page imports costs nothing at `cli start`.
 - The server watches the working directory, so every file Claude writes reaches the page as a
   workspace event. A renderer loads its document through `docUrl`, whose query is the file's
   `modified`: a rewrite reloads that document alone, and nothing else remounts.
-- A new document kind is one folder with both halves and two registry lines, not a branch in
-  an existing renderer.
-- A kind folder may hold a helper beside `page.tsx` (`markdown/pinpoint.ts`, `html/pick.ts`): its
-  choice is a pure function tested with `bun test`, its DOM part a thin adapter. The page has no
-  DOM implementation to test against.
 - A `mermaid` block reaches the page as an empty `figure` carrying its lines and its source, and
   Mermaid fills it after the mount: the figure is the one place a renderer writes DOM that Preact
   does not own, and `data-source` is both what a comment on it quotes and what a late render

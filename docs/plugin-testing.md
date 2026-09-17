@@ -196,7 +196,8 @@ skills do: the debug log says `Read hooks.json for plugin <name>` and
 
 A plugin whose `hooks/hooks.json` names `modules` is a hooks module: a
 TypeScript entry point exporting `register(on, options)`, run by the engine in
-an environment of its own. It may import siblings, under the rule on `$` below.
+an environment of its own. It may import, by value, any file inside the plugin,
+under the rule on `$` below.
 
 - Launch with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` until function hooks ship
   publicly. Without it the module never loads and the plugin's skills run as
@@ -217,6 +218,20 @@ an environment of its own. It may import siblings, under the rule on `$` below.
   refuses a noun passed on its own (`$.store is used as a value`). Every other
   file takes a plain record of closures instead, bound where `$` is in scope
   (`vellum/src/core/engine/host.ts`, `mods/diff/hooks/host/host.ts`).
+- `hooks/hooks.json` stays where it is, and the module it names does not have
+  to: `"modules": ["../src/core/engine/register.ts"]` loads under
+  `--plugin-dir`, `validate` and the kit. Not measured: that entry loaded from
+  the copy an install puts in the cache.
+- One hooks module per plugin. A second entry in `modules` is refused by
+  `claude plugin validate` (`modules names one hooks module per plugin; a
+  second entry is refused`), and `claude plugin test` then finds no module to
+  load.
+- One hook per event and matcher. A second `on("turn.complete", ...)` without
+  a matcher keeps the module from loading: `on("turn.complete") is registered
+  twice without a matcher`. So a plugin made of parts keeps each event's one
+  hook in the registering file and calls the parts' handlers from it, each
+  handed the record of closures; measured under `validate` and the kit with a
+  handler imported from another directory of the plugin.
 - `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate <plugin>` reads
   the module's source and prints what it hooks (`skill.prompt{skill=...}`)
   and every `$` call with the function that makes it. It needs no login and

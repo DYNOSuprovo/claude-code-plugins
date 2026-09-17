@@ -1,9 +1,10 @@
 # Vellum: the map, and where it goes next
 
-For the people who change the tree. The rules an agent holds to are in
-[`.claude/rules/`](../.claude/rules/), one file per zone (engine, server, page, extensions, tests); this
-file draws what those texts describe, names the shape, says what moved to reach it, and
-where phases 2 and 3 landed in it.
+For the people who change the tree. The tree itself is drawn once, in
+[`AGENTS.md`](../AGENTS.md) § Shape; the rules an agent holds to are in
+[`.claude/rules/`](../.claude/rules/), one file per zone (engine, server, page, extensions, tests), each
+naming its own files. This file draws what those texts describe, names the shape and the
+shapes left aside, says where phases 2 and 3 landed, and where extensions go next.
 
 ## Three runtimes, one contract
 
@@ -60,23 +61,23 @@ the day a second file-system adapter exists: extract the port from `adapters/fs.
 it to `app/review.ts`. The ones above (a use case object per intention, then aggregates
 and repositories) answer needs this plugin does not have.
 
-What moved to reach this shape, and why:
+Two other shapes were weighed and left:
 
-1. `src/workspace/` (pure parsing next to `readdir` and `rename`) split into
-   `domain/` (paths, slug, links, the workspace state from a listing) and
-   `adapters/fs.ts` (the listing, the reads and writes, the rename).
-2. `src/server/review.ts` lost its `Bun.file` and `Bun.write` calls to the adapter and became
-   `app/review.ts`: read, decide, apply, in one screen.
-3. `protocol.ts` re-exports the domain types it carries (`PlanWorkspace`, `Pending`,
-   `Decision`, `Anchor`, `Annotation`) instead of defining them; the page depends on the
-   contract, the server on the domain.
-4. The page's `state.ts` split into `api.ts` (token, routes, SSE) and the store.
-5. `src/boundaries.spec.ts` holds the direction: an import that fails it is in the wrong
-   layer, not a test to loosen.
+- **Folders by kind of code, the IO moved out** (a `server/fs.ts` beside the parsing).
+  Cheaper by an hour; leaves the domain types in the HTTP contract and the next feature asking
+  where its pure part goes.
+- **Vertical slices by feature** (`gate/`, `decision/`, `finalize/`, `docs/`). Wrong here:
+  the features share one state machine and one directory layout; slicing them splits the
+  union across folders, and the first review's bugs were exactly cross-feature state.
 
-Phases 2 and 3 added domain concepts (element anchors, drafting feedback, marks, the line
-diff, the reviewer's edit, approval notes, drafts); each got its address in `domain/` before
-its first line.
+Also weighed and left, for now:
+
+- File and function length thresholds: the pedantic oxlint and the anti-slop pack are the
+  mechanical backstop.
+- Ports as interfaces with a fake each: `adapters/fs.ts` has one implementation and the file
+  system is fast; the port is extracted the day a second one exists.
+- A contract test between the fake `$` and the engine: `claude plugin test` runs in the
+  engine's environment, and `bun test` at the repository root fails on its import.
 
 ## A review round
 
@@ -173,23 +174,9 @@ goes, and a renderer's own choice stays beside its `page.tsx`.
 `markdown`, `html` and `image` are extensions, and so is whatever comes next (`grill`, then
 `advisor`): a folder under `src/extensions/`, with one file per place where it plugs into the
 core. The contract's client is the next agent that writes one, not a third party; the engine
-constraints below are why.
-
-```ts
-// src/core/extension.ts
-export type Renderer = { accepts: (doc: DocRef) => boolean; component: ComponentType<RendererProps> };
-
-export type PageExtension = { readonly id: string; readonly renderers?: readonly Renderer[] };
-export type ServerExtension = {
-  readonly id: string;
-  readonly linkedDocs?: (plan: string, roots: LinkRoots) => readonly DocLink[];
-};
-
-// src/extensions/page.ts
-export const pageExtensions: readonly PageExtension[] = [markdownPage, htmlPage, imagePage];
-// src/extensions/server.ts
-export const serverExtensions: readonly ServerExtension[] = [markdownServer];
-```
+constraints below are why. The contract is `src/core/extension.ts`, types only, and
+the two registries are `src/extensions/page.ts` and `src/extensions/server.ts`: read them
+rather than a copy here.
 
 | Half | File | Declares | Reached from |
 |---|---|---|---|
@@ -207,32 +194,20 @@ yet.
 
 ### What the engine allows
 
-Measured on a copy of this tree while the layout was planned (`research.md` in the plan
-directory named below), except where the line says docs.
-
-- `hooks/hooks.json` must stay where it is; its `modules` entry may name
-  `../src/core/engine/register.ts`. `claude plugin validate` lists the same hooks,
-  `claude plugin test` runs the kit's tests and their fixtures from beside the module, and a
-  session under `--plugin-dir` loads it and spawns the server from `src/core/server/cli.ts`.
-  Not measured: the copy an install puts in the cache.
-- One hooks module per plugin: a second `modules` entry is refused ("`modules` names one hooks
-  module per plugin"). An extension cannot bring a module of its own.
-- One hook per event: two `on("turn.complete")` without a matcher keep the module from loading
-  ("is registered twice without a matcher"). An extension cannot register a hook of its own.
-- What passes `validate` and runs under the kit: one hook per event in `register.ts`, calling
-  handlers imported by value from `../../extensions/<id>/engine.ts`, each handed a `Host`. So
-  the core owns every engine event and hands it to the extensions. The engine rule of
-  `boundaries.spec.ts` allows siblings alone today; the first `engine.ts` widens it.
-- Docs: a module path that leaves the plugin is refused (`path-traversal`), and `$` is not
-  passed as a value out of the file that registers the hook. So the module cannot load hook
-  code from the user's repository: no third party ever has an engine half, hence no dynamic
-  loading and no versioned API.
-- Docs: skills and agents load with the plugin, so a Vellum config cannot hide one per
-  repository; the module can only refuse it at `skill.prompt`. `userConfig` values live in the
-  user's settings and project entries are ignored, so a per-repository config is a file of
-  Vellum's own.
+Claude Code takes one hooks module per plugin and one hook per event in it, so an extension
+never calls `on(...)`: `core/engine/register.ts` keeps every event and calls the enabled
+extensions' handlers, imported by value from `../../extensions/<id>/engine.ts`, each handed a
+`Host`. The engine rule of `boundaries.spec.ts` allows siblings alone today; the first
+`engine.ts` widens it. No module path may leave the plugin, so no third party ever has an
+engine half: no dynamic loading, no versioned API. The measurements, which hold for every
+plugin: `docs/plugin-testing.md` at the repository root, § Testing a hooks module.
 
 ### Config: lands with grill
+
+Two facts from Claude Code's docs shape it. Skills and agents load with the plugin, so a Vellum
+config cannot hide one per repository; the module can only refuse it at `skill.prompt`. And
+`userConfig` values live in the user's settings, project entries ignored, so a per-repository
+config is a file of Vellum's own.
 
 Nothing below exists yet. An option or a flag is added when someone asks to turn it, and
 `grill` is the first to ask: its `enabled` changes the skills and the context the agent gets,
@@ -264,74 +239,3 @@ The crossroads a feature edits today, and the place `grill` has to open for each
 
 The target to check once `grill` is in: `advisor` fits in one folder plus two registry lines.
 
-## The tree
-
-```
-vellum/
-  hooks/hooks.json               what Claude Code reads: it names src/core/engine/register.ts, and nothing else lives there
-  skills/start/, skills/stop/    the way in and the way out, both `vellum:`-namespaced
-  src/
-    core/
-      protocol.ts                the JSON contract; re-exports the domain types it carries
-      extension.ts               what an extension fills: Renderer, RendererProps, PageExtension, ServerExtension
-      engine/                    the hooks module, run by Claude Code
-        register.ts              the one `let state`, one hook per event, and `hostOf($)`
-        host.ts                  `Host`: one member per `$` call the module makes
-        mode.ts                  State, Session, Live, and the transitions
-        lock.ts, relay.ts        the write policy and the poll's prompts, pure where they can be
-        server.ts, parse.ts      the review server's client, and the boundary parser
-        *.test.ts, fixtures/     the kit's tests and the hooks that answer beneath the module
-      server/                    one Bun process per session
-        cli.ts                   the entry point: start | serve
-        domain/                  pure, no IO, no Bun, no node:*
-          paths.ts               brands and parsers
-          slug.ts, links.ts
-          workspace.ts           PlanWorkspace from a listing, Memory, Pending, workspaceOf, pendingOf, takesComments
-          review.ts              Decision, Edit, Draft, gateVersion, decideOn, editOnLoad, slugFor
-          feedback.ts            Anchor, Mark, Annotation, FeedbackHeading, formatFeedback, formatNotes
-          diff.ts                LineDiff, lineDiff, countChanges, shiftLines, shiftAnnotations
-        app/
-          review.ts              the use case: read the directory, decide, apply
-        adapters/
-          fs.ts                  the listings, the reads and writes, the rename and rewrite
-          http/routes.ts, http/serve.ts
-          browser.ts             open the page
-      page/                      the Preact page, bundled for the browser
-        api.ts                   the client: token, routes, SSE
-        state.ts, app.tsx, …     the store and the components
-        tools.tsx                the controls row over the document: Select|Pinpoint, Beside the plan, Edit, Changes since
-        editor.tsx, caret.ts     the plan's source editor, opened on the line the reviewer was reading
-        selection.ts             what a Ctrl+click keeps, shared by both pinpoints
-        anchoring.ts, highlights.ts
-    extensions/
-      page.ts, server.ts         two registries: one bundle is a browser's
-      <id>/{server.ts,page.tsx}  one folder per extension, today one per document kind
-      markdown/tree.ts           Markdown to hast, coloured, every element with its source lines
-      markdown/pinpoint.ts       the target under the pointer: pure choice, thin DOM adapter
-      markdown/changes.ts        the marked blocks and the removed runs' places: pure choice
-      html/pick.ts               selectors, targets and labels: pure choice
-      html/frame.ts              the script inside the sandboxed mockup; messages.ts is its contract
-    boundaries.spec.ts           the dependency direction, and what an extension is
-```
-
-A test of `domain/` is a plain call; a test of `app/` uses a temp directory through the real
-adapter (no fake: the file system is fast and honest); a test of `adapters/http` starts the
-server on port 0.
-
-Two other shapes were weighed and left:
-
-- **Folders by kind of code, the IO moved out** (the tree before this one, with a
-  `server/fs.ts`). Cheaper by an hour; leaves the domain types in the HTTP contract and the
-  next feature asking where its pure part goes.
-- **Vertical slices by feature** (`gate/`, `decision/`, `finalize/`, `docs/`). Wrong here:
-  the features share one state machine and one directory layout; slicing them splits the
-  union across folders, and the first review's bugs were exactly cross-feature state.
-
-Also weighed and left, for now:
-
-- File and function length thresholds: the pedantic oxlint and the anti-slop pack are the
-  mechanical backstop.
-- Ports as interfaces with a fake each: `adapters/fs.ts` has one implementation and the file
-  system is fast; the port is extracted the day a second one exists.
-- A contract test between the fake `$` and the engine: `claude plugin test` runs in the
-  engine's environment, and `bun test` at the repository root fails on its import.

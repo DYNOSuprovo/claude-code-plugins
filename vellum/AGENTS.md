@@ -29,6 +29,11 @@ Dependencies point toward `src/core/server/domain/`, held by `src/boundaries.spe
 zone load with its files, from `.claude/rules/`: `engine.md`, `server.md`, `page.md`,
 `extensions.md`, `tests.md`. The drawings, the assessment and where the next phases land: `docs/architecture.md`.
 
+The tree is drawn here and nowhere else: a rule names the files of its own zone, every other
+text points at this section. A fact about Claude Code's engine goes to `docs/plugin-testing.md`
+at the repository root, once, and is pointed at from here. An example is code that compiles
+and is tested (`extensions.md` names the ones to copy), never a snippet kept in a doc.
+
 ## Commands
 
 ```bash
