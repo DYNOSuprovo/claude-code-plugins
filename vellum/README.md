@@ -9,7 +9,7 @@ Replaces `plan-frontiers` and `software-craft:thorough-plan`.
 ## Requirements
 
 - Claude Code with function hooks, launched with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` until they ship publicly. Without the flag the hooks module does not load: the skill still writes a plan under `plans/<date>/<slug>/`, but there is no mode, no page and no `mcp__vellum__submit` tool; use the native plan mode for that session.
-- `bun` on the PATH: the review server is a Bun script. Claude Code installs the plugin's dependencies (`preact`, `remark`, `rehype-highlight`, `mermaid`) at its cache from `package.json` and `bun.lock`.
+- `bun` on the PATH: the review server is a Bun script. Claude Code installs the plugin's dependencies (`preact`, `remark`, `rehype-highlight`, `mermaid`, `diff`) at its cache from `package.json` and `bun.lock`.
 - A browser: Chromium or Firefox, recent. The page uses the CSS Custom Highlight API.
 - Managed settings without an `allowedMcpServers` key. Where that key is set at all, empty included, Anthropic's `sec-default` refuses a user-tier `$.tool.register` by name: `mcp__vellum__submit` does not exist on that machine and the mode cannot be entered. The skill still writes a plan.
 
@@ -29,9 +29,12 @@ References, loaded one at a time: `program-design.md` (signatures, call-stack an
 
 1. The page lists the working directory's renderable files from the start: Markdown, HTML in a sandboxed iframe, images. `[` and `]` move between documents; an artifact can sit beside the plan. A comment sent before the first version is written to `.review/v0.feedback-<n>.md` and reaches Claude as a prompt at its next idle: it revises the file and goes on.
 2. Claude writes `plan.md` at the directory's root and ends its turn: the module submits the text, saved as `.review/vN.md`, and the page shows it. The same text keeps its version, so a turn that only asks a question opens none. `mcp__vellum__submit` submits before the turn ends; after a feedback, that explicit call is a new version even with the same text.
-3. Comments: select text in a Markdown document, or Pinpoint a block, a code block, a table cell or a diagram; in an HTML mockup, Pinpoint an element and Ctrl+click to add another. The box under the comments takes a general comment. Code blocks are coloured and Mermaid blocks are drawn.
-4. **Send feedback** writes `.review/vN.feedback.md` (path, then lines and quote or selector and text, then the comment, for each) and submits a prompt: Claude reads the file, revises, and `vN+1` is submitted when its turn ends.
-5. **Approve** renames the directory to the slug of the plan's title (`-2` on collision, `plan` without a title), rewrites the links in every text file of it, and submits a prompt naming the final directory. The mode closes and the lock lifts.
+3. From the second version on, the bar shows beside the version how many lines were added and removed, and **Changes since vN-1** marks them on the rendered plan: a green bar on an added or changed block, the removed lines folded in a red block above what replaced them. The marks are off at every load, and comments work with them on.
+4. Comments: select text in a Markdown document, or Pinpoint a block, a code block, a table cell or a diagram; in an HTML mockup, Pinpoint an element and Ctrl+click to add another. The same popover takes a quick label (Clarify, Verify, Too much, Missing check), with a detail or without, and **Delete this**; the feedback prints each as a sentence Claude acts on. The box under the comments takes a general comment. Code blocks are coloured and Mermaid blocks are drawn.
+5. **Edit** opens the plan's Markdown source on the block you were reading. **Done** renders your text, marked "edited, not sent", and moves the comments already made to their new lines. The edit leaves with your next decision, as the next version: `.review/vN+1.md` and `plan.md` hold your text, and `vN.md` stays what Claude submitted. An edit made on a version Claude has since replaced is refused, and the page says so rather than overwrite the revision.
+6. **Send feedback** writes `.review/vN.feedback.md` (path, then lines and quote or selector and text, then the comment, for each) and submits a prompt: Claude reads the file, revises, and `vN+1` is submitted when its turn ends. With an edit the file says first that the reviewer edited `plan.md` and that those edits stay; an edit alone, with no comment, can be sent.
+7. **Approve** renames the directory to the slug of the plan's title (`-2` on collision, `plan` without a title), rewrites the links in every text file of it, and submits a prompt naming the final directory. The mode closes and the lock lifts. **Approve with notes…** takes a note for Claude: it is kept in `.review/vN.notes.md`, never in the plan, and the prompt names that file first, so Claude reads it before it acts. An approval that carries an edit writes that file too, to tell Claude to read `plan.md` again. With unsent comments, either button first warns that approving discards them.
+8. The unsent comments and the unsent edit are saved in `.review/draft.json` at every change. A reload restores them, in any browser, since the file is the server's; a decision that lands removes it.
 
 `/vellum:stop` leaves the mode without a plan; the directory is kept. `/clear`, and a `/resume` that lands in another session, suspend it: timers stopped, the session's record kept, so resuming that session later finds its directory. The status bar reads `vellum: planning`, then `vellum: plan vN under review`.
 
@@ -50,10 +53,10 @@ hooks/relay.ts        what the poll says to Claude, and what it remembers
 hooks/server.ts       the review server's client: every route, the token header, the launcher
 hooks/parse.ts        the boundary: unknown to types, and where the module's brands are minted
 src/cli.ts            `start` spawns `serve` detached; `serve` is the review server
-src/domain/           pure: paths, workspace states, decisions, the feedback text, slug, links
+src/domain/           pure: paths, workspace states, decisions, the feedback and notes texts, the line diff, slug, links
 src/app/review.ts     the use case: read, decide, apply
 src/adapters/         http (routes, the page bundled by Bun.serve from ui/index.html), fs, browser
-ui/                   the Preact page: document list, decision bar, comments, text anchoring
+ui/                   the Preact page: document list, decision bar, comments, text anchoring, the plan's editor
 plugins/              rendering plugins (markdown with highlight and Mermaid, html with its frame script, image); a third party sends a PR
 types/claude-code.d.ts the function hooks contract, written by `/plugin-types vellum/types`
 ```

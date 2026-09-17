@@ -7,7 +7,8 @@ paths:
 # The page and its renderers
 
 `ui/` is the Preact page: `api.ts` the client (token, routes, SSE), `state.ts` the store of
-signals, `*.tsx` the components, `anchoring.ts` and `highlights.ts` the text selection.
+signals, `*.tsx` the components, `anchoring.ts` and `highlights.ts` the text selection,
+`editor.tsx` and `caret.ts` the plan's source editor.
 `plugins/<kind>/` is one document kind: `server.ts` pure (candidates in, linked docs out) and
 `ui.tsx` the renderer, registered in `plugins/server.ts` and `plugins/index.ts`. One bundle
 is a browser's: `Bun.serve` builds it from `ui/index.html` at the first request for the page,
@@ -21,7 +22,26 @@ no build step, so what the page imports costs nothing at `cli start`.
 - The page draws in every state, `drafting` included: `review.docs` is the working directory's
   renderable files, the plan at the head once there is one. Comments are taken while
   `inReview` and while `drafting`, so `locked` names two states, not one, and Approve is drawn
-  only where a version exists.
+  only where a version exists. `locked` reads `takesComments`, the domain's predicate the server
+  holds a draft to as well. A renderer never reads `inputMethod`: it reads `activeMethod`, which
+  is `null` on a locked page, so no composer opens there, and `addAnnotation` returns when
+  locked, as `select` does while the editor is open. A comment nobody can send is a silent loss.
+- `start` is the page's one way in, and its order is the rule: the saved draft into the signals,
+  then the first load, then the saving effect, then the event stream. Nothing may `PUT` a draft
+  before the restore, or every reload replaces the file with the page's empty state. After it,
+  each change of the comments or of the edit is one write, sent in order; signals that change
+  together change in one `batch`.
+- An unsent edit is an `Edit`: a text with the version it edits. The stamp is taken when the
+  editor opens, and `Editor` keeps that version and its base text for its whole session: a
+  version that lands under an open editor must not restamp it. Every load settles the edit
+  through `editOnLoad` (kept, landed, stale), a restored one included, which is why the restore
+  comes before the first load. The editor never closes by itself and nothing Claude does clears
+  the reviewer's comments: a stale edit is dropped with a banner, never silently, and Done on a
+  version that moved keeps the editor open so the typing can be copied.
+- One line diff, computed once: `planChanges` in `state.ts` compares the previous version with
+  the text on screen, the bar prints its count, and the plan's renderer marks it while
+  "Changes since" is on. On Done the same `lineDiff` shifts the plan's comments through
+  `shiftAnnotations`, so a feedback only ever names lines of the text it is sent with.
 - The server watches the working directory, so every file Claude writes reaches the page as a
   workspace event. A renderer loads its document through `docUrl`, whose query is the file's
   `modified`: a rewrite reloads that document alone, and nothing else remounts.
@@ -34,6 +54,11 @@ no build step, so what the page imports costs nothing at `cli start`.
   Mermaid fills it after the mount: the figure is the one place a renderer writes DOM that Preact
   does not own, and `data-source` is both what a comment on it quotes and what a late render
   checks before it writes. Its comment boxes the figure, since the SVG holds no text to highlight.
+- A removed run is drawn as a `details.removed` that holds no text node: its label and its old
+  source are attributes, drawn by CSS `content: attr()`. So it takes no selection, no pinpoint,
+  and never enters the quote search of `anchoring.ts`. `markdown/changes.ts` chooses, purely,
+  which block carries a mark and where a removed run goes: inside the `li` that follows it,
+  before the whole table for a `tr`, never directly under `ul`, `ol`, `tbody` or `tr`.
 - An HTML file is served with a sandboxed CSP, so the page cannot reach into it: `html/frame.ts`
   runs inside the mockup and owns the selection there, the page only sends it the method, the
   Ctrl state and the selectors already commented. `html/messages.ts` is the contract both sides

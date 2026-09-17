@@ -24,3 +24,20 @@ binding and the page bundle, `browser.ts` the opener. Direction held by `boundar
 - `protocol.ts` is the one place a value crossing HTTP or a plugin boundary is typed; it
   re-exports the domain types it carries, never redefines them.
 - A new domain concept gets its address in `domain/` before its first line.
+- A version is a text somebody handed over for review, Claude through `gate` or the reviewer
+  through a decision that carries an `Edit`. `decideOn` decides all of it, purely: the version
+  the decision applies to, the version file to write, the comments retargeted to it, the notes
+  file. An `Edit` names the version it edits, and one of another version is refused: a bare text
+  sent after Claude recorded `vN+1` would overwrite that revision and tell Claude to keep it.
+  `vN.md` stays what its author submitted.
+- `Review.decide` applies in an order where a write that fails leaves a state the next `gate`
+  or the next load repairs: `plan.md` before the edit's version file, the notes file and the
+  draft's removal before the rename, which carries what is there. A `null` from `formatNotes`
+  writes nothing and keeps a notes file already there: a retry after a failed rename carries no
+  note. Whether the approval's prompt names a notes file is read from the final directory's
+  listing, never from the decision.
+- The draft is the page's, stored and never read back: `PUT /api/draft` parses it as it parses a
+  decision's annotations and edit, `GET` returns the bytes. `saveDraft` writes one with content
+  only where `takesComments` holds and answers 409 elsewhere, since a write would recreate a
+  directory the approval has just renamed; an empty one removes the file in any state. A draft
+  write raises no workspace event: `watchFiles` leaves `.review/` to the server.
