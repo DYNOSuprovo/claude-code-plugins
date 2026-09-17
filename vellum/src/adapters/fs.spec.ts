@@ -15,7 +15,7 @@ import { join } from "node:path";
 import type { WipDir } from "../domain/paths.ts";
 import { parseWipDir } from "../domain/paths.ts";
 import { slugFromTitle } from "../domain/slug.ts";
-import { finalize, listFiles, readWorkspace, watchFiles } from "./fs.ts";
+import { finalize, listFiles, readTextIfAny, readWorkspace, removeFile, watchFiles } from "./fs.ts";
 
 const WIP = "plans/2026-09-15/wip-4c2a9d93/";
 
@@ -72,6 +72,24 @@ describe("readWorkspace", () => {
     expect(await readWorkspace(root, from.value)).toMatchObject({ value: { kind: "inReview" } });
     const empty = mkdtempSync(join(tmpdir(), "vellum-empty-"));
     expect(await readWorkspace(empty, from.value)).toMatchObject({ value: { kind: "drafting" } });
+  });
+});
+
+describe("readTextIfAny and removeFile", () => {
+  const mockup = `${WIP}mockup.html` as never;
+
+  test("a file reads as its text, and as null once removed", async () => {
+    const root = fixture();
+    expect(await readTextIfAny(root, mockup)).toBe(`<img src="${WIP}shot.png">`);
+    await removeFile(root, mockup);
+    expect(await readTextIfAny(root, mockup)).toBeNull();
+    expect(existsSync(join(root, WIP, "mockup.html"))).toBe(false);
+  });
+
+  test("removing a file that is not there is no error", async () => {
+    const root = fixture();
+    await removeFile(root, `${WIP}nope.json` as never);
+    expect(existsSync(join(root, WIP, "shot.png"))).toBe(true);
   });
 });
 

@@ -4,20 +4,24 @@ import {
   modifiedAt,
   readPlan,
   readText,
+  readTextIfAny,
   readWorkspace,
+  removeFile,
   writeText,
 } from "../adapters/fs.ts";
 import type { FeedbackHeading } from "../domain/feedback.ts";
 import { formatFeedback } from "../domain/feedback.ts";
 import type { FinalDir, ProjectPath, Version, WipDir } from "../domain/paths.ts";
 import { parseVersion } from "../domain/paths.ts";
-import type { Decision } from "../domain/review.ts";
+import type { Decision, Draft } from "../domain/review.ts";
 import { decideOn, gateVersion, slugFor } from "../domain/review.ts";
 import type { Memory, Pending, PlanWorkspace } from "../domain/workspace.ts";
 import {
+  DRAFT_FILE,
   PLAN_FILE,
   pendingOf,
   projectPath,
+  takesComments,
   versionFile,
   workspaceOf,
 } from "../domain/workspace.ts";
@@ -85,6 +89,35 @@ export class Review {
     return readText(this.options.project, this.planDoc(version, dir));
   }
 
+  /** The page's unsent work as it was last saved, `null` when there is none: stored, never read into. */
+  public draft(): Promise<string | null> {
+    return readTextIfAny(this.options.project, this.draftDoc());
+  }
+
+  /**
+   * Replaces the saved draft, and tells no listener. An empty one removes the file, in any state.
+   * One with content is kept only where comments are taken, `false` elsewhere: no decision would
+   * remove it, and after an approval the write would bring the renamed working directory back.
+   */
+  public async saveDraft(draft: Draft): Promise<boolean> {
+    const { project } = this.options;
+
+    if (draft.annotations.length === 0 && draft.edit === null) {
+      await removeFile(project, this.draftDoc());
+
+      return true;
+    }
+
+    if (!takesComments(await this.workspace())) return false;
+    await writeText(project, this.draftDoc(), JSON.stringify(draft));
+
+    return true;
+  }
+
+  private draftDoc(): ProjectPath {
+    return projectPath(`${this.options.workdir}${DRAFT_FILE}`);
+  }
+
   /** Tells every listener the workspace again; the server calls it when a file changes under it. */
   public async notify(): Promise<PlanWorkspace> {
     const workspace = await this.workspace();
@@ -142,12 +175,15 @@ export class Review {
       await writeText(project, decided.edit.path, decided.edit.text);
     }
 
-    if (decided.kind === "approve") {
-      // Before the rename, which rewrites its links and carries it to the final directory.
-      if (decided.notes !== null) await writeText(project, decided.notes.path, decided.notes.text);
-
-      return await this.approve(decided.version);
+    // Before the rename, which rewrites its links and carries it to the final directory.
+    if (decided.kind === "approve" && decided.notes !== null) {
+      await writeText(project, decided.notes.path, decided.notes.text);
     }
+
+    // Before the rename too, or the draft ships in the final directory.
+    await removeFile(project, this.draftDoc());
+
+    if (decided.kind === "approve") return await this.approve(decided.version);
 
     if (decision.kind === "feedback") {
       const heading: FeedbackHeading =

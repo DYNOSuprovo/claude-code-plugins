@@ -15,13 +15,12 @@ import {
   edited,
   editing,
   holding,
-  listen,
-  loadReview,
   openEditor,
   planChanges,
   planDoc,
   showChanges,
   split,
+  start,
   step,
 } from "./state.ts";
 import { Tools } from "./tools.tsx";
@@ -98,8 +97,7 @@ function Panes(): preact.JSX.Element {
 
 function App(): preact.JSX.Element {
   useEffect(() => {
-    void loadReview();
-    listen();
+    void start();
 
     const onKey = (event: KeyboardEvent): void => {
       if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) {

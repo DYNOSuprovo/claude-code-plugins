@@ -1,6 +1,6 @@
 import type { Annotation } from "./feedback.ts";
 import { formatNotes, retargetAnnotations } from "./feedback.ts";
-import type { ParseResult, ProjectPath, Slug, Version, WipDir } from "./paths.ts";
+import type { FinalDir, ParseResult, ProjectPath, Slug, Version, WipDir } from "./paths.ts";
 import { parseVersion } from "./paths.ts";
 import { slugFromFileName, slugFromTitle } from "./slug.ts";
 import type { PlanWorkspace } from "./workspace.ts";
@@ -24,6 +24,12 @@ import {
  * that Claude recorded a newer version since, and would overwrite it.
  */
 export type Edit = { readonly version: Version; readonly text: string };
+
+/**
+ * The page's unsent work: the comments, and the reviewer's edit with the version it edits.
+ * Neither the approval note nor a text being typed is part of it.
+ */
+export type Draft = { readonly annotations: readonly Annotation[]; readonly edit: Edit | null };
 
 /** `edit` is `null` when the reviewer changed nothing, `notes` empty when they left none. */
 export type Decision =
@@ -55,8 +61,23 @@ function nextVersion(after: Version | null): Version {
   return next.value;
 }
 
-function versionPath(dir: WipDir, version: Version): ProjectPath {
+function versionPath(dir: WipDir | FinalDir, version: Version): ProjectPath {
   return projectPath(`${dir}${versionFile(version)}`);
+}
+
+/**
+ * The comments of an edit that landed: written on `vN.md` with the edit's lines, they are
+ * `vN+1.md`'s. Read from the edit's version, not from what the page showed before: a first load
+ * has no before.
+ */
+export function landedAnnotations(
+  annotations: readonly Annotation[],
+  dir: WipDir | FinalDir,
+  edit: Edit,
+): readonly Annotation[] {
+  const landed = versionPath(dir, nextVersion(edit.version));
+
+  return retargetAnnotations(annotations, versionPath(dir, edit.version), landed);
 }
 
 export type Gated =

@@ -1,9 +1,23 @@
-import { computed, signal } from "@preact/signals";
+import { batch, computed, effect, signal } from "@preact/signals";
 
 import type { ProjectPath, Version } from "../src/domain/paths.ts";
-import type { Annotation, Decision, DocRef, Edit, LineDiff, ReviewView } from "../src/protocol.ts";
-import { editOnLoad, lineDiff, retargetAnnotations, shiftAnnotations } from "../src/protocol.ts";
-import { fetchReview, postDecision, subscribe } from "./api.ts";
+import type {
+  Annotation,
+  Decision,
+  DocRef,
+  Draft,
+  Edit,
+  LineDiff,
+  ReviewView,
+} from "../src/protocol.ts";
+import {
+  editOnLoad,
+  landedAnnotations,
+  lineDiff,
+  shiftAnnotations,
+  takesComments,
+} from "../src/protocol.ts";
+import { fetchDraft, fetchReview, postDecision, putDraft, subscribe } from "./api.ts";
 
 export const review = signal<ReviewView | null>(null);
 
@@ -83,10 +97,15 @@ export const currentDoc = computed<DocRef | null>(() => {
 
 /** Comments are taken on a plan under review and while drafting; every other state locks the page. */
 export const locked = computed(() => {
-  const kind = review.value?.workspace.kind;
+  const workspace = review.value?.workspace;
 
-  return kind !== "inReview" && kind !== "drafting";
+  return workspace === undefined || !takesComments(workspace);
 });
+
+/** The input method in force: none on a locked page, where a renderer starts no comment. */
+export const activeMethod = computed<InputMethod | null>(() =>
+  locked.value ? null : inputMethod.value,
+);
 
 /** Why an open editor cannot hand its text over: said as soon as it is known, and again at Done. */
 function staleEditor(editingVersion: Version, live: Version): string {
@@ -96,7 +115,7 @@ function staleEditor(editingVersion: Version, live: Version): string {
 }
 
 /** What a load makes of the unsent edit: kept, cleared because it landed, or dropped with a banner. */
-function settleEdit(before: ProjectPath | undefined, view: ReviewView): void {
+function settleEdit(view: ReviewView): void {
   const edit = edited.value;
   const { workspace, plan } = view;
 
@@ -119,12 +138,10 @@ function settleEdit(before: ProjectPath | undefined, view: ReviewView): void {
   }
 
   // Landed: the loaded version is the edit, and the comments' lines were shifted to its text already.
-  if (before !== undefined && plan !== null) {
-    annotations.value = retargetAnnotations(annotations.value, before, plan.doc);
-  }
+  annotations.value = landedAnnotations(annotations.value, workspace.dir, edit);
 }
 
-export async function loadReview(): Promise<void> {
+async function loadReview(): Promise<void> {
   const fetched = await fetchReview();
 
   if (!fetched.ok) {
@@ -133,10 +150,9 @@ export async function loadReview(): Promise<void> {
     return;
   }
 
-  const before = review.value?.plan?.doc;
   const { workspace } = fetched.value;
   review.value = fetched.value;
-  settleEdit(before, fetched.value);
+  batch(() => settleEdit(fetched.value));
   const session = editing.value;
 
   // Last, so it wins over a dropped edit: the open editor still holds that edit's text.
@@ -151,8 +167,10 @@ export async function decide(decision: Decision): Promise<void> {
   if (status === 409) error.value = "This version was already decided.";
   else if (status >= 300) error.value = `POST /api/decision failed: ${status}`;
   else {
-    annotations.value = [];
-    edited.value = null;
+    batch(() => {
+      annotations.value = [];
+      edited.value = null;
+    });
   }
 
   await loadReview();
@@ -184,12 +202,18 @@ export function finishEdit(version: Version, base: string, text: string): void {
     return;
   }
 
-  annotations.value = shiftAnnotations(annotations.value, view.plan.doc, lineDiff(base, text));
-  edited.value = text === view.plan.text ? null : { version, text };
-  editing.value = null;
+  const { doc, text: reviewed } = view.plan;
+
+  batch(() => {
+    annotations.value = shiftAnnotations(annotations.value, doc, lineDiff(base, text));
+    edited.value = text === reviewed ? null : { version, text };
+    editing.value = null;
+  });
 }
 
+/** The one way a comment enters the page, as `select` is for navigation: a locked page takes none. */
 export function addAnnotation(annotation: Omit<Annotation, "id">): void {
+  if (locked.value) return;
   annotations.value = [...annotations.value, { ...annotation, id: crypto.randomUUID() }];
 }
 
@@ -213,7 +237,50 @@ export function step(direction: 1 | -1): void {
   select(next?.path ?? null);
 }
 
-export function listen(): void {
+/** Never rejects: the saves are chained, and one rejection would silence every save after it. */
+async function saveDraft(draft: Draft): Promise<void> {
+  try {
+    const status = await putDraft(draft);
+
+    if (status >= 300) error.value = `PUT /api/draft failed: ${status}`;
+  } catch (cause) {
+    error.value = `PUT /api/draft failed: ${String(cause)}`;
+  }
+}
+
+/**
+ * The first load. The saved draft goes in before the review loads, so its edit meets the fate of
+ * any unsent edit at a load: kept, landed or dropped. Saving starts only after that, at every
+ * change of the comments or of the edit, each one a single write: earlier, a reload would
+ * replace the draft with the page's empty state. A draft that cannot be read starts no saving,
+ * for the same reason.
+ */
+export async function start(): Promise<void> {
+  const saved = await fetchDraft();
+
+  const draft = saved.ok ? saved.value : null;
+
+  if (draft !== null) {
+    batch(() => {
+      annotations.value = draft.annotations;
+      edited.value = draft.edit;
+    });
+  }
+
+  await loadReview();
+
+  if (saved.ok) {
+    let saving = Promise.resolve();
+
+    // In order: two changes close together must not reach the file reversed.
+    effect(() => {
+      const unsent: Draft = { annotations: annotations.value, edit: edited.value };
+      saving = saving.then(() => saveDraft(unsent));
+    });
+  } else {
+    error.value = `GET /api/draft failed: ${saved.status}. Nothing is saved until a reload succeeds.`;
+  }
+
   subscribe(() => {
     void loadReview();
   });

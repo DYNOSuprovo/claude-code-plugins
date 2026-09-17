@@ -20,13 +20,15 @@ export type {
   QuickLabel,
 } from "./domain/feedback.ts";
 
-export { DELETE_SENTENCE, QUICK_LABELS, retargetAnnotations } from "./domain/feedback.ts";
+export { DELETE_SENTENCE, QUICK_LABELS } from "./domain/feedback.ts";
 
-export type { Decision, Edit } from "./domain/review.ts";
+export type { Decision, Draft, Edit } from "./domain/review.ts";
 
-export { editOnLoad } from "./domain/review.ts";
+export { editOnLoad, landedAnnotations } from "./domain/review.ts";
 
 export type { Pending, PlanWorkspace } from "./domain/workspace.ts";
+
+export { takesComments } from "./domain/workspace.ts";
 
 /** What `POST /api/gate` answers: the version the browser shows, or why it shows none. */
 export type GateAnswer =

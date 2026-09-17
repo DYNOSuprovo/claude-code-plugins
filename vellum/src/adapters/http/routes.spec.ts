@@ -1,5 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -22,6 +29,12 @@ const CARD = {
   elements: [{ selector: "#pricing > div.card", text: "Pro", label: "div.card" }],
 };
 
+const ON_MOCKUP = { id: "a", doc: `${WIP}mockup.html`, anchor: CARD, mark: BIGGER };
+
+const DRAFT = { annotations: [ON_MOCKUP], edit: { version: 1, text: "# Q\n" } };
+
+const DRAFT_PATH = `${WIP}.review/draft.json`;
+
 let started: Started;
 
 let root: string;
@@ -36,6 +49,10 @@ function url(path: string): string {
 
 function post(path: string, body: string | null = null): Promise<Response> {
   return fetch(url(path), { method: "POST", headers: headers(), body });
+}
+
+function put(path: string, body: string): Promise<Response> {
+  return fetch(url(path), { method: "PUT", headers: headers(), body });
 }
 
 function wipDir(): WipDir {
@@ -61,6 +78,12 @@ type Drafting = {
     readonly anchor: unknown;
     readonly mark?: unknown;
   }) => Promise<Response>;
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- an unparsed draft is the case under test: the route's parser is what grants the type.
+  readonly putDraft: (draft: {
+    readonly annotations?: unknown;
+    readonly edit?: unknown;
+  }) => Promise<Response>;
+  readonly getDraft: () => Promise<Response>;
 };
 
 /** A review still drafting, behind its own handler: a feedback sent there writes `v0.feedback-<n>.md`. */
@@ -78,14 +101,16 @@ function drafting(): Drafting {
     heartbeat: () => {},
   });
 
+  const call = (method: string, path: string, body: string | null): Promise<Response> =>
+    handler(new Request(`http://x${path}`, { method, headers: { [TOKEN_HEADER]: "t" }, body }));
+
   const decide: Drafting["decide"] = (decision) =>
-    handler(
-      new Request("http://x/api/decision", {
-        method: "POST",
-        headers: { [TOKEN_HEADER]: "t" },
-        body: JSON.stringify(decision),
-      }),
-    );
+    call("POST", "/api/decision", JSON.stringify(decision));
+
+  const putDraft: Drafting["putDraft"] = (draft) =>
+    call("PUT", "/api/draft", JSON.stringify(draft));
+
+  const getDraft = (): Promise<Response> => call("GET", "/api/draft", null);
 
   const send: Drafting["send"] = (annotation) =>
     decide({
@@ -94,7 +119,16 @@ function drafting(): Drafting {
       annotations: [{ id: "a", doc: `${WIP}mockup.html`, ...annotation }],
     });
 
-  return { dir, review, decide, send };
+  return { dir, review, decide, send, putDraft, getDraft };
+}
+
+/** The same review once `plan.md` was gated as v1. */
+async function underReview(): Promise<Drafting> {
+  const made = drafting();
+  writeFileSync(join(made.dir, WIP, "plan.md"), "# Locked plan\n");
+  await made.review.gate();
+
+  return made;
 }
 
 beforeAll(async () => {
@@ -177,6 +211,19 @@ describe("routes", () => {
     expect(await next()).toContain('"type":"workspace"');
     writeFileSync(join(root, WIP, "late.md"), "# late\n");
     expect(await next()).toContain('"type":"workspace"');
+    await reader.cancel();
+  });
+
+  test("a draft write sends no workspace event", async () => {
+    const events = await fetch(url(`/t/${started.token}/events`));
+    const reader = events.body?.getReader();
+
+    if (reader === undefined) throw new Error("no event stream");
+    await reader.read();
+    expect((await put("/api/draft", JSON.stringify(DRAFT))).status).toBe(204);
+    expect(await Bun.file(join(root, DRAFT_PATH)).exists()).toBe(true);
+    const next = await Promise.race([reader.read(), Bun.sleep(400).then(() => "quiet")]);
+    expect(next).toBe("quiet");
     await reader.cancel();
   });
 
@@ -281,6 +328,66 @@ describe("routes", () => {
     expect((await decide({ ...APPROVE, notes: "Slice 1 only." })).status).toBe(200);
     const notes = Bun.file(join(dir, "plans/2026-09-15/noted-plan/.review/v1.notes.md"));
     expect(await notes.text()).toEndWith("\n\nSlice 1 only.\n");
+  });
+
+  test("a draft is written to .review/draft.json and read back as it is; none is 204", async () => {
+    const { dir, putDraft, getDraft } = drafting();
+    expect((await getDraft()).status).toBe(204);
+    expect((await putDraft(DRAFT)).status).toBe(204);
+    expect(await Bun.file(join(dir, DRAFT_PATH)).json()).toEqual(DRAFT);
+    const read = await getDraft();
+    expect(read.headers.get("content-type")).toStartWith("application/json");
+    expect(await read.json()).toEqual(DRAFT);
+  });
+
+  test("a malformed draft is refused and leaves the saved one", async () => {
+    const { getDraft, putDraft } = drafting();
+    await putDraft(DRAFT);
+    const onNothing = { ...ON_MOCKUP, anchor: { kind: "global" }, mark: { kind: "delete" } };
+    expect((await putDraft({ annotations: [ON_MOCKUP] })).status).toBe(400);
+    expect((await putDraft({ annotations: "none", edit: null })).status).toBe(400);
+    expect((await putDraft({ annotations: [{ id: 1 }], edit: null })).status).toBe(400);
+    expect((await putDraft({ annotations: [onNothing], edit: null })).status).toBe(400);
+    expect((await putDraft({ annotations: [], edit: { version: 0, text: "" } })).status).toBe(400);
+    expect(await (await getDraft()).json()).toEqual(DRAFT);
+  });
+
+  test("an empty draft deletes the file", async () => {
+    const { dir, putDraft, getDraft } = drafting();
+    await putDraft(DRAFT);
+    expect((await putDraft({ annotations: [], edit: null })).status).toBe(204);
+    expect(await Bun.file(join(dir, DRAFT_PATH)).exists()).toBe(false);
+    expect((await getDraft()).status).toBe(204);
+  });
+
+  test("a draft that is no object is refused", async () => {
+    expect((await put("/api/draft", "null")).status).toBe(400);
+    expect((await put("/api/draft", '"draft"')).status).toBe(400);
+    expect((await put("/api/draft", "not json")).status).toBe(400);
+  });
+
+  test("after an approve a draft with content is refused, and the working directory stays gone", async () => {
+    const { dir, decide, putDraft } = await underReview();
+    expect((await decide(APPROVE)).status).toBe(200);
+    expect((await putDraft(DRAFT)).status).toBe(409);
+    expect(existsSync(join(dir, WIP))).toBe(false);
+    expect((await putDraft({ annotations: [], edit: null })).status).toBe(204);
+    expect(existsSync(join(dir, WIP))).toBe(false);
+  });
+
+  test("after a feedback a draft with content is refused, and no draft.json is left", async () => {
+    const { dir, decide, putDraft } = await underReview();
+    expect((await decide({ kind: "feedback", edit: null, annotations: [] })).status).toBe(200);
+    expect((await putDraft(DRAFT)).status).toBe(409);
+    expect(existsSync(join(dir, DRAFT_PATH))).toBe(false);
+  });
+
+  test("two identical PUTs leave one file with each annotation once", async () => {
+    const { dir, putDraft } = drafting();
+    await putDraft(DRAFT);
+    await putDraft(DRAFT);
+    expect(readdirSync(join(dir, WIP, ".review"))).toEqual(["draft.json"]);
+    expect(await Bun.file(join(dir, DRAFT_PATH)).json()).toEqual(DRAFT);
   });
 
   test("a delete mark is taken on a text anchor", async () => {

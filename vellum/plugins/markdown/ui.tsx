@@ -9,7 +9,7 @@ import { passageFromRange, passageFromSelection, rangeFor } from "../../ui/ancho
 import { docUrl, fileUrl } from "../../ui/api.ts";
 import { Composer } from "../../ui/composer.tsx";
 import { paint } from "../../ui/highlights.ts";
-import { docs, holding, inputMethod, select } from "../../ui/state.ts";
+import { activeMethod, docs, holding, locked, select } from "../../ui/state.ts";
 import type { RendererProps, UiPlugin } from "../index.ts";
 import type { Changes, RemovedRun } from "./changes.ts";
 import { changesOf, removedLabel } from "./changes.ts";
@@ -212,7 +212,7 @@ function passageOf(root: HTMLElement, target: Target): Passage | null {
 
 /** A link to a listed document switches the view; any other link opens in a new tab. */
 function onClick(event: MouseEvent): void {
-  if (inputMethod.value === "pinpoint") return;
+  if (activeMethod.value === "pinpoint") return;
   const link = event.target instanceof Element ? event.target.closest("a") : null;
   const wanted = link?.dataset.path;
 
@@ -226,7 +226,9 @@ function onClick(event: MouseEvent): void {
 
 function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const [text, setText] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [drafted, setDraft] = useState<Draft | null>(null);
+  // A page that locks under an open composer closes it: its comment could not be added.
+  const draft = locked.value ? null : drafted;
   const [wash, setWash] = useState<Wash | null>(null);
   const container = useRef<HTMLElement>(null);
 
@@ -297,7 +299,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const onMouseUp = (): void => {
     const root = container.current;
 
-    if (root === null || inputMethod.value !== "select") return;
+    if (root === null || activeMethod.value !== "select") return;
     const range = document.getSelection()?.getRangeAt(0);
     const passage = passageFromSelection(root);
 
@@ -311,7 +313,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     const root = container.current;
 
     const target =
-      root !== null && inputMethod.value === "pinpoint" && event.target instanceof Element
+      root !== null && activeMethod.value === "pinpoint" && event.target instanceof Element
         ? targetAt(root, event.target, event.clientX, event.clientY)
         : null;
 
@@ -329,7 +331,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const onClickCapture = (event: MouseEvent): void => {
     const root = container.current;
 
-    if (root === null || inputMethod.value !== "pinpoint") return;
+    if (root === null || activeMethod.value !== "pinpoint") return;
 
     // A removed block's summary keeps its click: `preventDefault` would hold it folded.
     if (event.target instanceof Element && event.target.closest("details.removed") !== null) return;
@@ -351,7 +353,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   };
 
   if (content === null) return <div class="waiting">Loading…</div>;
-  const adding = holding.value && draft !== null && inputMethod.value === "pinpoint";
+  const adding = holding.value && draft !== null && activeMethod.value === "pinpoint";
 
   return (
     <>

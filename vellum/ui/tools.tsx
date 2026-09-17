@@ -1,5 +1,5 @@
 import type { InputMethod } from "./state.ts";
-import { currentDoc, inputMethod, planDoc, review, showChanges, split } from "./state.ts";
+import { currentDoc, inputMethod, locked, planDoc, review, showChanges, split } from "./state.ts";
 
 const METHODS: readonly (readonly [InputMethod, string])[] = [
   ["select", "Select"],
@@ -19,8 +19,10 @@ export function Tools(props: { readonly onEdit: () => void }): preact.JSX.Elemen
   const planDrawn = plan !== null && (!beside || split.value);
   const since = planDrawn ? (review.value?.plan?.previous?.version ?? null) : null;
 
-  const pinpointable =
+  const commentable =
     doc?.mediaType === "text/markdown" || doc?.mediaType === "text/html" || (beside && split.value);
+
+  const pinpointable = commentable && !locked.value;
 
   return (
     <div class="tools">

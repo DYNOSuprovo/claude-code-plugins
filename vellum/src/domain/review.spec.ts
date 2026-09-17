@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { Annotation } from "./feedback.ts";
-import { decideOn, editOnLoad, gateVersion, slugFor } from "./review.ts";
+import { decideOn, editOnLoad, gateVersion, landedAnnotations, slugFor } from "./review.ts";
 import type { PlanWorkspace } from "./workspace.ts";
 
 const DIR = "plans/2026-09-15/wip-4c2a9d93/" as never;
@@ -190,6 +190,22 @@ describe("editOnLoad", () => {
   test("the next version with another text, or a later one, makes the edit stale", () => {
     expect(editOnLoad(edit, { version: 3 as never, text: PLAN })).toBe("stale");
     expect(editOnLoad(edit, { version: 4 as never, text: "# Q\n" })).toBe("stale");
+  });
+});
+
+describe("landedAnnotations", () => {
+  test("the comments on the edited version's file move to the next version's, the others stay", () => {
+    const annotations = [
+      at(`${DIR}.review/v2.md`),
+      at(`${DIR}.review/v1.md`),
+      at(`${DIR}notes.md`),
+    ];
+
+    expect(landedAnnotations(annotations, DIR, Q_OF_V2)).toEqual([
+      at(`${DIR}.review/v3.md`),
+      at(`${DIR}.review/v1.md`),
+      at(`${DIR}notes.md`),
+    ]);
   });
 });
 

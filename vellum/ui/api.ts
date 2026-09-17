@@ -1,5 +1,5 @@
 import type { ProjectPath } from "../src/domain/paths.ts";
-import type { Decision, DocRef, ReviewView } from "../src/protocol.ts";
+import type { Decision, DocRef, Draft, ReviewView } from "../src/protocol.ts";
 
 /** The page's side of the HTTP contract: the token from the URL, the routes, the event stream. */
 
@@ -34,6 +34,24 @@ export async function fetchReview(): Promise<Fetched<ReviewView>> {
 
   // SAFETY: the server's own `ReviewView`, serialized by `Response.json` in routes.ts.
   return { ok: true, value: (await response.json()) as ReviewView };
+}
+
+/** The unsent work the server keeps for a reload, `null` when it keeps none. */
+export async function fetchDraft(): Promise<Fetched<Draft | null>> {
+  const response = await request("draft");
+
+  if (!response.ok) return { ok: false, status: response.status };
+
+  if (response.status === 204) return { ok: true, value: null };
+
+  // SAFETY: a `Draft` this page sent, which the route's parser checked before the server kept it.
+  return { ok: true, value: (await response.json()) as Draft };
+}
+
+export async function putDraft(draft: Draft): Promise<number> {
+  const response = await request("draft", { method: "PUT", body: JSON.stringify(draft) });
+
+  return response.status;
 }
 
 export async function postDecision(decision: Decision): Promise<number> {
