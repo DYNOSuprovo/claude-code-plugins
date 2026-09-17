@@ -1,7 +1,5 @@
 # vellum
 
-v1.1.0
-
 Write a plan the way its reviewer reads it, then review it in the browser. The skill orders the plan by what the reviewer is most likely to change and buries the mechanics; the hooks module holds a planning mode of its own: `/vellum:start` enters it, Claude writes the plan and its mockups in a working directory, the reviewer comments them in a page or approves, and the answer reaches Claude as a prompt.
 
 Replaces `plan-frontiers` and `software-craft:thorough-plan`.
@@ -42,26 +40,9 @@ References, loaded one at a time: `program-design.md` (signatures, call-stack an
 
 `plan-reviewer` reads a plan and its artifacts, read-only, and reports Approved or Issues found with a verdict: overengineered, underengineered or right. The skill calls it for a large change or a plan no human will read; call it yourself with the plan path otherwise.
 
-## Layout
+## What it does to the session
 
-```
-hooks/hooks.json                 what Claude Code reads: it names the hooks module, src/core/engine/register.ts
-src/core/engine/register.ts      the mode's hooks (session.start, skill.prompt, command.run, tool.check, tool.call on submit, turn.complete)
-src/core/engine/host.ts          `Host`: one member per `$` call, the port the other files take
-src/core/engine/mode.ts          the machine: idle | live, and restore / connect / close
-src/core/engine/lock.ts          the write policy, pure
-src/core/engine/relay.ts         what the poll says to Claude, and what it remembers
-src/core/engine/server.ts        the review server's client: every route, the token header, the launcher
-src/core/engine/parse.ts         the boundary: unknown to types, and where the module's brands are minted
-src/core/server/cli.ts           `start` spawns `serve` detached; `serve` is the review server
-src/core/server/domain/          pure: paths, workspace states, decisions, the feedback and notes texts, the line diff, slug, links
-src/core/server/app/review.ts    the use case: read, decide, apply
-src/core/server/adapters/        http (routes, the page bundled by Bun.serve from src/core/page/index.html), fs, browser
-src/core/page/                   the Preact page: document list, decision bar, comments, text anchoring, the plan's editor
-src/core/extension.ts            the contract an extension fills: PageExtension, ServerExtension
-src/extensions/                  one folder per extension, today the document kinds (markdown with highlight and Mermaid, html with its frame script, image); a third party sends a PR
-types/claude-code.d.ts           the function hooks contract, written by `/plugin-types vellum/types`
-```
+The plugin installs a hooks module that refuses writes and spawns a process. These two tables say what it hooks and what it calls, nothing more.
 
 ### What it hooks
 
@@ -92,7 +73,7 @@ types/claude-code.d.ts           the function hooks contract, written by `/plugi
 
 `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum` prints both lists from the module's source; these tables are that output in prose.
 
-Development: `bun install --cwd vellum`, `bun test vellum`, `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum`, then a session with `--plugin-dir vellum`; see `docs/plugin-testing.md` at the repository root. The map of the code and where it goes next: `docs/architecture.md` in this directory.
+Development: `bun install --cwd vellum`, `bun test vellum`, `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum`, then a session with `--plugin-dir vellum`; see `docs/plugin-testing.md` at the repository root. The map of the code is `AGENTS.md` § Shape in this directory, the one place the tree is drawn; the drawings and the decisions behind it are `docs/architecture.md`.
 
 ## Sources
 
