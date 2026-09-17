@@ -7,6 +7,10 @@ import type { PlanWorkspace } from "./domain/workspace.ts";
  * never redefined.
  */
 
+export type { DiffRun, LineDiff } from "./domain/diff.ts";
+
+export { countChanges, lineDiff } from "./domain/diff.ts";
+
 export type { Anchor, Annotation, ElementRef, Passage } from "./domain/feedback.ts";
 
 export type { Decision } from "./domain/review.ts";
@@ -28,7 +32,12 @@ export type DocRef = DocLink & { readonly modified: number };
 
 export type ReviewView = {
   readonly workspace: PlanWorkspace;
-  readonly plan: { readonly doc: ProjectPath; readonly text: string } | null;
+  readonly plan: {
+    readonly doc: ProjectPath;
+    readonly text: string;
+    /** The version before this one, for the page to diff against; `null` at v1. */
+    readonly previous: { readonly version: Version; readonly text: string } | null;
+  } | null;
   readonly docs: readonly DocRef[];
 };
 

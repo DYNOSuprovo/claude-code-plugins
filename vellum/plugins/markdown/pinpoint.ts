@@ -85,8 +85,13 @@ const INLINES: ReadonlyMap<string, string> = new Map([
   ["code", "code"],
 ]);
 
-/** `tags`: lower-case tag names from the pointer's element up to the article, innermost first, the article excluded. */
+/**
+ * `tags`: lower-case tag names from the pointer's element up to the article, innermost first,
+ * the article excluded. A `details` is a removed block of "Changes since": the old source is
+ * not the plan's text, so nothing under it is a target, whatever holds it.
+ */
 export function pickTarget(tags: readonly string[], edge: TableEdge): Pick | null {
+  if (tags.includes("details")) return null;
   const figure = tags.indexOf("figure");
 
   if (figure !== -1) return { index: figure, kind: "diagram" };

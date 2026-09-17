@@ -1,5 +1,6 @@
 import type { PlanWorkspace } from "../src/protocol.ts";
-import { annotations, decide, error, locked, review } from "./state.ts";
+import { countChanges } from "../src/protocol.ts";
+import { annotations, decide, error, locked, planChanges, review } from "./state.ts";
 
 type Status = { readonly label: string; readonly tone: "" | "sent" | "ok" | "err" };
 
@@ -61,6 +62,8 @@ export function DecisionBar(): preact.JSX.Element {
   const status = workspace === undefined ? null : statusOf(workspace);
   const banner = workspace === undefined ? null : bannerOf(workspace);
   const count = annotations.value.length;
+  const since = view?.plan?.previous?.version;
+  const changed = planChanges.value === null ? null : countChanges(planChanges.value);
 
   return (
     <>
@@ -69,6 +72,11 @@ export function DecisionBar(): preact.JSX.Element {
         <span class="title">{titleOf(view?.plan?.text)}</span>
         {workspace !== undefined && workspace.kind !== "drafting" && (
           <span class="version">v{workspace.version}</span>
+        )}
+        {changed !== null && since !== undefined && (
+          <span class="stat" title={`Lines changed since v${since}`}>
+            <span class="plus">+{changed.added}</span> <span class="minus">−{changed.removed}</span>
+          </span>
         )}
         {status !== null && <span class={`status ${status.tone}`}>{status.label}</span>}
         <span class="spacer" />

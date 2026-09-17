@@ -13,7 +13,9 @@ import {
   holding,
   listen,
   loadReview,
+  planChanges,
   planDoc,
+  showChanges,
   split,
   step,
 } from "./state.ts";
@@ -35,6 +37,7 @@ function Doc(props: { readonly doc: DocRef }): preact.JSX.Element {
         doc={doc}
         annotations={annotations.value.filter((a) => a.doc === doc.path)}
         annotate={addAnnotation}
+        changes={showChanges.value && doc.path === planDoc.value?.path ? planChanges.value : null}
       />
     </div>
   );

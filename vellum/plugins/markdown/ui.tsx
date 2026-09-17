@@ -11,6 +11,8 @@ import { Composer } from "../../ui/composer.tsx";
 import { paint } from "../../ui/highlights.ts";
 import { docs, holding, inputMethod, select } from "../../ui/state.ts";
 import type { RendererProps, UiPlugin } from "../index.ts";
+import type { Changes, RemovedRun } from "./changes.ts";
+import { changesOf, removedLabel } from "./changes.ts";
 import type { Target } from "./pinpoint.ts";
 import { boxOf, diagramPassage, rangeOf, targetAt, toggled } from "./pinpoint.ts";
 import { toTree } from "./tree.ts";
@@ -57,17 +59,40 @@ function mermaidSource(node: HastElement): string | null {
   return text?.type === "text" ? text.value : null;
 }
 
+/**
+ * A removed run, folded. Its label and its old source are attributes CSS draws, as the Mermaid
+ * figure keeps its source: with no text node it takes no selection and no quote search finds it.
+ */
+function removedBlock(run: RemovedRun): ComponentChild {
+  return h(
+    "details",
+    { key: `removed-${run.before}`, class: "removed" },
+    h("summary", { "data-label": removedLabel(run.lines.length) }),
+    h("div", { "data-source": run.lines.join("\n") }),
+  );
+}
+
+function toVNodes(nodes: readonly RootContent[], changes: Changes | null): ComponentChild[] {
+  return nodes.flatMap((node, index) => [
+    ...(node.type === "element" ? (changes?.removedBefore.get(node) ?? []) : []).map((run) =>
+      removedBlock(run),
+    ),
+    toVNode(node, index, changes),
+  ]);
+}
+
 /** hast to preact, by hand: the JSX runtime adapters type against a global JSX namespace this page does not own. */
-function toVNode(node: RootContent, key: number): ComponentChild {
+function toVNode(node: RootContent, key: number, changes: Changes | null): ComponentChild {
   if (node.type === "text") return node.value;
 
   if (node.type !== "element") return null;
   const source = mermaidSource(node);
+  const added = changes?.marked.has(node) === true;
 
   if (source !== null) {
     return h("figure", {
       key,
-      class: "mermaid",
+      class: added ? "mermaid added" : "mermaid",
       "data-lines": String(node.properties.dataLines),
       "data-source": source,
     });
@@ -88,11 +113,16 @@ function toVNode(node: RootContent, key: number): ComponentChild {
   });
 
   const extra = node.tagName === "a" ? { target: "_blank", rel: "noopener" } : {};
+  const given = Object.fromEntries(attributes);
+  const mark = added ? { class: `${given.class ?? ""} added`.trimStart() } : {};
+
+  const inside = (changes?.removedInside.get(node) ?? []).map((run) => removedBlock(run));
 
   return h(
     node.tagName,
-    { key, ...extra, ...Object.fromEntries(attributes) },
-    ...node.children.map(toVNode),
+    { key, ...extra, ...given, ...mark },
+    ...inside,
+    ...toVNodes(node.children, changes),
   );
 }
 
@@ -200,10 +230,15 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const [wash, setWash] = useState<Wash | null>(null);
   const container = useRef<HTMLElement>(null);
 
-  const content = useMemo(
-    () => (text === null ? null : toTree(text).children.map(toVNode)),
-    [text],
-  );
+  const content = useMemo(() => {
+    if (text === null) return null;
+    const tree = toTree(text);
+    const changes = props.changes === null ? null : changesOf(tree, props.changes);
+
+    const atEnd = (changes?.removedAtEnd ?? []).map((run) => removedBlock(run));
+
+    return [...toVNodes(tree.children, changes), ...atEnd];
+  }, [text, props.changes]);
 
   useEffect(() => {
     void fetch(docUrl(props.doc))
@@ -214,7 +249,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   useEffect(() => {
     const root = container.current;
 
-    if (root === null || text === null) return;
+    if (root === null || content === null) return;
 
     const rangesOf = (passages: readonly Passage[]): Range[] =>
       passages.flatMap((passage) => {
@@ -249,7 +284,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       box("commented", []);
       box("picked", []);
     };
-  }, [props.annotations, draft, text]);
+  }, [props.annotations, draft, content]);
 
   useEffect(() => {
     const root = container.current;
@@ -293,6 +328,9 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     const root = container.current;
 
     if (root === null || inputMethod.value !== "pinpoint") return;
+
+    // A removed block's summary keeps its click: `preventDefault` would hold it folded.
+    if (event.target instanceof Element && event.target.closest("details.removed") !== null) return;
     event.preventDefault();
 
     if (!(event.target instanceof Element) || document.getSelection()?.isCollapsed === false) {
