@@ -11,7 +11,16 @@ export type { DiffRun, LineDiff } from "./domain/diff.ts";
 
 export { countChanges, lineDiff } from "./domain/diff.ts";
 
-export type { Anchor, Annotation, ElementRef, Passage } from "./domain/feedback.ts";
+export type {
+  Anchor,
+  Annotation,
+  ElementRef,
+  Mark,
+  Passage,
+  QuickLabel,
+} from "./domain/feedback.ts";
+
+export { DELETE_SENTENCE, QUICK_LABELS } from "./domain/feedback.ts";
 
 export type { Decision } from "./domain/review.ts";
 

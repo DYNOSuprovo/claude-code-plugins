@@ -2,6 +2,7 @@ import { realpath } from "node:fs/promises";
 import { join, sep } from "node:path";
 
 import type { GateOptions, Review } from "../../app/review.ts";
+import { isQuickLabel } from "../../domain/feedback.ts";
 import { parseProjectPath } from "../../domain/paths.ts";
 import type {
   Anchor,
@@ -9,6 +10,7 @@ import type {
   Decision,
   ElementRef,
   GateAnswer,
+  Mark,
   Passage,
   PlanWorkspace,
 } from "../../protocol.ts";
@@ -91,17 +93,32 @@ function parsePassage(value: unknown): Passage | null {
   };
 }
 
-function parseAnnotation(value: unknown): Annotation | null {
-  if (!isRecord(value) || typeof value.id !== "string" || typeof value.body !== "string") {
-    return null;
-  }
+function parseMark(value: unknown): Mark | null {
+  if (!isRecord(value)) return null;
 
+  if (value.kind === "delete") return { kind: "delete" };
+
+  if (typeof value.body !== "string") return null;
+
+  if (value.kind === "comment") return { kind: "comment", body: value.body };
+
+  return value.kind === "label" && typeof value.label === "string" && isQuickLabel(value.label)
+    ? { kind: "label", label: value.label, body: value.body }
+    : null;
+}
+
+function parseAnnotation(value: unknown): Annotation | null {
+  if (!isRecord(value) || typeof value.id !== "string") return null;
   const doc = typeof value.doc === "string" ? parseProjectPath(value.doc) : null;
   const anchor = parseAnchor(value.anchor);
+  const mark = parseMark(value.mark);
 
-  return doc?.ok === true && anchor !== null
-    ? { id: value.id, doc: doc.value, anchor, body: value.body }
-    : null;
+  if (doc?.ok !== true || anchor === null || mark === null) return null;
+
+  // "Delete this" needs a place to delete: the document as a whole is not one.
+  return mark.kind === "delete" && anchor.kind === "global"
+    ? null
+    : { id: value.id, doc: doc.value, anchor, mark };
 }
 
 async function parseDecision(request: Request): Promise<Decision | null> {

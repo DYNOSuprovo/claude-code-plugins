@@ -14,9 +14,14 @@ test("formatFeedback numbers the comments, quotes text anchors, names general on
       id: "a",
       doc: DOC,
       anchor: { kind: "text", passages: [PASSAGE] },
-      body: "A JSON column is enough.\nOne boolean.",
+      mark: { kind: "comment", body: "A JSON column is enough.\nOne boolean." },
     },
-    { id: "b", doc: DOC, anchor: { kind: "global" }, body: "Slice 2 needs an empty state." },
+    {
+      id: "b",
+      doc: DOC,
+      anchor: { kind: "global" },
+      mark: { kind: "comment", body: "Slice 2 needs an empty state." },
+    },
   ];
 
   expect(formatFeedback(annotations, { kind: "review", version: 2 as never })).toBe(
@@ -45,7 +50,7 @@ test("formatFeedback lists the passages of a comment that points to several plac
         { quote: "Nested two", prefix: "", suffix: "", lines: [7, 7] },
       ],
     },
-    body: "These two say the same thing.",
+    mark: { kind: "comment", body: "These two say the same thing." },
   };
 
   expect(formatFeedback([annotation], { kind: "review", version: 2 as never })).toBe(
@@ -75,7 +80,7 @@ test("formatFeedback names the selector, the label and the text of an element an
         },
       ],
     },
-    body: "The price must stand out.",
+    mark: { kind: "comment", body: "The price must stand out." },
   };
 
   expect(formatFeedback([annotation], { kind: "review", version: 2 as never })).toBe(
@@ -104,7 +109,7 @@ test("formatFeedback gives each element of a comment its own bullet", () => {
         { selector: "#pricing > div.card:nth-of-type(2)", text: "Pro $29/mo", label: "div.card" },
       ],
     },
-    body: "The price must stand out on both cards.",
+    mark: { kind: "comment", body: "The price must stand out on both cards." },
   };
 
   expect(formatFeedback([annotation], { kind: "review", version: 2 as never })).toBe(
@@ -125,10 +130,68 @@ test("a drafting batch is headed by its number, not by a version", () => {
     id: "a",
     doc: `${DOC}` as never,
     anchor: { kind: "global" },
-    body: "The empty state is missing.",
+    mark: { kind: "comment", body: "The empty state is missing." },
   };
 
   expect(formatFeedback([annotation], { kind: "draft", batch: 3 })).toStartWith(
     "# Drafting feedback 3\n\n1. ",
+  );
+});
+
+type Passages = Extract<Annotation["anchor"], { readonly kind: "text" }>["passages"];
+
+function marked(mark: Annotation["mark"], passages: Passages = [PASSAGE]): string {
+  const annotation = { id: "a", doc: DOC, anchor: { kind: "text", passages }, mark } as const;
+
+  return formatFeedback([annotation], { kind: "review", version: 2 as never });
+}
+
+test("a delete mark prints Delete this. under its place", () => {
+  expect(marked({ kind: "delete" })).toBe(
+    [
+      "# Plan review: changes requested (v2)",
+      "",
+      `1. \`${DOC}\` lines 14–14: "persist per user"`,
+      "   Delete this.",
+      "",
+    ].join("\n"),
+  );
+});
+
+test("a label with a body prints its sentence, then the body", () => {
+  const text = marked({ kind: "label", label: "verify", body: "Bun.serve or the watcher?" });
+
+  expect(text).toEndWith(
+    [
+      'lines 14–14: "persist per user"',
+      "   Verify this against the code or the docs, and cite what you read.",
+      "   Bun.serve or the watcher?",
+      "",
+    ].join("\n"),
+  );
+});
+
+test.each([
+  ["clarify", "Clarify this: say what it means in concrete terms."],
+  ["verify", "Verify this against the code or the docs, and cite what you read."],
+  ["tooMuch", "Overengineered: cut this down to what the request needs."],
+  ["missingCheck", "Nothing closes this: add the check that proves it."],
+] as const)("the label %s with an empty body prints its sentence alone", (label, sentence) => {
+  expect(marked({ kind: "label", label, body: "" })).toEndWith(
+    `lines 14–14: "persist per user"\n   ${sentence}\n`,
+  );
+});
+
+test("a mark on several places prints once, under the list of places", () => {
+  const second = { quote: "one boolean", prefix: "", suffix: "", lines: [20, 20] } as const;
+
+  expect(marked({ kind: "delete" }, [PASSAGE, second])).toEndWith(
+    [
+      `1. \`${DOC}\``,
+      '   - lines 14–14: "persist per user"',
+      '   - lines 20–20: "one boolean"',
+      "   Delete this.",
+      "",
+    ].join("\n"),
   );
 });

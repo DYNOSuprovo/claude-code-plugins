@@ -106,11 +106,11 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
           top={at.top}
           left={at.left}
           onCancel={close}
-          onSubmit={(body) => {
+          onSubmit={(mark) => {
             props.annotate({
               doc: props.doc.path,
               anchor: { kind: "element", elements: draft.elements },
-              body,
+              mark,
             });
             close();
           }}
