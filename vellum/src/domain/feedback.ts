@@ -122,6 +122,27 @@ function openingOf(heading: FeedbackHeading): readonly string[] {
   ];
 }
 
+/**
+ * What Claude reads before it acts on an approved plan: that the reviewer edited it, then the
+ * reviewer's note. `null` when there is neither a note nor an edit to report.
+ */
+export function formatNotes(
+  version: Version,
+  editedFrom: Version | null,
+  notes: string,
+): string | null {
+  const edited =
+    editedFrom === null
+      ? ""
+      : `The reviewer edited ${PLAN_FILE} directly (v${editedFrom} → v${version}): read ${PLAN_FILE} again.`;
+
+  const paragraphs = [edited, notes.trim()].filter((paragraph) => paragraph !== "");
+
+  return paragraphs.length === 0
+    ? null
+    : `${[`# Plan approved: the reviewer's notes (v${version})`, ...paragraphs].join("\n\n")}\n`;
+}
+
 /** The text Claude reads: one numbered item per annotation, the place first, the mark in words under it. */
 export function formatFeedback(
   annotations: readonly Annotation[],

@@ -142,7 +142,12 @@ export class Review {
       await writeText(project, decided.edit.path, decided.edit.text);
     }
 
-    if (decided.kind === "approve") return await this.approve(decided.version);
+    if (decided.kind === "approve") {
+      // Before the rename, which rewrites its links and carries it to the final directory.
+      if (decided.notes !== null) await writeText(project, decided.notes.path, decided.notes.text);
+
+      return await this.approve(decided.version);
+    }
 
     if (decision.kind === "feedback") {
       const heading: FeedbackHeading =
@@ -173,7 +178,9 @@ export class Review {
     const renamed = await renameWorkspace(project, workdir, slug.value);
 
     if (!renamed.ok) return await this.failApprove(version, renamed.error);
-    this.memory = { kind: "approved", version, dir: renamed.value };
+    const final = await readWorkspace(project, renamed.value);
+    const notes = final.ok && final.value.kind === "approved" && final.value.notes;
+    this.memory = { kind: "approved", version, dir: renamed.value, notes };
 
     return { ok: true, workspace: await this.notify() };
   }

@@ -1,6 +1,7 @@
 import { describe, expect, test, tier } from "claude-code/testing";
 
 import {
+  approved,
   batch,
   CWD,
   draftsPrompt,
@@ -483,7 +484,7 @@ describe("the decision comes back as a prompt", () => {
 
   test("an approval names the final directory, then the mode is idle", async ($, on) => {
     const seen = world(on, {
-      routes: { "/api/pending": () => reply(200, { kind: "approved", version: 2, dir: FINAL }) },
+      routes: { "/api/pending": () => reply(200, approved(2)) },
     });
 
     await $.skill.prompt(START_PROMPT);
@@ -498,6 +499,17 @@ describe("the decision comes back as a prompt", () => {
 
     expect(seen.paths.slice(from), "the poll stopped with the mode").toEqual([]);
     expect(seen.store.has(`session:${SESSION_ID}`)).toBe(false);
+  });
+
+  test("an approval with notes names the notes file before the directory", async ($, on) => {
+    const notes = `${FINAL}.review/v2.notes.md`;
+    const seen = world(on, { routes: { "/api/pending": () => reply(200, approved(2, notes)) } });
+    await $.skill.prompt(START_PROMPT);
+    await tick(seen);
+
+    expect(seen.prompts).toEqual([
+      `Plan v2 approved. Read ${notes} first: the reviewer's notes. It lives at ${FINAL}. Implement it here or in a fresh session.`,
+    ]);
   });
 
   test("a drafting batch is named once, and the next batches in one prompt", async ($, on) => {
@@ -559,7 +571,7 @@ describe("the decision comes back as a prompt", () => {
 
   test("an approval drops the record, so the next plan's first batch is named", async ($, on) => {
     const seen = world(on, {
-      routes: { "/api/pending": () => reply(200, { kind: "approved", version: 1, dir: FINAL }) },
+      routes: { "/api/pending": () => reply(200, approved(1)) },
       stored: { [`relayed:${SESSION_ID}`]: relayed(2) },
     });
 
@@ -593,7 +605,7 @@ describe("the decision comes back as a prompt", () => {
           answered = true;
           await seen.clock.sleep(POLL_MS / 2);
 
-          return reply(200, { kind: "approved", version: 1, dir: FINAL });
+          return reply(200, approved(1));
         },
       },
     });
@@ -614,7 +626,7 @@ describe("the decision comes back as a prompt", () => {
 
   test("a dropped prompt keeps the poll alive; the next tick retries", async ($, on) => {
     const seen = world(on, {
-      routes: { "/api/pending": () => reply(200, { kind: "approved", version: 1, dir: FINAL }) },
+      routes: { "/api/pending": () => reply(200, approved(1)) },
     });
 
     seen.drop = "refused";

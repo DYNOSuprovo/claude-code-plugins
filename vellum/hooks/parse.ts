@@ -139,8 +139,12 @@ export function parsePending(text: string): PendingWire {
 
   if (typeof value.version !== "number") return { kind: "none" };
 
-  if (value.kind === "approved" && typeof value.dir === "string") {
-    return { kind: "approved", version: value.version, dir: value.dir };
+  if (
+    value.kind === "approved" &&
+    typeof value.dir === "string" &&
+    (value.notes === null || typeof value.notes === "string")
+  ) {
+    return { kind: "approved", version: value.version, dir: value.dir, notes: value.notes };
   }
 
   if (value.kind === "feedback" && typeof value.path === "string") {

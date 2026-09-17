@@ -25,6 +25,7 @@ const approved: PlanWorkspace = {
   kind: "approved",
   dir: "plans/2026-09-15/notes/" as never,
   version: V1,
+  notes: false,
 };
 
 describe("gateVersion", () => {
@@ -67,11 +68,18 @@ function at(doc: string): Annotation {
   return { id: "a", doc: doc as never, anchor: GLOBAL, mark: NO };
 }
 
-const APPROVE = { kind: "approve", edit: null } as const;
+const APPROVE = { kind: "approve", edit: null, notes: "" } as const;
+
+const Q_OF_V1 = { version: V1, text: "# Q\n" } as const;
 
 describe("decideOn", () => {
   test("approve names the version to finalize", () => {
-    expect(decideOn(inReview, PLAN, APPROVE)).toEqual({ kind: "approve", version: V1, edit: null });
+    expect(decideOn(inReview, PLAN, APPROVE)).toEqual({
+      kind: "approve",
+      version: V1,
+      edit: null,
+      notes: null,
+    });
   });
 
   test("feedback names the file to write", () => {
@@ -94,22 +102,34 @@ describe("decideOn", () => {
   });
 
   test("approve with an edit is the next version, and names the version file to write", () => {
-    expect(
-      decideOn(inReview, PLAN, { kind: "approve", edit: { version: V1, text: "# Q\n" } }),
-    ).toEqual({
+    expect(decideOn(inReview, PLAN, { ...APPROVE, edit: Q_OF_V1 })).toMatchObject({
       kind: "approve",
-      version: 2 as never,
-      edit: { path: `${DIR}.review/v2.md` as never, text: "# Q\n" },
+      version: 2,
+      edit: { path: `${DIR}.review/v2.md`, text: "# Q\n" },
     });
   });
 
   test("an edit equal to the version's text is no edit", () => {
-    expect(
-      decideOn(inReview, PLAN, { kind: "approve", edit: { version: V1, text: PLAN } }),
-    ).toEqual({
+    expect(decideOn(inReview, PLAN, { ...APPROVE, edit: { version: V1, text: PLAN } })).toEqual({
       kind: "approve",
       version: V1,
       edit: null,
+      notes: null,
+    });
+  });
+
+  test("approve with an edit and a note names the new version's notes file, the edit line first", () => {
+    const decided = decideOn(inReview, PLAN, {
+      kind: "approve",
+      edit: Q_OF_V1,
+      notes: "Slice 1 only.",
+    });
+
+    expect(decided).toMatchObject({
+      notes: {
+        path: `${DIR}.review/v2.notes.md`,
+        text: expect.stringContaining("(v1 → v2): read plan.md again.\n\nSlice 1 only.\n"),
+      },
     });
   });
 
@@ -130,7 +150,7 @@ describe("decideOn", () => {
   });
 
   test("an edit of another version than the one under review is refused", () => {
-    expect(decideOn(inReview, PLAN, { kind: "approve", edit: Q_OF_V2 })).toEqual({
+    expect(decideOn(inReview, PLAN, { ...APPROVE, edit: Q_OF_V2 })).toEqual({
       kind: "refused",
     });
   });
@@ -139,6 +159,15 @@ describe("decideOn", () => {
     "a feedback with an edit is refused on $kind",
     (workspace) => {
       expect(decideOn(workspace, PLAN, EDITED_FEEDBACK)).toEqual({ kind: "refused" });
+    },
+  );
+
+  test.each([changesRequested, approved])(
+    "an approve with a note is refused on $kind",
+    (workspace) => {
+      expect(decideOn(workspace, PLAN, { ...APPROVE, notes: "Slice 1 only." })).toEqual({
+        kind: "refused",
+      });
     },
   );
 

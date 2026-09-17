@@ -19,6 +19,11 @@ export function feedbackFile(version: Version): string {
   return `${REVIEW_DIR}/v${version}.feedback.md`;
 }
 
+/** What the reviewer tells Claude with an approval; it stays beside the version it approves. */
+export function notesFile(version: Version): string {
+  return `${REVIEW_DIR}/v${version}.notes.md`;
+}
+
 /** A batch of comments sent before the first version; `v0` sorts under no version. */
 export function draftFeedbackFile(batch: number): string {
   return `${REVIEW_DIR}/v0.feedback-${batch}.md`;
@@ -39,20 +44,40 @@ export type PlanWorkspace =
       readonly finalizeError: string | null;
     }
   | { readonly kind: "changesRequested"; readonly dir: WipDir; readonly version: Version }
-  | { readonly kind: "approved"; readonly dir: FinalDir; readonly version: Version };
+  | {
+      readonly kind: "approved";
+      readonly dir: FinalDir;
+      readonly version: Version;
+      /** Whether the approved version has a notes file. */
+      readonly notes: boolean;
+    };
 
-/** What the directory cannot say: a rename that failed, and the one that landed. */
+/**
+ * What the directory cannot say: a rename that failed, and the one that landed. `notes` is read
+ * from the final directory's listing, never from the decision: a retried approval carries no note.
+ */
 export type Memory =
   | { readonly kind: "none" }
   | { readonly kind: "finalizeError"; readonly version: Version; readonly error: string }
-  | { readonly kind: "approved"; readonly version: Version; readonly dir: FinalDir };
+  | {
+      readonly kind: "approved";
+      readonly version: Version;
+      readonly dir: FinalDir;
+      readonly notes: boolean;
+    };
 
 /** What the hooks module must relay to Claude. */
 export type Pending =
   | { readonly kind: "none" }
   | { readonly kind: "drafts"; readonly batches: readonly DraftBatch[] }
   | { readonly kind: "feedback"; readonly version: Version; readonly path: ProjectPath }
-  | { readonly kind: "approved"; readonly version: Version; readonly dir: FinalDir };
+  | {
+      readonly kind: "approved";
+      readonly version: Version;
+      readonly dir: FinalDir;
+      /** The notes file Claude reads before it acts; `null` when the reviewer left none. */
+      readonly notes: ProjectPath | null;
+    };
 
 /** One batch of drafting comments, as the hooks module names it to Claude. */
 export type DraftBatch = { readonly batch: number; readonly path: ProjectPath };
@@ -92,7 +117,15 @@ export function workspaceFromListing(
     // SAFETY: `dir` is `WipDir | FinalDir` and `parseWipDir` just refused it, so it is the FinalDir.
     return latest === null
       ? { ok: false, error: `${dir} holds no .review/vN.md` }
-      : { ok: true, value: { kind: "approved", dir: dir as FinalDir, version: latest } };
+      : {
+          ok: true,
+          value: {
+            kind: "approved",
+            dir: dir as FinalDir,
+            version: latest,
+            notes: names.has(`v${latest}.notes.md`),
+          },
+        };
   }
 
   if (latest === null) {
@@ -116,7 +149,7 @@ export function workspaceFromListing(
 /** The workspace as the page and the hooks module see it: the directory, overlaid with the memory. */
 export function workspaceOf(disk: PlanWorkspace, memory: Memory): PlanWorkspace {
   if (memory.kind === "approved") {
-    return { kind: "approved", dir: memory.dir, version: memory.version };
+    return { kind: "approved", dir: memory.dir, version: memory.version, notes: memory.notes };
   }
 
   if (disk.kind === "inReview" && memory.kind === "finalizeError") {
@@ -146,7 +179,10 @@ export function pendingOf(workspace: PlanWorkspace): Pending {
   }
 
   if (workspace.kind === "approved") {
-    return { kind: "approved", version: workspace.version, dir: workspace.dir };
+    const { version, dir } = workspace;
+    const notes = workspace.notes ? projectPath(`${dir}${notesFile(version)}`) : null;
+
+    return { kind: "approved", version, dir, notes };
   }
 
   return { kind: "none" };

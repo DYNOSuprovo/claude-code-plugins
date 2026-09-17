@@ -2,7 +2,7 @@
 import { expect, test } from "bun:test";
 
 import type { Annotation } from "./feedback.ts";
-import { formatFeedback } from "./feedback.ts";
+import { formatFeedback, formatNotes } from "./feedback.ts";
 
 const DOC = "plans/2026-09-15/wip-4c2a9d93/.review/v2.md" as never;
 
@@ -215,5 +215,34 @@ test("a review of an edited plan says so under the heading, before the items", (
 test("an edit with no comment leaves the heading and that paragraph", () => {
   expect(formatFeedback([], V3_EDITED)).toBe(
     `# Plan review: changes requested (v3)\n\n${EDITED_NOTE}\n`,
+  );
+});
+
+const NOTES_TITLE = "# Plan approved: the reviewer's notes (v3)";
+
+const READ_AGAIN = "The reviewer edited plan.md directly (v2 → v3): read plan.md again.";
+
+test("formatNotes with neither a note nor an edit is null, a blank note included", () => {
+  expect(formatNotes(3 as never, null, "")).toBeNull();
+  expect(formatNotes(3 as never, null, " \n")).toBeNull();
+});
+
+test("formatNotes with an edit alone says the plan was edited and must be read again", () => {
+  expect(formatNotes(3 as never, 2 as never, "")).toBe(`${NOTES_TITLE}\n\n${READ_AGAIN}\n`);
+});
+
+test("formatNotes with an edit and a note made of spaces gives the edit line alone", () => {
+  expect(formatNotes(3 as never, 2 as never, "  \n")).toBe(`${NOTES_TITLE}\n\n${READ_AGAIN}\n`);
+});
+
+test("formatNotes with a note alone gives the note under the title", () => {
+  expect(formatNotes(3 as never, null, "Slice 1 only.\n")).toBe(
+    `${NOTES_TITLE}\n\nSlice 1 only.\n`,
+  );
+});
+
+test("formatNotes with an edit and a note gives the edit line, then the note", () => {
+  expect(formatNotes(3 as never, 2 as never, "Slice 1 only.")).toBe(
+    `${NOTES_TITLE}\n\n${READ_AGAIN}\n\nSlice 1 only.\n`,
   );
 });

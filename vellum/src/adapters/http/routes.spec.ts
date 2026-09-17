@@ -15,6 +15,8 @@ const WIP = "plans/2026-09-15/wip-4c2a9d93/";
 
 const BIGGER = { kind: "comment", body: "bigger" };
 
+const APPROVE = { kind: "approve", edit: null, notes: "" };
+
 const CARD = {
   kind: "element",
   elements: [{ selector: "#pricing > div.card", text: "Pro", label: "div.card" }],
@@ -46,10 +48,12 @@ function wipDir(): WipDir {
 
 type Drafting = {
   readonly dir: string;
+  readonly review: Review;
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- an unparsed decision is the case under test: the route's parser is what grants the type.
   readonly decide: (decision: {
     readonly kind: string;
     readonly edit?: unknown;
+    readonly notes?: unknown;
     readonly annotations?: unknown;
   }) => Promise<Response>;
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- an unparsed annotation is the case under test: the route's parser is what grants the type.
@@ -90,7 +94,7 @@ function drafting(): Drafting {
       annotations: [{ id: "a", doc: `${WIP}mockup.html`, ...annotation }],
     });
 
-  return { dir, decide, send };
+  return { dir, review, decide, send };
 }
 
 beforeAll(async () => {
@@ -263,6 +267,22 @@ describe("routes", () => {
     expect((await decide({ kind: "feedback", edit: null, annotations: [] })).status).toBe(200);
   });
 
+  test("an approve without notes, or with notes that are no string, is refused", async () => {
+    const { decide } = drafting();
+    expect((await decide({ kind: "approve", edit: null })).status).toBe(400);
+    expect((await decide({ kind: "approve", edit: null, notes: null })).status).toBe(400);
+    expect((await decide({ kind: "approve", edit: null, notes: 3 })).status).toBe(400);
+  });
+
+  test("an approve's note round-trips to the notes file of the final directory", async () => {
+    const { dir, review, decide } = drafting();
+    writeFileSync(join(dir, WIP, "plan.md"), "# Noted plan\n");
+    await review.gate();
+    expect((await decide({ ...APPROVE, notes: "Slice 1 only." })).status).toBe(200);
+    const notes = Bun.file(join(dir, "plans/2026-09-15/noted-plan/.review/v1.notes.md"));
+    expect(await notes.text()).toEndWith("\n\nSlice 1 only.\n");
+  });
+
   test("a delete mark is taken on a text anchor", async () => {
     const { dir, send } = drafting();
     const passage = { quote: "the old gate", prefix: "", suffix: "", lines: [12, 14] };
@@ -315,7 +335,7 @@ describe("routes", () => {
 
     expect(empty.status).toBe(400);
 
-    const approve = await post("/api/decision", JSON.stringify({ kind: "approve", edit: null }));
+    const approve = await post("/api/decision", JSON.stringify(APPROVE));
     expect(approve.status).toBe(200);
 
     const pending = await fetch(url("/api/pending"), { headers: headers() });
@@ -323,6 +343,7 @@ describe("routes", () => {
       kind: "approved",
       version: 1,
       dir: "plans/2026-09-15/routed-plan/",
+      notes: null,
     });
   });
 });

@@ -1,5 +1,5 @@
 import type { Annotation } from "./feedback.ts";
-import { retargetAnnotations } from "./feedback.ts";
+import { formatNotes, retargetAnnotations } from "./feedback.ts";
 import type { ParseResult, ProjectPath, Slug, Version, WipDir } from "./paths.ts";
 import { parseVersion } from "./paths.ts";
 import { slugFromFileName, slugFromTitle } from "./slug.ts";
@@ -7,6 +7,7 @@ import type { PlanWorkspace } from "./workspace.ts";
 import {
   draftFeedbackFile,
   feedbackFile,
+  notesFile,
   PLAN_FILE,
   projectPath,
   versionFile,
@@ -24,9 +25,9 @@ import {
  */
 export type Edit = { readonly version: Version; readonly text: string };
 
-/** `edit` is `null` when the reviewer changed nothing. */
+/** `edit` is `null` when the reviewer changed nothing, `notes` empty when they left none. */
 export type Decision =
-  | { readonly kind: "approve"; readonly edit: Edit | null }
+  | { readonly kind: "approve"; readonly edit: Edit | null; readonly notes: string }
   | {
       readonly kind: "feedback";
       readonly edit: Edit | null;
@@ -84,7 +85,13 @@ type Written = { readonly path: ProjectPath; readonly text: string };
 
 export type Decided =
   | { readonly kind: "refused" }
-  | { readonly kind: "approve"; readonly version: Version; readonly edit: Written | null }
+  | {
+      readonly kind: "approve";
+      readonly version: Version;
+      readonly edit: Written | null;
+      /** `null` writes nothing, so a retry keeps the notes file the first attempt wrote. */
+      readonly notes: Written | null;
+    }
   | {
       readonly kind: "feedback";
       readonly version: Version;
@@ -102,6 +109,7 @@ export type Decided =
  * The reviewer's edit is the next version, and the decision applies to it: `vN.md` stays what
  * Claude submitted. An edit equal to the version's text is no edit, no version exists to edit
  * while drafting, and an edit of another version than the one under review is refused.
+ * An approval's notes file says the plan was edited, then what the reviewer noted.
  */
 export function decideOn(
   workspace: PlanWorkspace,
@@ -125,15 +133,21 @@ export function decideOn(
   const edited = decision.edit?.text === latestText ? null : (decision.edit?.text ?? null);
   const version = edited === null ? reviewed : nextVersion(reviewed);
   const edit = edited === null ? null : { path: versionPath(dir, version), text: edited };
+  const editedFrom = edit === null ? null : reviewed;
 
-  if (decision.kind === "approve") return { kind: "approve", version, edit };
+  if (decision.kind === "approve") {
+    const text = formatNotes(version, editedFrom, decision.notes);
+    const path = projectPath(`${dir}${notesFile(version)}`);
+
+    return { kind: "approve", version, edit, notes: text === null ? null : { path, text } };
+  }
 
   return {
     kind: "feedback",
     version,
     edit,
     path: projectPath(`${dir}${feedbackFile(version)}`),
-    editedFrom: edit === null ? null : reviewed,
+    editedFrom,
     annotations: retargetAnnotations(
       decision.annotations,
       versionPath(dir, reviewed),
