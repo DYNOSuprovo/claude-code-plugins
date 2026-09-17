@@ -3,7 +3,7 @@
 For the people who change the tree. The rules an agent holds to are in
 [`.claude/rules/`](../.claude/rules/), one file per zone (hooks, server, page, tests); this
 file draws what those texts describe, names the shape, says what moved to reach it, and
-where phases 2 and 3 land in it.
+where phases 2 and 3 landed in it.
 
 ## Three runtimes, one contract
 
@@ -31,7 +31,7 @@ flowchart LR
   M -- "HTTP /api/*<br/>x-vellum-token" --> R
   U -- "HTTP /api/*, /t/&lt;token&gt;/files, SSE" --> R
   A -. "plugins/*/server.ts<br/>linkedDocs, pure" .-> A
-  F[("plans/&lt;date&gt;/wip-&lt;sid8&gt;/<br/>plan.md, .review/vN.md, vN.feedback.md")]
+  F[("plans/&lt;date&gt;/wip-&lt;sid8&gt;/<br/>plan.md, .review/vN.md, vN.feedback.md,<br/>vN.notes.md, draft.json")]
   W --> F
 ```
 
@@ -73,8 +73,9 @@ What moved to reach this shape, and why:
 5. `src/boundaries.spec.ts` holds the direction: an import that fails it is in the wrong
    layer, not a test to loosen.
 
-Phases 2 and 3 add domain concepts (element anchors, drafting feedback, diffs, direct
-edits, approval notes, drafts); each has an address in `src/domain/` before its first line.
+Phases 2 and 3 added domain concepts (element anchors, drafting feedback, marks, the line
+diff, the reviewer's edit, approval notes, drafts); each got its address in `src/domain/` before
+its first line.
 
 ## A review round
 
@@ -97,9 +98,11 @@ sequenceDiagram
   loop every second
     M->>S: GET /api/pending
   end
-  B->>S: POST /api/decision (feedback | approve → links rewritten, directory renamed)
+  B->>S: PUT /api/draft (the unsent comments and edit, at every change)
+  B->>S: POST /api/decision (feedback | approve, with the reviewer's edit or none)
+  S->>S: an edit is vN+1: plan.md, then .review/vN+1.md; approve → notes file, links rewritten, directory renamed
   S-->>B: SSE workspace
-  M->>CC: $.prompt.submit (feedback file path | "Plan vN approved. It lives at <dir>.")
+  M->>CC: $.prompt.submit (feedback file path | "Plan vN approved. Read <notes file> first. It lives at <dir>.")
 ```
 
 ## The two state machines
@@ -131,30 +134,37 @@ stateDiagram-v2
   drafting --> drafting: v0.feedback-<n>.md written, batches + 1
   drafting --> inReview: plan.md gated, vN.md written
   inReview --> changesRequested: vN.feedback.md written
+  inReview --> changesRequested: the reviewer's edit, vN+1.md and vN+1.feedback.md written
   changesRequested --> inReview: vN+1.md written
   inReview --> approved: Approve, links rewritten, renamed (memory)
   inReview --> inReview: rename failed, finalizeError (memory)
   inReview --> inReview: Retry approval
 ```
 
+A version has an author: Claude through `gate`, or the reviewer, whose edit a decision records as
+`vN+1` before it applies to it. The edit names the version it was made on, and `decideOn` refuses
+one made on another. No state was added for it: `vN+1.md` with its feedback file reads as
+`changesRequested`, like any other.
+
 What the hooks module must relay is read off that state (`pendingOf`): `drafting` with
 batches means the drafting files to name, `changesRequested` a feedback file, `approved` the
-final directory, anything else nothing. No second variable. The module keeps one number of
+final directory and the notes file when its listing holds one, anything else nothing. No second variable. The module keeps one number of
 its own, in `$.store`: how many batches it already named, so a reload never repeats one.
 
-## Where phases 2 and 3 land
+## Where phases 2 and 3 landed
 
 | Feature | Pure part | Adapter part | Page part |
 |---|---|---|---|
 | Comment on an HTML element (#105) | `ElementRef`, the `Anchor` variant `element` and its line in the feedback text; `plugins/html/pick.ts` and `ui/selection.ts` | `frame.js` built once at `startServer` and injected into `text/html` responses, `postMessage` across the sandbox | the HTML renderer bridges the frame and opens the Composer over the iframe |
 | Coloured code and Mermaid (#105) | `rehype-highlight` in the `toTree` pipeline, so the hast keeps `data-lines`; the target kind `diagram` and `diagramPassage` in `plugins/markdown/pinpoint.ts` | | the Markdown renderer turns a `mermaid` block into a `figure`, draws it after the mount, and boxes it where text is highlighted |
-| Diff `vN-1` / `vN` (#106) | a line diff over two texts | `/api/review` returns the previous text | a toggle |
-| Direct edit (#106) | the edited text is the version to finalize | a field on the decision or on finalize | an editor |
-| Approval notes (#106) | `vN.notes.md` naming, the note in the prompt or the consent | | a textarea on Approve |
-| Drafts (#106) | | `draft.json` read and written | restore on load |
+| Diff `vN-1` / `vN` (#106) | `domain/diff.ts`: `lineDiff` over the `diff` package, `countChanges`; `plugins/markdown/changes.ts`: which block carries a mark, where a removed run goes | `/api/review` returns the previous version's text | `planChanges` computed once; the count beside the version, the "Changes since" toggle, the marks and the text-free removed blocks in the Markdown renderer |
+| Delete marks and quick labels (#106) | `Mark` on `Annotation`, `QUICK_LABELS` with the sentence Claude reads, in `domain/feedback.ts` | `parseMark` in the boundary block of `routes.ts` | the Composer's label row and "Delete this", the card's chip and struck quote |
+| Direct edit (#106) | `Edit`, `decideOn` (the edit is `vN+1`, refused on another version), `editOnLoad`, `landedAnnotations` in `domain/review.ts`; `shiftLines`, `shiftAnnotations` in `domain/diff.ts` | `parseEdit`; `Review.decide` writes `plan.md`, then the version file | `ui/editor.tsx` and `ui/caret.ts`; `edited`, `editing`, `finishEdit`, `settleEdit` in `state.ts` |
+| Approval notes (#106) | `formatNotes`, `notesFile`, `approved.notes` read off the final directory's listing, `Pending.approved.notes` | the notes file written before the rename; `hooks/relay.ts` names it in the approval's prompt | the decision bar's one popover state: notes, and the warning before unsent comments are discarded |
+| Drafts (#106) | `Draft`, `DRAFT_FILE`, `takesComments` | `GET` and `PUT /api/draft`, stored and never read back; removed by a decision that lands | `start`: restore, load, then save at every change, in order |
 
-Five of the six add a pure part first; `src/domain/` is where a new domain concept goes, and
-a renderer's own choice stays beside its `ui.tsx`.
+Every one added a pure part first; `src/domain/` is where a new domain concept goes, and a
+renderer's own choice stays beside its `ui.tsx`.
 
 ## The tree
 
@@ -171,9 +181,10 @@ vellum/
     domain/                    pure, no IO, no Bun, no node:*
       paths.ts                 brands and parsers
       slug.ts, links.ts
-      workspace.ts             PlanWorkspace from a listing, Memory, Pending, workspaceOf, pendingOf
-      review.ts                Decision, gateVersion, decideOn, slugFor
-      feedback.ts              Anchor, Annotation, FeedbackHeading, formatFeedback
+      workspace.ts             PlanWorkspace from a listing, Memory, Pending, workspaceOf, pendingOf, takesComments
+      review.ts                Decision, Edit, Draft, gateVersion, decideOn, editOnLoad, slugFor
+      feedback.ts              Anchor, Mark, Annotation, FeedbackHeading, formatFeedback, formatNotes
+      diff.ts                  LineDiff, lineDiff, countChanges, shiftLines, shiftAnnotations
     app/
       review.ts                the use case: read the directory, decide, apply
     adapters/
@@ -186,12 +197,14 @@ vellum/
   ui/
     api.ts                     the client: token, routes, SSE
     state.ts, app.tsx, …       the store and the components
-    tools.tsx                  the controls row over the document: Select|Pinpoint, Beside the plan
+    tools.tsx                  the controls row over the document: Select|Pinpoint, Beside the plan, Edit, Changes since
+    editor.tsx, caret.ts       the plan's source editor, opened on the line the reviewer was reading
     selection.ts               what a Ctrl+click keeps, shared by both pinpoints
     anchoring.ts, highlights.ts
   plugins/<kind>/{server.ts,ui.tsx}   one folder per document kind
   plugins/markdown/tree.ts            Markdown to hast, coloured, every element with its source lines
   plugins/markdown/pinpoint.ts        the target under the pointer: pure choice, thin DOM adapter
+  plugins/markdown/changes.ts         the marked blocks and the removed runs' places: pure choice
   plugins/html/pick.ts                selectors, targets and labels: pure choice
   plugins/html/frame.ts               the script inside the sandboxed mockup; messages.ts is its contract
   plugins/index.ts, plugins/server.ts two registries: one bundle is a browser's

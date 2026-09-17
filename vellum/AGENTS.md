@@ -15,7 +15,7 @@ skills/start, skills/stop  the way in and the way out
         │ HTTP, token header
 src/adapters/            http/routes.ts, http/serve.ts, fs.ts, browser.ts: every IO
 src/app/review.ts        the use case: read, decide, apply
-src/domain/              pure, no IO: paths, workspace, review, feedback, slug, links
+src/domain/              pure, no IO: paths, workspace, review, feedback, diff, slug, links
 src/protocol.ts          what crosses HTTP and a plugin boundary; JSON
 src/cli.ts               the entry point: `start` spawns `serve` detached
 ui/                      the Preact page; plugins/<kind>/ one document kind, server half and UI half
