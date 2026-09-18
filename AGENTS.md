@@ -57,6 +57,13 @@ Carried by nobody, so hold them by hand:
 - Ship sources, never compiled binaries. `bun` is the runtime.
 - Docs name symbols, sections and paths, never line numbers or version numbers: both drift at the next regeneration or release.
 
+## Method
+
+- A fact about the engine or the code cites the symbol or the file it was read in. Otherwise it is written "not measured", with the slice that measures it.
+- A change of behaviour or of a data model, once a first version was delivered, is proposed before it is coded.
+- Two symptom fixes on one feature: stop. Write the model (states, events, one owner per fact) and propose.
+- One writer per worktree. The lead agent reads only until the subagent hands back, and judges the commits, never a guess: messages between agents cross.
+
 ## Non-Obvious Directories
 
 - `archive/` - retired plugins, not in the marketplace.
@@ -69,8 +76,8 @@ Carried by nobody, so hold them by hand:
 Two lanes; the agent judges by scope, the user can override:
 
 - Inline — one concern, small diff: commit directly on `dev`.
-- Branch — several concerns, big work (large feature, large skill), or parallel agents: `feature/`|`fix/` branch, pushed, PR targeting `dev`, agent review per PR. During a feature the branch ignores `dev`; rebase mid-feature only to pick up a commit the feature needs, or to defuse a real conflict.
+- Branch — several concerns, big work (large feature, large skill), or parallel agents: `feature/`|`fix/` branch, pushed, PR targeting `dev`, agent review per PR. One slice of a plan is one PR, stacked when they depend on each other: a reviewer finds more in a small diff than in a large one. During a feature the branch ignores `dev`; rebase mid-feature only to pick up a commit the feature needs, or to defuse a real conflict.
 
-Review: agents review each other's PRs; the human reviews contracts and tests at the end of a chantier and before each release.
+Review: agents review each other's PRs; the human reviews contracts and tests at the end of a chantier and before each release. A finding gives the input, the output observed and the cause, so the author can reproduce it; the author reproduces before fixing, and declines a finding with a measurement, never an opinion.
 
 Before any push or release: follow `docs/repo-ops.md`; landing is remote-first.
