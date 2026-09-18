@@ -8,7 +8,8 @@ import { passageFromRange, passageFromSelection, rangeFor } from "../../core/pag
 import { docUrl, fileUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { paint } from "../../core/page/highlights.ts";
-import { activeMethod, docs, holding, locked, select } from "../../core/page/state.ts";
+import { resolu } from "../../core/page/kit.tsx";
+import { activeMethod, dark, docs, holding, locked, select } from "../../core/page/state.ts";
 import type { Passage } from "../../core/protocol.ts";
 import { parseProjectPath } from "../../core/server/domain/paths.ts";
 import type { Changes, RemovedRun } from "./changes.ts";
@@ -177,7 +178,25 @@ async function drawDiagrams(root: HTMLElement): Promise<void> {
     securityLevel: "strict",
     // A failed render throws before it cleans up: the figure shows the error, and body stays clean.
     suppressErrorRendering: true,
-    theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default",
+    theme: "base",
+    themeVariables: {
+      background: resolu("--sheet"),
+      mainBkg: resolu("--tint"),
+      primaryColor: resolu("--tint"),
+      primaryTextColor: resolu("--ink"),
+      primaryBorderColor: resolu("--graphite"),
+      secondaryColor: resolu("--sheet"),
+      tertiaryColor: resolu("--sheet"),
+      nodeBorder: resolu("--graphite"),
+      lineColor: resolu("--graphite"),
+      textColor: resolu("--ink"),
+      clusterBkg: resolu("--sheet"),
+      clusterBorder: resolu("--rule"),
+      edgeLabelBackground: resolu("--sheet"),
+      titleColor: resolu("--ink"),
+      fontFamily: getComputedStyle(document.documentElement).getPropertyValue("--mono").trim(),
+      fontSize: "13px",
+    },
   });
 
   for (const figure of figures) {
@@ -290,11 +309,13 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     };
   }, [props.annotations, draft, content]);
 
+  const night = dark.value;
+
   useEffect(() => {
     const root = container.current;
 
     if (root !== null) void drawDiagrams(root);
-  }, [content]);
+  }, [content, night]);
 
   const onMouseUp = (): void => {
     const root = container.current;
