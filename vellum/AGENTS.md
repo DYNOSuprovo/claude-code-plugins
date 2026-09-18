@@ -20,9 +20,11 @@ src/core/server/domain/        pure, no IO: paths, workspace, review, feedback, 
 src/core/server/cli.ts         the entry point: `start` spawns `serve` detached
 src/core/protocol.ts           what crosses HTTP and an extension boundary; JSON
 src/core/extension.ts          the contract an extension fills: PageExtension, ServerExtension
+                               (EngineExtension lives with the hooks module, core/engine/extension.ts)
 src/core/page/                 the Preact page
-src/extensions/<id>/           one extension, a file per place it plugs in: page.tsx, server.ts
-src/extensions/page.ts, server.ts  the two registries, the only way the core reaches an extension
+src/extensions/<id>/           one extension, a file per place it plugs in: page.tsx, server.ts, engine.ts;
+                               its own messages in protocol.ts, its boundary in parse.ts
+src/extensions/page.ts, server.ts, engine.ts  the three registries, the only way the core reaches an extension
 ```
 
 Dependencies point toward `src/core/server/domain/`, held by `src/boundaries.spec.ts`. The rules of each
@@ -40,18 +42,19 @@ and is tested (`extensions.md` names the ones to copy), never a snippet kept in 
 bun install --cwd vellum                                            # once; Claude Code does it at the plugin's cache
 bun test vellum                                                     # the server's and the page's `*.spec.ts` suites
 bun test vellum/src/core/server/domain/slug.spec.ts                 # one suite; `-t <pattern>` filters by test name
-CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test vellum       # the hooks module's `src/core/engine/*.test.ts`, through the engine's kit
+CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test vellum       # the hooks module's `*.test.ts` (core/engine, extensions/<id>), through the engine's kit
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum   # what the hooks module hooks and calls
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 command claude --permission-mode default --plugin-dir vellum   # a live session from source
-bun vellum/src/core/server/cli.ts serve --session <id> --project <dir> --workdir plans/<date>/wip-<sid8>/   # the server alone, for page work; the trailing slash is required
+bun vellum/src/core/server/cli.ts serve --session <id> --project <dir> --workdir plans/<date>/wip-<sid8>/   # the server alone, for page work; the trailing slash is required; `--port <n> --token <t> --existing` revives one where it was
 claude -p --setting-sources project "/plugin-types vellum/types"    # regenerate types/claude-code.d.ts after a Claude Code update; keep claude-code.d.ts only
 ```
 
 Every command runs from the repository root; lint, types and format are the repository's
 gates, listed in its `AGENTS.md`. The server alone prints port and token and serves the page
-at `http://127.0.0.1:<port>/t/<token>/`; it exits 90 s after its last `POST /api/heartbeat`.
-Only the hooks module posts the heartbeat, the page does not: alone, post it in a loop with
-the header `x-vellum-token: <token>`.
+at `http://127.0.0.1:<port>/t/<token>/`; it exits once its last `POST /api/heartbeat` is
+90 s old and no tab holds the event stream. Only the hooks module posts the heartbeat, the
+page does not: alone, an open tab keeps it for 15 minutes, or post the heartbeat in a loop with the header
+`x-vellum-token: <token>`.
 
 A live session, the browser, and the facts measured on Claude Code: `docs/plugin-testing.md`
 at the repository root, § Testing a hooks module, and `plans/2026-09-15/plan-review-rewrite/`.

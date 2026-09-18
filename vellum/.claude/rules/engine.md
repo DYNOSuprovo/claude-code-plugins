@@ -6,18 +6,21 @@ paths:
 
 # The hooks module
 
-`hooks/hooks.json` is what Claude Code reads, and it names `src/core/engine/register.ts`. Seven
+`hooks/hooks.json` is what Claude Code reads, and it names `src/core/engine/register.ts`. Nine
 files there, each importing `claude-code`, a sibling `./<name>.ts`, or `import type` from
-`../protocol.ts`, and nothing else. Held by `src/boundaries.spec.ts`.
+`../protocol.ts`, and nothing else; `register.ts` alone also loads `../../extensions/engine.ts`,
+the registry of the engine halves. Held by `src/boundaries.spec.ts`.
 
 ```
 register.ts  the engine adapter: the one `let state`, one hook per event, and `hostOf`
 host.ts      `Host`, the port: one member per `$` call, named for the call
 mode.ts      the machine: State, Session, Live, and restore / connect / close
 lock.ts      the policy: lockVerdict, checkVerdict; pure
+turn.ts      whose turn runs: Turns, prompted / started / completed, ownOf; pure
 relay.ts     what the poll says and what it remembers: prompts, Relayed, tick
 server.ts    the review server's client: every route, the token header, the launcher
 parse.ts     the boundary: unknown to types, and the only place a brand is minted
+extension.ts `EngineExtension`, the contract an extension's `engine.ts` fills; types only
 ```
 
 The module holds the vellum mode, a mode of its own: the native plan mode never enters the
@@ -28,8 +31,21 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
   never across an import; $ is always spelled $.noun.event(...) at the call site". Passing one
   noun is refused the same way ("$.store is used as a value"). `hostOf($)` is built inside
   each hook, so a timer keeps the host of the dispatch that started it.
-- One `State` union (`idle | live`), never several nullables. A new feature adds a variant,
-  not a flag. Before writing `let x: T | null`, name the state `null` stands for.
+- One `State` union (`idle | live | lost`), never several nullables. A new feature adds a
+  variant, not a flag. Before writing `let x: T | null`, name the state `null` stands for.
+- A server that dies comes back where it was. `pending` throws `ServerDown` on a transport
+  error or a status outside the contract, and nothing else counts: a prompt the engine dropped
+  proves nothing about the server. The third `ServerDown` in a row asks `revive`, once;
+  `session.start` and `/vellum:start` revive a stored server that no longer answers the same
+  way. A revival is `start` with the kept port, the kept token and `--existing`, so the
+  reviewer's tab reconnects by itself and a directory an approval renamed is never recreated
+  empty. `register.ts` checks `state === from` before and after the launch: a `/clear`, a
+  `/vellum:stop` or a new way in wins, and the server started for nothing exits alone.
+- A revival that fails is `lost`, never `idle`: the lock opens outside the mode, so a failure
+  must not hand Claude the repository. `lost` keeps the session, the lock reads it through
+  `sessionOf` as it does while `live`, the status says why (`server lost, retrying`, or
+  `working directory gone, run /vellum:stop`), a slow timer asks `revive` again, and
+  `/vellum:stop` is the way out.
 - `session.start` registers the tool `submit` (`mcp__vellum__submit`, the model's "the plan
   is written" signal), served by a `tool.call` hook that answers without `next`. Its matcher
   must be a string literal, or `claude plugin validate` prints the expression instead of the
@@ -86,8 +102,42 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
   was already named (the drafting count, the feedback version) goes to `$.store` under the
   working directory it belongs to, so nothing is said twice across a reload or a restarted
   server, and an approval drops the record: the next plan's batches count from one again.
-  The approval's prompt names the reviewer's notes file first when the pending carries one; the
-  module reads the path and never the file.
+  The approval's prompt says to read the reviewer's notes file first when the pending carries
+  one; the module reads the path and never the file. Each of these prompts is the fact and its
+  object, nothing else: the skill `start` already says what to do with a feedback, a drafting
+  batch and an approval, so the prompt does not say it again.
+- An extension never calls `on(...)`: the engine takes one hooks module per plugin and one
+  unmatched hook per event. `register.ts` keeps every event and hands it to the engine halves in
+  registry order, each with an `EngineContext` (`Host`, `Live`, its own routes on the server),
+  never `$`. A half that throws is logged and the next one runs. Its tools are registered at
+  `session.start` and served by the one unmatched `tool.call` hook, which dispatches on
+  `e.tool`, since a matcher must be a literal written in `register.ts`; the same hook denies
+  what a half `refuses` while `live`. The poll runs the halves' `tick` after its own relay,
+  handed to `mode.ts` as `ticks` the way `settle` is. `closing` is `/vellum:stop` alone: an
+  approval is closed on the server, by the extension's `approved`, so a suspended module leaves
+  nothing open.
+- The module keeps no copy of what holds the review. A gate the server refuses is the refusal
+  it already reads: `submit` denies with the server's reason, and the turn's end says nothing.
+- `turn.start` carries no origin (`TurnStartInput` is a text and a turn id), so whose turn it
+  is comes from `prompt.submit`, through `turn.ts`: `prompt.submit` notes the last prompt that
+  entered with its origin, before `next(e)`; `turn.start` takes the note, and the turn is
+  vellum's own when its text holds the noted text of a vellum relay; `turn.complete` of that
+  turn id hands `own` to the halves' `answered`. It is the one thing the module knows that the
+  server does not, and it is not a variant of `State`: it says who started a turn, nothing
+  about what is allowed. Two facts, the waiting note and the running turn, since a prompt may
+  enter while a turn runs; each is a union of its own, never a nullable. `register.ts` resets
+  it wherever the mode leaves `live` (approval, `/vellum:stop`, the `/clear` and `/resume`
+  suspension, a revival) and ignores it outside `live`.
+- Every miss of `turn.ts` falls on one side, a turn whose text is written nowhere: a reload
+  between the hooks, a text a hook beneath rewrote, and the known one, a relay and a typed
+  prompt that wait together, which leave one note, the last. It is one note and never a
+  registry: a text identifies a prompt, not a submission. The match is `includes`, not
+  equality, because how the engine frames a plugin's prompt in `turn.start`'s text is not
+  measured; an empty note matches nothing.
+- A text enters Claude's context only when Claude does something different because of it.
+  Anything else goes to `$.ui.status`, `$.ui.log` or the page. A prompt names its object and
+  repeats nothing Claude wrote or already read, and every relay keeps the plugin's origin.
+- An extension's store records are keyed `<id>:<session id>`.
 - Tests run under the engine's own `$` (`claude plugin test vellum`, the `*.test.ts` files beside the module):
   `bun test` cannot host that environment. The world beneath the module is answered by the
   kit's `mock.clock` and the `on(...)` hooks of `fixtures/`. Nothing else is faked.

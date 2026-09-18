@@ -20,7 +20,13 @@ no build step, so what the page imports costs nothing at `cli start`.
   `index.html`. What an extension may import, and how one is added: `extensions.md`. Held by
   `src/boundaries.spec.ts`.
 - Everything crossing `/api` is JSON and typed in `src/core/protocol.ts`; a new field lands there
-  first.
+  first. What crosses `/api/x/<id>/` is the extension's own, typed in its `protocol.ts`.
+- `app.tsx` is the one file that reads the registry: it picks the renderer and hands the
+  extensions' `actions` to the decision bar, which draws them before its own buttons. An action
+  that follows the workspace reads `review` and loads its own state again at every change.
+- A renderer that declares `comments: false` draws a document the reviewer answers in place, as
+  a grill's transcript: `app.tsx` then draws no input method and no comments panel, unless the
+  plan shows beside it. The unsent comments stay in the signals, and the bar keeps their count.
 - The page draws in every state, `drafting` included: `review.docs` is the working directory's
   renderable files, the plan at the head once there is one. Comments are taken while
   `inReview` and while `drafting`, so `locked` names two states, not one, and Approve is drawn
@@ -28,6 +34,10 @@ no build step, so what the page imports costs nothing at `cli start`.
   holds a draft to as well. A renderer never reads `inputMethod`: it reads `activeMethod`, which
   is `null` on a locked page, so no composer opens there, and `addAnnotation` returns when
   locked, as `select` does while the editor is open. A comment nobody can send is a silent loss.
+- `review.held` is what holds the review, or `null`. Held, Send feedback is disabled with the
+  reason as its title, and every way to an approval goes through the warning popover, which
+  says the approval ends what holds it. The bar prints the reason and never reads which
+  extension gave it.
 - `start` is the page's one way in, and its order is the rule: the saved draft into the signals,
   then the first load, then the saving effect, then the event stream. Nothing may `PUT` a draft
   before the restore, or every reload replaces the file with the page's empty state. After it,
@@ -44,6 +54,10 @@ no build step, so what the page imports costs nothing at `cli start`.
   the text on screen, the bar prints its count, and the plan's renderer marks it while
   "Changes since" is on. On Done the same `lineDiff` shifts the plan's comments through
   `shiftAnnotations`, so a feedback only ever names lines of the text it is sent with.
+- `EventSource` reconnects by itself, so the page polls nothing: `subscribe` reports `error`
+  and `open`, `connection` keeps `up | down`, and the bar draws the lost-connection banner while
+  `down`. A server revived on the same port and token clears it with no reload; past thirty
+  seconds the banner names `/vellum:start`, the one way to a link that works.
 - The server watches the working directory, so every file Claude writes reaches the page as a
   workspace event. A renderer loads its document through `docUrl`, whose query is the file's
   `modified`: a rewrite reloads that document alone, and nothing else remounts.

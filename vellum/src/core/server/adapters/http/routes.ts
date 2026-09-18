@@ -1,6 +1,7 @@
 import { realpath } from "node:fs/promises";
 import { join, sep } from "node:path";
 
+import type { Route } from "../../../extension.ts";
 import type {
   Anchor,
   Annotation,
@@ -25,11 +26,22 @@ export type RouteContext = {
   readonly review: Review;
   /** `extensions/html/frame.ts`, built; every HTML file served carries a tag that loads it. */
   readonly frameScript: string;
+  /** The extensions' own routes, keyed as `api` keys its own: `POST /api/x/<id>/<name>`. */
+  readonly extensionRoutes: ReadonlyMap<string, Route>;
   readonly openBrowser: () => void;
   readonly heartbeat: () => void;
 };
 
-type Handler = (request: Request) => Promise<Response>;
+/**
+ * `openStreams` counts the tabs that listen. The review's own listeners cannot say: `serve.ts`
+ * keeps one there for itself, so that set is never empty.
+ */
+export type Handler = {
+  readonly handle: (request: Request) => Promise<Response>;
+  readonly openStreams: () => number;
+};
+
+type Streams = { open: number };
 
 /* oxlint-disable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- the block below IS the boundary parser the rules ask for: it validates the JSON bodies the browser and the hooks module post, and there is no earlier place to parse them. */
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -228,7 +240,7 @@ async function serveFile(project: string, rawPath: string, tag: string): Promise
   return new Response(withFrameScript(await file.text(), tag), { headers });
 }
 
-function sse(review: Review): Response {
+function sse(review: Review, streams: Streams): Response {
   const encoder = new TextEncoder();
   let unsubscribe: (() => void) | null = null;
 
@@ -240,10 +252,12 @@ function sse(review: Review): Response {
         );
       };
 
+      streams.open += 1;
       unsubscribe = review.subscribe(send);
       send(await review.workspace());
     },
     cancel() {
+      streams.open -= 1;
       unsubscribe?.();
     },
   });
@@ -257,7 +271,12 @@ function sse(review: Review): Response {
   });
 }
 
-async function api(context: RouteContext, request: Request, route: string): Promise<Response> {
+async function api(
+  context: RouteContext,
+  streams: Streams,
+  request: Request,
+  route: string,
+): Promise<Response> {
   const { review } = context;
 
   if (route === "GET /api/review") return Response.json(await review.view());
@@ -271,7 +290,7 @@ async function api(context: RouteContext, request: Request, route: string): Prom
   }
 
   if (route === "POST /api/open") {
-    if (review.listenerCount === 0) context.openBrowser();
+    if (streams.open === 0) context.openBrowser();
 
     return new Response(null, { status: 204 });
   }
@@ -285,7 +304,7 @@ async function api(context: RouteContext, request: Request, route: string): Prom
       return Response.json(refused, { status: 409 });
     }
 
-    if (review.listenerCount === 0) context.openBrowser();
+    if (streams.open === 0) context.openBrowser();
     const answer: GateAnswer = { version: gated.version, kept: gated.kept };
 
     return Response.json(answer);
@@ -316,7 +335,11 @@ async function api(context: RouteContext, request: Request, route: string): Prom
     return new Response(null, { status: (await review.saveDraft(draft)) ? 204 : 409 });
   }
 
-  return new Response("not found", { status: 404 });
+  const extensionRoute = context.extensionRoutes.get(route);
+
+  return extensionRoute === undefined
+    ? new Response("not found", { status: 404 })
+    : await extensionRoute(request);
 }
 
 /** Everything but the page itself, which `Bun.serve` routes to the bundled HTML. */
@@ -325,8 +348,9 @@ export function createHandler(context: RouteContext): Handler {
   const eventsPath = `/t/${context.token}/events`;
   const framePath = `/t/${context.token}/frame.js`;
   const frameTag = `<script src="${framePath}"></script>`;
+  const streams: Streams = { open: 0 };
 
-  return async (request) => {
+  const handle: Handler["handle"] = async (request) => {
     const url = new URL(request.url);
     const { pathname } = url;
 
@@ -335,7 +359,7 @@ export function createHandler(context: RouteContext): Handler {
         return new Response("unauthorized", { status: 401 });
       }
 
-      return await api(context, request, `${request.method} ${pathname}`);
+      return await api(context, streams, request, `${request.method} ${pathname}`);
     }
 
     if (request.method === "GET" && pathname === framePath) {
@@ -348,8 +372,10 @@ export function createHandler(context: RouteContext): Handler {
       return await serveFile(context.project, pathname.slice(filesPrefix.length), frameTag);
     }
 
-    if (request.method === "GET" && pathname === eventsPath) return sse(context.review);
+    if (request.method === "GET" && pathname === eventsPath) return sse(context.review, streams);
 
     return new Response("not found", { status: 404 });
   };
+
+  return { handle, openStreams: () => streams.open };
 }

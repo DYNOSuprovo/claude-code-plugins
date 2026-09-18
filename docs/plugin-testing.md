@@ -308,7 +308,9 @@ under the rule on `$` below.
   again replaces it, with no warning and no duplicate in the typeahead.
 - A registered tool's result text is what the model acts on:
   `Plan vN is under review in the browser. End your turn; the review arrives
-  as a prompt.` ended Opus 5's turn every time.
+  as a prompt.` ended Opus 5's turn every time. `vellum` now answers the
+  shorter `Plan vN under review. End your turn.`, whose effect on the turn is
+  not measured in a live session yet.
 
 ### What the contract and the docs say
 
@@ -325,7 +327,10 @@ absent from the public docs: the `.d.ts` is their only reference.
   fires for subagents too.
 - `$.tool.register` (`ToolSpec`) declares `mcp__<plugin>__<name>`; a
   `tool.call` hook on that name serves it by returning `{ result }` without
-  `next`, and a call no hook answers fails. `$.command.register`
+  `next`, and a call no hook answers fails. An unmatched `tool.call` hook that
+  compares `e.tool` serves it as well (measured in the kit, `claude plugin
+  test`), which is how a module serves tools whose names are not literals in
+  its registering file. `$.command.register`
   (`CommandSpec`) declares `/<name>`, served by a `command.run` hook returning
   `{ text }`. Both reject until `session.start`, whose first raise is awaited,
   so registering there lists them by turn one (`'session.start'`). `/clear`

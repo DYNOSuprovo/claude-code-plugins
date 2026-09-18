@@ -11,10 +11,12 @@ shapes left aside, says where phases 2 and 3 landed, and where extensions go nex
 ```mermaid
 flowchart LR
   subgraph engine["Claude Code (the engine)"]
-    CC["the session<br/>/vellum:start · mcp__vellum__submit · /vellum:stop"]
+    CC["the session<br/>/vellum:start · mcp__vellum__submit · mcp__vellum__grill_* · /vellum:stop"]
     M["src/core/engine/<br/>register.ts · mode.ts: idle · live"]
-    CC -- "session.start · skill.prompt · command.run<br/>tool.check · tool.call · turn.complete" --> M
+    E["src/extensions/*/engine.ts<br/>grill: tools, refusals, tick"]
+    CC -- "session.start · skill.prompt · command.run<br/>tool.check · tool.call · prompt.submit · turn.complete" --> M
     M -- "$.prompt.submit<br/>deny / result / text" --> CC
+    M -- "every event, a Host, never $" --> E
   end
   subgraph server["vellum serve (one Bun process per session)"]
     R["src/core/server/adapters/http/routes.ts<br/>token, status codes"]
@@ -26,19 +28,21 @@ flowchart LR
   end
   subgraph page["Browser page (Preact, bundled by Bun.serve)"]
     U["src/core/page/*<br/>list · decision bar · comments · anchoring"]
-    P["src/extensions/*/page.tsx<br/>markdown · html · image"]
+    P["src/extensions/*/page.tsx<br/>markdown · html · image · grill"]
     U --> P
   end
   M -- "HTTP /api/*<br/>x-vellum-token" --> R
   U -- "HTTP /api/*, /t/&lt;token&gt;/files, SSE" --> R
   A -. "src/extensions/*/server.ts<br/>linkedDocs, pure" .-> A
-  F[("plans/&lt;date&gt;/wip-&lt;sid8&gt;/<br/>plan.md, .review/vN.md, vN.feedback.md,<br/>vN.notes.md, draft.json")]
+  R -. "src/extensions/*/server.ts<br/>routes under /api/x/&lt;id&gt;/, IO through ServerContext" .-> W
+  F[("plans/&lt;date&gt;/wip-&lt;sid8&gt;/<br/>plan.md, grill-&lt;n&gt;.md, .review/vN.md,<br/>vN.feedback.md, vN.notes.md, draft.json")]
   W --> F
 ```
 
 `src/core/protocol.ts` is the one contract the three share: every value that crosses HTTP or
 an extension boundary is typed there and is JSON. What an extension hands the core is typed
-beside it, in `src/core/extension.ts`: § Extensions.
+beside it, in `src/core/extension.ts`, and what crosses an extension's own routes in its
+`protocol.ts`: § Extensions.
 
 ## What kind of architecture this is
 
@@ -50,7 +54,7 @@ plain modules with no interface and no injection).
 
 | Part | Shape | Driving side | Driven side |
 |---|---|---|---|
-| Hooks module | ports and adapters, `Host` the port | the engine's events (`session.start`, `skill.prompt`, `command.run`, `tool.check`, `tool.call`, `turn.complete`) | the engine's `$` (clock, store, http, process, prompt, tool), answered by the kit in tests |
+| Hooks module | ports and adapters, `Host` the port | the engine's events (`session.start`, `skill.prompt`, `command.run`, `tool.check`, `tool.call`, `prompt.submit`, `turn.complete`) | the engine's `$` (clock, store, http, process, prompt, tool), answered by the kit in tests |
 | Server | ports and adapters, domain / app / adapters | `adapters/http/routes.ts` | the file system through `adapters/fs.ts`, real in tests (a temp directory) |
 | Page | a store of signals and components | the reviewer's clicks | `/api`, the files route, SSE |
 | `src/extensions/<id>/` | feature slices: one extension = one folder, a half per runtime it plugs into; today one per document kind | | |
@@ -104,8 +108,66 @@ sequenceDiagram
   B->>S: POST /api/decision (feedback | approve, with the reviewer's edit or none)
   S->>S: an edit is vN+1: plan.md, then .review/vN+1.md; approve → notes file, links rewritten, directory renamed
   S-->>B: SSE workspace
-  M->>CC: $.prompt.submit (feedback file path | "Plan vN approved. Read <notes file> first. It lives at <dir>.")
+  M->>CC: $.prompt.submit ("Changes requested on vN: read <path>." | "Plan vN approved, at <dir>. Read <notes file> first.")
 ```
+
+## A grill
+
+```mermaid
+sequenceDiagram
+  participant C as Claude
+  participant M as hooks module
+  participant S as vellum serve
+  participant P as page
+  C->>M: tool.call grill_suggest {subject, reason}
+  M->>S: POST /api/x/grill/suggest
+  S-->>P: workspace event, the Grill button lit
+  P->>S: POST /api/x/grill/open {subject}
+  S->>S: writes grill-1.md, its header
+  M->>S: tick: GET /api/x/grill/state?after=<seq>&file=<name>
+  M->>C: $.prompt.submit (the opening, entry 0)
+  C->>M: tool.call grill_ask {q}
+  M->>S: POST /api/x/grill/ask, a round opened
+  C->>M: turn.complete
+  M->>S: POST /api/x/grill/answer {text, reason, own}, the final text under the questions
+  P->>S: POST /api/x/grill/reply {answers, note}, written in the round of its questions
+  M->>C: $.prompt.submit (each reply past the cursor, in order, "Reviewer: ...")
+  P->>S: POST /api/x/grill/close, or the module's on /vellum:stop
+  P->>S: POST /api/decision approve, the server ends the grill after the rename (approved)
+  M->>C: $.prompt.submit ("The reviewer ended grill-1.md.", the last entry, for a close from the page alone)
+```
+
+A round is Claude's: `grill_ask` alone opens one, and the reviewer's reply is written in it, so
+an answer is read beside its question. A reply closes every open question, the ones left empty
+with "As recommended, by default."; so does the end of the grill. A question is open until a
+reply answers it, whatever happened since: a command of the session (`/vellum:start`, `/clear`)
+is the harness's, written as an event line that opens and closes nothing. What the reviewer
+types in the terminal, and what Claude answers to it, are not the grill's and are not written.
+
+The file is the queue and the state: the server writes every round, the module writes nothing,
+and what is open, who speaks next and what waits for the relay are read off `grill-<n>.md`
+(`extensions/grill/transcript.ts`). `relaysOf` numbers the entries in file order: 0 the opening,
+1..n the reviewer's replies, n+1 the end when the footer says `page`. The module keeps one
+record of its own, in `$.store`: its cursor, `{ file, seq, taught }`. Each poll asks for the
+entries past it and submits them one by one, the cursor written after each, so two replies
+between two polls both go and nothing Claude says cancels one. The file serves the human, the
+prompt serves the agent, and they no longer share a text: a prompt names its object
+(`grill-2.md`) and repeats nothing Claude wrote or read. A reply goes under `Reviewer:`, the
+note first, then the typed answers, never a default; `grilling.md` is named at the first grill
+of a session alone (`taught`); the end names the file, its path goes to `$.ui.log`. Every relay
+keeps the plugin's origin: the lock lets Claude write `grill-<n>.md`, so a `Reviewer` block
+proves no human wrote it, and it must never reach Claude as the user's own words. The
+suggestion alone lives in the server's memory.
+
+Claude's final text is written when its turn is the grill's own: `prompt.submit` notes the
+last prompt that entered and its origin, `turn.start`, which carries no origin itself, takes
+that note when its text holds the noted one, and `turn.complete` hands `own` to the transcript
+(`core/engine/turn.ts`, pure). A turn the terminal
+started writes nothing, whatever the file's last voice is; the turn that just asked a round
+closes it either way. While a grill is open the status line says `grill open, answer in the
+page`: the warning for a prompt typed in the terminal, outside the context. A prompt Vellum itself submits comes back through its own `prompt.submit` hook, since
+`$.prompt.submit` skips the calling hook alone; its origin (`plugin`, `vellum`) keeps it out of
+the transcript, where the server already wrote what it carries.
 
 ## The two state machines
 
@@ -117,13 +179,19 @@ stateDiagram-v2
   idle --> live: skill.prompt, server reached
   idle --> live: session.start, the stored server answers
   live --> live: another session id, server restarted
+  live --> live: three polls the server failed, revived on its port and token
+  live --> lost: the revival failed, or the working directory is gone
+  idle --> lost: session.start or skill.prompt, the stored server dead and not revived
+  lost --> live: the slow retry, or skill.prompt, revived it
+  lost --> idle: skill.prompt vellum:stop, command.run clear
   live --> idle: approval prompt entered
   live --> idle: skill.prompt vellum:stop
   live --> idle: command.run clear, or resume to another session
   idle --> idle: nothing starts
 ```
 
-`live` allows the file tools inside the working directory and denies them under the project
+`lost` keeps the lock and the session with no server behind them: a failure never opens the
+repository. `live` allows the file tools inside the working directory and denies them under the project
 outside it, serves
 `mcp__vellum__submit`, and polls `GET /api/pending` once a second until it closes: drafting
 batches, then the review's decision, each relayed as a prompt.
@@ -171,21 +239,22 @@ goes, and a renderer's own choice stays beside its `page.tsx`.
 
 ## Extensions
 
-`markdown`, `html` and `image` are extensions, and so is whatever comes next (`grill`, then
-`advisor`): a folder under `src/extensions/`, with one file per place where it plugs into the
+`markdown`, `html`, `image` and `grill` are extensions, and so is whatever comes next
+(`advisor`): a folder under `src/extensions/`, with one file per place where it plugs into the
 core. The contract's client is the next agent that writes one, not a third party; the engine
 constraints below are why. The contract is `src/core/extension.ts`, types only, and
-the two registries are `src/extensions/page.ts` and `src/extensions/server.ts`: read them
-rather than a copy here.
+`src/core/engine/extension.ts` for the engine half, types only, and the three registries are
+`src/extensions/page.ts`, `server.ts` and `engine.ts`: read them rather than a copy here.
 
 | Half | File | Declares | Reached from |
 |---|---|---|---|
-| page | `<id>/page.tsx` | a `PageExtension`: its renderers, tried in registry order | `core/page/app.tsx`, through `extensions/page.ts` |
-| server | `<id>/server.ts` | a `ServerExtension`: `linkedDocs`, pure, candidates in and links out | `core/server/adapters/http/serve.ts`, through `extensions/server.ts` |
-| engine | `<id>/engine.ts` | lands with `grill` | `core/engine/register.ts` |
+| page | `<id>/page.tsx` | a `PageExtension`: its renderers, tried in registry order, and its actions in the decision bar | `core/page/app.tsx`, through `extensions/page.ts` |
+| server | `<id>/server.ts` | a `ServerExtension`: `linkedDocs`, pure, candidates in and links out; its routes, mounted at `/api/x/<id>/`, their IO through a `ServerContext`; `holds`, what holds the review; `approved`, what it closes after the rename | `core/server/adapters/http/serve.ts`, through `extensions/server.ts` |
+| engine | `<id>/engine.ts` | an `EngineExtension`: tools, refusals, and handlers for a prompt, a finished turn, a poll and the mode's end | `core/engine/register.ts`, through `extensions/engine.ts` |
 
 `src/boundaries.spec.ts` holds the layout: an extension imports `core/` and its own folder,
-never another extension; the core reaches the extensions from those two files alone; from
+never another extension; the core reaches the extensions from those three files alone; an
+engine half loads its own folder and nothing else; from
 `core/page/` an extension imports the files of `PAGE_SURFACE`, the list found when the rule was
 written, and no other; every folder holds a half, a half's `id` is its folder's name, and its
 registry names it. One exception is left, marked TODO in `serve.ts`: the server builds
@@ -195,24 +264,26 @@ yet.
 ### What the engine allows
 
 Claude Code takes one hooks module per plugin and one hook per event in it, so an extension
-never calls `on(...)`: `core/engine/register.ts` keeps every event and calls the enabled
-extensions' handlers, imported by value from `../../extensions/<id>/engine.ts`, each handed a
-`Host`. The engine rule of `boundaries.spec.ts` allows siblings alone today; the first
-`engine.ts` widens it. No module path may leave the plugin, so no third party ever has an
+never calls `on(...)`: `core/engine/register.ts` keeps every event and calls the extensions'
+handlers, imported by value through `../../extensions/engine.ts`, each handed a `Host`. A
+`tool.call` matcher must be a literal written in `register.ts`, so the extensions' tools go
+through the one unmatched `tool.call` hook, which dispatches on `e.tool`. The engine rule of
+`boundaries.spec.ts` allows siblings alone, and that one registry for `register.ts`. No module path may leave the plugin, so no third party ever has an
 engine half: no dynamic loading, no versioned API. The measurements, which hold for every
 plugin: `docs/plugin-testing.md` at the repository root, § Testing a hooks module.
 
-### Config: lands with grill
+### Config: not designed yet
 
 Two facts from Claude Code's docs shape it. Skills and agents load with the plugin, so a Vellum
 config cannot hide one per repository; the module can only refuse it at `skill.prompt`. And
 `userConfig` values live in the user's settings, project entries ignored, so a per-repository
 config is a file of Vellum's own.
 
-Nothing below exists yet. An option or a flag is added when someone asks to turn it, and
-`grill` is the first to ask: its `enabled` changes the skills and the context the agent gets,
-which goes through an engine half no extension has today. Designed from the renderers alone,
-the types would be guesses. The approved design is `extension-contract.md` in
+Nothing below exists yet, and `grill` landed without it: an option or a flag is added when
+someone asks to turn it. `grill` is the first that will: `enabled: false` there means no tool
+registered, no route, no action, no renderer, and step 2 of the `start` skill names
+`grill_suggest`, so whether the module adds that paragraph at `skill.prompt` only when `grill`
+is on is the question left open. The design to revisit with what `grill` taught is `extension-contract.md` in
 `plans/2026-09-17/extensions-de-vellum-arbre-noms-et-garde-fous/`; in short:
 
 - A fourth file, `<id>/manifest.ts`: `id`, `required`, and the options as data (`boolean`,
@@ -228,14 +299,17 @@ the types would be guesses. The approved design is `extension-contract.md` in
   and refuses to start on an error; the page and the engine get the resolved config from the
   server, and nothing else reads the files.
 
-The crossroads a feature edits today, and the place `grill` has to open for each:
+The crossroads a feature used to edit, and the place `grill` opened for each:
 
-| Crossroads | Place to open |
+| Crossroads | Place opened |
 |---|---|
-| `core/server/adapters/http/routes.ts` | an extension brings its routes |
-| `core/page/app.tsx`, `core/page/state.ts` | an extension brings its panel and its button |
-| `core/engine/register.ts` | the core hands the events to the extensions' handlers |
-| `core/protocol.ts` | an extension owns its messages |
+| `core/server/adapters/http/routes.ts` | `ServerExtension.routes`, mounted under `/api/x/<id>/` behind the token |
+| `core/page/app.tsx`, `core/page/state.ts` | `PageExtension.actions`, drawn in the decision bar |
+| `core/engine/register.ts` | `EngineExtension`: tools, refusals, prompted, answered, tick, closing |
+| `core/protocol.ts` | an extension's messages live in its own `protocol.ts` |
 
-The target to check once `grill` is in: `advisor` fits in one folder plus two registry lines.
+Left as they were: the document list names a kind by its media type, so a transcript reads
+"Markdown" there, and an extension's styles still go to `core/page/style.css`.
+
+The target to check next: `advisor` fits in one folder plus three registry lines.
 

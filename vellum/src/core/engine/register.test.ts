@@ -5,8 +5,10 @@ import {
   batch,
   CWD,
   draftsPrompt,
+  EXIT_WORKDIR_GONE,
   FINAL,
   HEARTBEAT_MS,
+  LOST_RETRY_MS,
   OTHER_ID,
   OTHER_WORKDIR,
   POLL_MS,
@@ -16,9 +18,11 @@ import {
   SERVER,
   SESSION,
   SESSION_ID,
+  STARTED,
   STOP_PROMPT,
   storedSession,
   tick,
+  ticks,
   TURN_ABORTED,
   TURN_ANSWERED,
   TURN_OF_AGENT,
@@ -38,7 +42,7 @@ describe("session.start", () => {
     const seen = world(on);
 
     expect(await $.session.start(SESSION)).toEqual({ cwd: CWD });
-    expect(seen.tools).toEqual(["submit"]);
+    expect(seen.tools).toContain("submit");
     expect(seen.commands).toEqual([]);
   });
 
@@ -79,7 +83,7 @@ describe("skill.prompt", () => {
   });
 
   test("returns the skill text without a directory when the launcher cannot start", async ($, on) => {
-    world(on, { launch: { deny: "ENOENT bun" } });
+    world(on, { launch: () => ({ deny: "ENOENT bun" }) });
 
     expect(await $.skill.prompt(START_PROMPT)).toEqual({ text: "t" });
   });
@@ -107,7 +111,7 @@ describe("skill.prompt", () => {
         `Review page: http://127.0.0.1:${SERVER.port}/t/${SERVER.token}/`,
     });
 
-    expect(seen.runs[0]?.slice(5)).toEqual(["--project", "/elsewhere", "--workdir", workdir]);
+    expect(seen.runs[0]?.slice(5, 9)).toEqual(["--project", "/elsewhere", "--workdir", workdir]);
   });
 
   test("a session id the live server does not belong to starts a second one", async ($, on) => {
@@ -257,8 +261,7 @@ describe("tool.call mcp__vellum__submit", () => {
     await $.skill.prompt(START_PROMPT);
 
     expect(await $.tool.call({ tool: submit })).toEqual({
-      result:
-        "Plan v1 is under review in the browser. End your turn; the review arrives as a prompt.",
+      result: "Plan v1 under review. End your turn.",
     });
 
     expect(seen.statuses.at(-1)).toBe("plan v1 under review");
@@ -290,6 +293,29 @@ describe("tool.call mcp__vellum__submit", () => {
     expect(await $.tool.call({ tool: submit })).toEqual({
       deny: "the vellum review server is not answering; run /vellum:start again",
     });
+  });
+});
+
+describe("a review an open grill holds", () => {
+  const HELD = "grill-2.md is open: the plan is submitted once the reviewer ends it";
+
+  const held = { routes: { "/api/gate": () => reply(409, { error: HELD }) } };
+
+  test("submit is refused with the reason the server gives", async ($, on) => {
+    world(on, held);
+    await $.skill.prompt(START_PROMPT);
+
+    expect(await $.tool.call({ tool: "mcp__vellum__submit" })).toEqual({ deny: HELD });
+  });
+
+  test("the turn's end says nothing: no status, no log, no prompt", async ($, on) => {
+    const seen = world(on, held);
+    on("turn.complete", (_, e) => ({ text: e.answer }));
+    await $.skill.prompt(START_PROMPT);
+    await $.turn.complete(TURN_ANSWERED);
+
+    expect(seen.paths).toContain("/api/gate");
+    expect([seen.statuses.at(-1), seen.logs, seen.prompts]).toEqual(["planning", [], []]);
   });
 });
 
@@ -360,6 +386,146 @@ describe("turn.complete", () => {
     await $.skill.prompt(START_PROMPT);
 
     expect(await $.turn.complete(TURN_ANSWERED)).toEqual({ text: "done" });
+  });
+});
+
+describe("a server that stops answering", () => {
+  const REFUSED = { deny: "ENOENT bun" } as const;
+
+  const NONE = { kind: "none" };
+
+  const REVIVAL = ["--port", String(SERVER.port), "--token", SERVER.token, "--existing"];
+
+  test("three polls a dead server fails revive it on the port and the token it had", async ($, on) => {
+    let down = false;
+    const seen = world(on, { routes: { "/api/pending": () => (down ? null : reply(200, NONE)) } });
+    await $.skill.prompt(START_PROMPT);
+    down = true;
+    await tick(seen);
+    await tick(seen);
+
+    expect(seen.runs).toHaveLength(1);
+    await tick(seen);
+
+    expect(seen.runs[1]?.slice(-5)).toEqual(REVIVAL);
+    expect(seen.statuses.at(-1)).toBe("planning");
+  });
+
+  test("a status outside the contract is a failure of the server, a dropped prompt is none", async ($, on) => {
+    let status = 200;
+    const seen = world(on, { routes: { "/api/pending": () => reply(status, approved(1)) } });
+    seen.drop = "refused";
+    await $.skill.prompt(START_PROMPT);
+    await ticks(seen, 3);
+
+    expect(seen.runs, "three dropped prompts").toHaveLength(1);
+    status = 503;
+    await ticks(seen, 3);
+
+    expect(seen.runs, "three 503").toHaveLength(2);
+  });
+
+  test("a revival that fails is `lost`: the lock still denies, and a slow timer brings the server back", async ($, on) => {
+    let down = false;
+
+    const seen = world(on, {
+      routes: { "/api/pending": () => (down ? null : reply(200, NONE)) },
+      launch: (run) => (run === 2 ? REFUSED : STARTED),
+    });
+
+    await $.skill.prompt(START_PROMPT);
+    down = true;
+    await ticks(seen, 3);
+
+    expect(seen.statuses.at(-1)).toBe("server lost, retrying");
+    expect(await $.tool.check({ tool: "Edit", input: { file_path: `${CWD}/src/cli.ts` } })).toEqual(
+      { decision: "deny", reason: DENIAL },
+    );
+    down = false;
+    await seen.clock.advance(LOST_RETRY_MS);
+    await seen.clock.settle();
+
+    expect(seen.runs[2]?.slice(-5)).toEqual(REVIVAL);
+    expect(seen.statuses.at(-1)).toBe("planning");
+  });
+
+  test("a working directory that is gone says so, and the lock holds", async ($, on) => {
+    const seen = world(on, {
+      stored: storedSession({ ...SERVER, port: 1 }),
+      launch: () => EXIT_WORKDIR_GONE,
+    });
+
+    await $.session.start(SESSION);
+
+    expect(seen.statuses.at(-1)).toBe("working directory gone, run /vellum:stop");
+    expect(
+      await $.tool.check({ tool: "Write", input: { file_path: `${CWD}/src/cli.ts` } }),
+    ).toEqual({ decision: "deny", reason: DENIAL });
+  });
+
+  test("session.start on a dead stored server revives it and polls again", async ($, on) => {
+    const seen = world(on, { stored: storedSession({ ...SERVER, port: 1 }) });
+
+    await $.session.start(SESSION);
+    await tick(seen);
+
+    expect(seen.runs[0]?.slice(-5)).toEqual(["--port", "1", "--token", SERVER.token, "--existing"]);
+    expect(seen.store.get(`session:${SESSION_ID}`)).toMatchObject({ server: SERVER });
+    expect(seen.paths).toContain("/api/pending");
+  });
+
+  test("a kept server that missed one probe is kept: a rival on another port is not adopted", async ($, on) => {
+    let probes = 0;
+    const rival = { ...SERVER, port: SERVER.port + 1, token: "rival" };
+
+    const seen = world(on, {
+      stored: storedSession(),
+      routes: { "/api/review": () => ((probes += 1) === 1 ? null : reply(200, {})) },
+      launch: () => ({ value: { exitCode: 0, stdout: JSON.stringify(rival), stderr: "" } }),
+    });
+
+    await $.session.start(SESSION);
+    await tick(seen);
+
+    expect(seen.runs).toHaveLength(1);
+    expect(seen.store.get(`session:${SESSION_ID}`)).toMatchObject({ server: SERVER });
+    expect(seen.paths).toContain("/api/pending");
+  });
+
+  test("/vellum:stop during a revival resurrects nothing", async ($, on) => {
+    let down = false;
+
+    const seen = world(on, {
+      routes: { "/api/pending": () => (down ? null : reply(200, NONE)) },
+      launch: async (run) => {
+        if (run === 2) await seen.clock.sleep(POLL_MS / 2);
+
+        return STARTED;
+      },
+    });
+
+    await $.skill.prompt(START_PROMPT);
+    down = true;
+    await ticks(seen, 3);
+    await $.skill.prompt(STOP_PROMPT);
+    await seen.clock.advance(POLL_MS / 2);
+    const from = seen.paths.length;
+    await tick(seen);
+
+    expect(seen.runs).toHaveLength(2);
+    expect(seen.paths.slice(from)).toEqual([]);
+    expect(seen.store.has(`session:${SESSION_ID}`)).toBe(false);
+  });
+
+  test("/vellum:stop leaves `lost`, and the lock with it", async ($, on) => {
+    world(on, { stored: storedSession({ ...SERVER, port: 1 }), launch: () => REFUSED });
+    on("tool.check", () => ENGINE);
+    await $.session.start(SESSION);
+    await $.skill.prompt(STOP_PROMPT);
+
+    expect(
+      await $.tool.check({ tool: "Write", input: { file_path: `${CWD}/src/cli.ts` } }),
+    ).toEqual(ENGINE);
   });
 });
 
@@ -472,9 +638,7 @@ describe("the decision comes back as a prompt", () => {
     await tick(seen);
     await tick(seen);
 
-    expect(seen.prompts).toEqual([
-      `Plan review v1: changes requested. Read ${feedback}, revise plan.md and the files it names, then call mcp__vellum__submit again.`,
-    ]);
+    expect(seen.prompts).toEqual([`Changes requested on v1: read ${feedback}.`]);
 
     const from = seen.paths.length;
     await tick(seen);
@@ -490,9 +654,7 @@ describe("the decision comes back as a prompt", () => {
     await $.skill.prompt(START_PROMPT);
     await tick(seen);
 
-    expect(seen.prompts).toEqual([
-      `Plan v2 approved. It lives at ${FINAL}. Implement it here or in a fresh session.`,
-    ]);
+    expect(seen.prompts).toEqual([`Plan v2 approved, at ${FINAL}.`]);
 
     const from = seen.paths.length;
     await seen.clock.advance(HEARTBEAT_MS);
@@ -501,15 +663,13 @@ describe("the decision comes back as a prompt", () => {
     expect(seen.store.has(`session:${SESSION_ID}`)).toBe(false);
   });
 
-  test("an approval with notes names the notes file before the directory", async ($, on) => {
+  test("an approval with notes says to read the notes file first", async ($, on) => {
     const notes = `${FINAL}.review/v2.notes.md`;
     const seen = world(on, { routes: { "/api/pending": () => reply(200, approved(2, notes)) } });
     await $.skill.prompt(START_PROMPT);
     await tick(seen);
 
-    expect(seen.prompts).toEqual([
-      `Plan v2 approved. Read ${notes} first: the reviewer's notes. It lives at ${FINAL}. Implement it here or in a fresh session.`,
-    ]);
+    expect(seen.prompts).toEqual([`Plan v2 approved, at ${FINAL}. Read ${notes} first.`]);
   });
 
   test("a drafting batch is named once, and the next batches in one prompt", async ($, on) => {

@@ -2,7 +2,7 @@ import type { On } from "claude-code";
 import { mock, type MockClock } from "claude-code/testing";
 
 import { CWD } from "./cwd.ts";
-import { type Launch, launcher } from "./launcher.ts";
+import { type Launcher, launcher } from "./launcher.ts";
 import { liveServer, type Route } from "./live-server.ts";
 import { logs } from "./logs.ts";
 import { prompts } from "./prompts.ts";
@@ -37,7 +37,7 @@ export type WorldOptions = {
   routes?: Record<string, Route>;
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- what the store holds across a reload, as the engine types it (`ResultOf['store.get']` is `unknown`).
   stored?: Readonly<Record<string, unknown>>;
-  launch?: Launch;
+  launch?: Launcher;
 };
 
 export function world(on: On, options: WorldOptions = {}): World {
@@ -63,6 +63,7 @@ export function world(on: On, options: WorldOptions = {}): World {
   skillText(on);
 
   on("session.start", (_, e) => ({ cwd: e.cwd }));
+  on("turn.start", (_, e) => ({ turnId: e.turnId }));
   on("session.id", () => ({ value: built.id }));
   on("session.cwd", () =>
     built.refuseCwd === undefined ? { value: CWD } : { deny: built.refuseCwd },
