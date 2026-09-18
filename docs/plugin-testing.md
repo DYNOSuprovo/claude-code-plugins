@@ -8,6 +8,10 @@ How to validate a plugin (skills, permissions, flow) before a release.
 command claude --permission-mode default --plugin-dir <repo>/<plugin>
 ```
 
+`scripts/try-plugin.sh <plugin>... [-- <claude args>]` is that launch with `--debug`, the
+function-hooks flag and the plugin's `bun install`, on the checkout or worktree it is run
+from: call it by its path in the main checkout from a worktree whose branch lacks it.
+
 - `command claude`, not `claude`: the owner's shell function injects
   `--dangerously-skip-permissions` into every plain `claude` launch, and it
   does not check for `--permission-mode` before doing so.
