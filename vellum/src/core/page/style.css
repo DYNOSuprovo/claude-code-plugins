@@ -23,7 +23,7 @@
   --wash-marker: color-mix(in oklab, var(--marker) 55%, transparent);
   --wash-ok: color-mix(in oklab, var(--ok) 12%, var(--sheet));
   --field: color-mix(in oklab, var(--sheet) 88%, white);
-  --bord-fort: color-mix(in oklab, var(--ink) 62%, var(--sheet));
+  --edge: color-mix(in oklab, var(--ink) 62%, var(--sheet));
 
   --serif: "Literata", Georgia, serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
@@ -39,8 +39,8 @@
   --lh-chrome: 1.4;
   --lh-code: 1.55;
   --lh-title: 1.18;
-  --mono-optique: 0.92em;
-  --mesure: 68ch;
+  --mono-optical: 0.92em;
+  --measure: 68ch;
 
   --s-1: 4px;
   --s-2: 8px;
@@ -52,7 +52,7 @@
   --r-sm: 4px;
   --r-md: 8px;
   --r-pill: 999px;
-  --ombre: 0 6px 20px color-mix(in oklab, var(--ink) 18%, transparent);
+  --shadow: 0 6px 20px color-mix(in oklab, var(--ink) 18%, transparent);
   --transition: 120ms ease;
   color-scheme: light;
 }
@@ -75,7 +75,7 @@
     --tint: color-mix(in oklab, var(--desk) 55%, var(--sheet));
     --wash-marker: color-mix(in oklab, var(--marker) 32%, transparent);
     --field: color-mix(in oklab, var(--sheet) 88%, black);
-    --ombre: 0 6px 20px color-mix(in oklab, black 45%, transparent);
+    --shadow: 0 6px 20px color-mix(in oklab, black 45%, transparent);
     color-scheme: dark;
   }
 }
@@ -100,7 +100,7 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--redline)
 .status.ok { background: color-mix(in oklab, var(--ok) 16%, var(--sheet)); color: var(--ok); }
 .status.err { background: color-mix(in oklab, var(--redline) 12%, var(--sheet)); color: var(--redline); }
 .spacer { flex: 1; }
-.btn { font: 650 var(--t-13)/1.2 var(--serif); border-radius: var(--r-md); padding: var(--s-2) var(--s-3); cursor: pointer; border: 1px solid var(--bord-fort); background: transparent; color: var(--ink); white-space: nowrap; transition: background var(--transition), color var(--transition); }
+.btn { font: 650 var(--t-13)/1.2 var(--serif); border-radius: var(--r-md); padding: var(--s-2) var(--s-3); cursor: pointer; border: 1px solid var(--edge); background: transparent; color: var(--ink); white-space: nowrap; transition: background var(--transition), color var(--transition); }
 .btn:hover:not(:disabled) { background: var(--tint); }
 .btn.send { background: var(--redline); border-color: var(--redline); color: var(--sheet); }
 .btn.send:hover:not(:disabled) { background: color-mix(in oklab, var(--redline) 88%, var(--ink)); }
@@ -111,14 +111,14 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--redline)
 .banner.sent { border-left-color: var(--ask); background: color-mix(in oklab, var(--ask) 8%, var(--sheet)); }
 .banner.ok { border-left-color: var(--ok); background: color-mix(in oklab, var(--ok) 10%, var(--sheet)); }
 .banner.err { border-left-color: var(--redline); background: color-mix(in oklab, var(--redline) 10%, var(--sheet)); }
-.banner code { font-family: var(--mono); font-size: var(--mono-optique); }
+.banner code { font-family: var(--mono); font-size: var(--mono-optical); }
 
 .body { flex: 1; min-height: 0; display: flex; }
 .rail { width: 220px; flex: none; border-right: 1px solid var(--rule); padding: var(--s-3) var(--s-2); overflow: auto; display: flex; flex-direction: column; gap: 2px; background: var(--tint); }
 .rail h5 { font: 650 var(--t-12)/1 var(--serif); color: var(--graphite); margin: var(--s-3) var(--s-2) var(--s-1); }
 .rail button { font: 500 var(--t-13)/1.4 var(--serif); background: transparent; border: 0; color: var(--ink); cursor: pointer; text-align: left; padding: var(--s-1) var(--s-2); border-radius: var(--r-sm); display: flex; align-items: center; gap: var(--s-2); transition: background var(--transition); }
 .rail button:hover:not([aria-selected="true"]) { background: var(--sheet); }
-.rail button .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--mono-optique); }
+.rail button .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--mono-optical); }
 .rail button[aria-selected="true"] { background: var(--ink); color: var(--sheet); }
 .rail .kind { font-size: var(--t-12); color: var(--graphite); }
 .rail button[aria-selected="true"] .kind { color: inherit; opacity: 0.7; }
@@ -130,7 +130,7 @@ kbd { font: 600 var(--t-12)/1.4 var(--mono); border: 1px solid var(--rule); bord
 
 .docs { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .doc-head { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--rule); font-size: var(--t-13); color: var(--graphite); }
-.doc-head .path { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--mono-optique); }
+.doc-head .path { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--mono-optical); }
 .edited { font: 650 var(--t-12)/1.6 var(--serif); background: color-mix(in oklab, var(--marker) 45%, var(--sheet)); color: color-mix(in oklab, var(--ink) 80%, var(--marker)); border-radius: var(--r-pill); padding: 1px var(--s-2); white-space: nowrap; }
 .toggle { display: inline-flex; align-items: center; gap: var(--s-2); cursor: pointer; }
 .tools:empty { display: none; }
@@ -155,10 +155,10 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .plan h1 { font: 650 var(--t-31)/var(--lh-title) var(--serif); letter-spacing: -0.015em; margin: 0 0 var(--s-3); }
 .plan h2 { font: 650 var(--t-25)/var(--lh-title) var(--serif); letter-spacing: -0.01em; margin: var(--s-6) 0 var(--s-2); }
 .plan h3 { font: 650 var(--t-20)/1.2 var(--serif); margin: var(--s-4) 0 var(--s-1); }
-.plan p, .plan ul, .plan ol { margin: 0 0 var(--s-3); max-width: var(--mesure); }
+.plan p, .plan ul, .plan ol { margin: 0 0 var(--s-3); max-width: var(--measure); }
 .plan ul, .plan ol { padding-left: 1.2em; }
 .plan a { color: var(--ink); text-decoration-color: var(--redline); text-underline-offset: 3px; cursor: pointer; }
-.plan code { font-family: var(--mono); font-size: var(--mono-optique); background: var(--tint); padding: 0.1em 0.35em; border-radius: var(--r-sm); }
+.plan code { font-family: var(--mono); font-size: var(--mono-optical); background: var(--tint); padding: 0.1em 0.35em; border-radius: var(--r-sm); }
 .plan pre { background: var(--tint); color: var(--ink); padding: var(--s-3); border-radius: var(--r-md); overflow: auto; font: var(--t-14)/var(--lh-code) var(--mono); }
 .plan pre code { background: none; padding: 0; font-size: inherit; }
 .plan .hljs-comment, .plan .hljs-quote { color: var(--code-comment); font-style: italic; }
@@ -193,7 +193,7 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .plan tr.marked::after, .plan pre.marked::after { content: none; }
 .plan pre.marked { box-shadow: inset 2px 0 0 var(--redline); }
 .plan li.added > ul, .plan li.added > ol { position: relative; max-width: none; background: var(--sheet); margin: 0 0 0 calc(-1.2em - var(--s-2) - 3px); padding: 0 0 var(--s-2) calc(2.4em + var(--s-2) + 3px); }
-.plan details.removed { border-left: 3px solid var(--redline); background: color-mix(in oklab, var(--redline) 7%, var(--sheet)); margin: var(--s-1) 0 var(--s-1) calc(var(--s-2) * -1 - 3px); padding: 2px var(--s-2); font: var(--t-13)/var(--lh-chrome) var(--serif); max-width: var(--mesure); user-select: none; }
+.plan details.removed { border-left: 3px solid var(--redline); background: color-mix(in oklab, var(--redline) 7%, var(--sheet)); margin: var(--s-1) 0 var(--s-1) calc(var(--s-2) * -1 - 3px); padding: 2px var(--s-2); font: var(--t-13)/var(--lh-chrome) var(--serif); max-width: var(--measure); user-select: none; }
 .plan li > details.removed, .plan blockquote > details.removed { margin-left: 0; }
 .plan details.removed summary { cursor: pointer; color: var(--redline); }
 .plan details.removed summary::after { content: attr(data-label); }
@@ -213,7 +213,7 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .grill-doc .plan { flex: 1; }
 .grill-doc .plan h2 { font: 600 var(--t-16)/var(--lh-title) var(--serif); color: var(--graphite); border-top: 1px solid var(--rule); padding-top: var(--s-3); margin-top: var(--s-8); }
 .grill-doc .plan h3 { font: 650 var(--t-13)/1.4 var(--serif); color: var(--ask); margin: var(--s-3) 0 0; }
-.grill-q { font-family: var(--serif); border: 1px solid var(--rule); border-left: 3px solid var(--ask); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); margin: var(--s-4) 0; background: var(--field); max-width: var(--mesure); }
+.grill-q { font-family: var(--serif); border: 1px solid var(--rule); border-left: 3px solid var(--ask); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); margin: var(--s-4) 0; background: var(--field); max-width: var(--measure); }
 .grill-q .head { display: flex; align-items: baseline; gap: var(--s-2); margin-bottom: var(--s-2); }
 .grill-q .num { font: 650 var(--t-12)/1.5 var(--mono); color: var(--sheet); background: var(--ask); border-radius: var(--r-pill); padding: 1px var(--s-2); }
 .grill-q .topic { font-weight: 600; }
@@ -228,7 +228,7 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .grill-foot { position: sticky; bottom: 0; background: var(--sheet); border-top: 1px solid var(--rule); padding: var(--s-2) var(--s-6); }
 .grill-foot .row { align-items: center; gap: var(--s-2); }
 .grill-foot .note { flex: 1; color: var(--graphite); font-size: var(--t-13); }
-.popover { position: absolute; width: 300px; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r-md); box-shadow: var(--ombre); padding: var(--s-3); font: var(--t-13)/var(--lh-chrome) var(--serif); z-index: 2; }
+.popover { position: absolute; width: 300px; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r-md); box-shadow: var(--shadow); padding: var(--s-3); font: var(--t-13)/var(--lh-chrome) var(--serif); z-index: 2; }
 .popover .quote { color: var(--graphite); font-style: italic; margin-bottom: var(--s-2); }
 textarea { width: 100%; font: var(--t-14)/1.45 var(--serif); border: 1px solid var(--rule); border-radius: var(--r-sm); padding: var(--s-2); resize: vertical; background: var(--field); color: var(--ink); }
 .row { display: flex; gap: var(--s-2); justify-content: flex-end; margin-top: var(--s-2); }

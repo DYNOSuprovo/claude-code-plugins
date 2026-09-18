@@ -8,7 +8,7 @@ import { passageFromRange, passageFromSelection, rangeFor } from "../../core/pag
 import { docUrl, fileUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { paint } from "../../core/page/highlights.ts";
-import { resolu } from "../../core/page/kit.tsx";
+import { srgb } from "../../core/page/kit.tsx";
 import { activeMethod, dark, docs, holding, locked, select } from "../../core/page/state.ts";
 import type { Passage } from "../../core/protocol.ts";
 import { parseProjectPath } from "../../core/server/domain/paths.ts";
@@ -181,20 +181,20 @@ async function drawDiagrams(root: HTMLElement): Promise<void> {
     suppressErrorRendering: true,
     theme: "base",
     themeVariables: {
-      background: resolu("--sheet"),
-      mainBkg: resolu("--tint"),
-      primaryColor: resolu("--tint"),
-      primaryTextColor: resolu("--ink"),
-      primaryBorderColor: resolu("--graphite"),
-      secondaryColor: resolu("--sheet"),
-      tertiaryColor: resolu("--sheet"),
-      nodeBorder: resolu("--graphite"),
-      lineColor: resolu("--graphite"),
-      textColor: resolu("--ink"),
-      clusterBkg: resolu("--sheet"),
-      clusterBorder: resolu("--rule"),
-      edgeLabelBackground: resolu("--sheet"),
-      titleColor: resolu("--ink"),
+      background: srgb("--sheet"),
+      mainBkg: srgb("--tint"),
+      primaryColor: srgb("--tint"),
+      primaryTextColor: srgb("--ink"),
+      primaryBorderColor: srgb("--graphite"),
+      secondaryColor: srgb("--sheet"),
+      tertiaryColor: srgb("--sheet"),
+      nodeBorder: srgb("--graphite"),
+      lineColor: srgb("--graphite"),
+      textColor: srgb("--ink"),
+      clusterBkg: srgb("--sheet"),
+      clusterBorder: srgb("--rule"),
+      edgeLabelBackground: srgb("--sheet"),
+      titleColor: srgb("--ink"),
       fontFamily: getComputedStyle(document.documentElement).getPropertyValue("--mono").trim(),
       fontSize: "13px",
     },

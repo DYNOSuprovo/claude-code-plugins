@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import type { RendererProps, PageExtension } from "../../core/extension.ts";
 import { docUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
-import { resolu } from "../../core/page/kit.tsx";
+import { srgb } from "../../core/page/kit.tsx";
 import { activeMethod, dark, holding, locked } from "../../core/page/state.ts";
 import type { ElementRef } from "../../core/protocol.ts";
 import type { FrameTheme, FrameToPage, PageToFrame, PickBox } from "./messages.ts";
@@ -27,10 +27,10 @@ function under(frame: HTMLIFrameElement, box: PickBox): { top: number; left: num
 
 function themeOf(): FrameTheme {
   return {
-    redline: resolu("--redline"),
-    marker: resolu("--marker"),
-    sheet: resolu("--sheet"),
-    ink: resolu("--ink"),
+    redline: srgb("--redline"),
+    marker: srgb("--marker"),
+    sheet: srgb("--sheet"),
+    ink: srgb("--ink"),
   };
 }
 

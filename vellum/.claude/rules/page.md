@@ -30,7 +30,7 @@ no build step, so what the page imports costs nothing at `cli start`.
   spelled at the call; `kit.tsx` is in `PAGE_SURFACE`, so an extension draws with the same
   five. A token consumed outside CSS (Mermaid's `themeVariables`, the frame's overlay) parses
   neither `color-mix()` nor the `oklab()` the browser serializes once computed: it goes through
-  `resolu()`, which yields sRGB, and the consumer redraws on the `dark` signal of `state.ts`.
+  `srgb()`, which yields sRGB, and the consumer redraws on the `dark` signal of `state.ts`.
 - A commented block carries a fillet in the sheet's margin: `markdown/marked.ts` chooses,
   purely, the innermost block of each commented line, and `page.tsx` toggles `marked` on it.
 - Everything crossing `/api` is JSON and typed in `src/core/protocol.ts`; a new field lands there
