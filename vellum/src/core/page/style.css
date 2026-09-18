@@ -105,7 +105,7 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--redline)
 .btn.send { background: var(--redline); border-color: var(--redline); color: var(--sheet); }
 .btn.send:hover:not(:disabled) { background: color-mix(in oklab, var(--redline) 88%, var(--ink)); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn.small { font-size: var(--t-12); padding: var(--s-1) var(--s-2); border-radius: var(--r-sm); }
+.btn.sm { font-size: var(--t-12); padding: var(--s-1) var(--s-2); border-radius: var(--r-sm); }
 
 .banner { padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--rule); border-left: 3px solid var(--graphite); background: var(--tint); font-size: var(--t-14); display: flex; gap: var(--s-3); align-items: center; flex-wrap: wrap; }
 .banner.sent { border-left-color: var(--ask); background: color-mix(in oklab, var(--ask) 8%, var(--sheet)); }
