@@ -185,6 +185,13 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .plan li.added::before { left: calc(-1.2em - var(--s-2) - 3px); }
 .plan tr.added > :first-child::before { width: calc(var(--s-2) + 3px); border-left: 3px solid var(--ok); background: var(--wash-ok); }
 .plan pre.added, .plan figure.added { background: var(--tint); box-shadow: inset 3px 0 0 var(--ok); }
+/* The margin fillet of a commented block, at its own height; ::after, since ::before is the added bar's. A nested block subtracts its parent's indent to reach the margin. */
+.plan .marked, .plan tr.marked > :first-child { position: relative; }
+.plan .marked::after, .plan tr.marked > :first-child::after { content: ""; position: absolute; top: 0.15em; bottom: 0.15em; left: calc(var(--s-6) * -1 + var(--s-2)); width: 2px; background: var(--redline); border-radius: 2px; }
+.plan li.marked::after, .plan li > .marked::after { left: calc(-1.2em - var(--s-6) + var(--s-2)); }
+.plan blockquote > .marked::after { left: calc(-3px - var(--s-3) - var(--s-6) + var(--s-2)); }
+.plan tr.marked::after, .plan pre.marked::after { content: none; }
+.plan pre.marked { box-shadow: inset 2px 0 0 var(--redline); }
 .plan li.added > ul, .plan li.added > ol { position: relative; max-width: none; background: var(--sheet); margin: 0 0 0 calc(-1.2em - var(--s-2) - 3px); padding: 0 0 var(--s-2) calc(2.4em + var(--s-2) + 3px); }
 .plan details.removed { border-left: 3px solid var(--redline); background: color-mix(in oklab, var(--redline) 7%, var(--sheet)); margin: var(--s-1) 0 var(--s-1) calc(var(--s-2) * -1 - 3px); padding: 2px var(--s-2); font: var(--t-13)/var(--lh-chrome) var(--serif); max-width: var(--mesure); user-select: none; }
 .plan li > details.removed, .plan blockquote > details.removed { margin-left: 0; }
@@ -205,7 +212,7 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .grill-doc { min-height: 100%; display: flex; flex-direction: column; }
 .grill-doc .plan { flex: 1; }
 .grill-doc .plan h2 { font: 600 var(--t-16)/var(--lh-title) var(--serif); color: var(--graphite); border-top: 1px solid var(--rule); padding-top: var(--s-3); margin-top: var(--s-8); }
-.grill-doc .plan h3 { font: 600 var(--t-12)/1.4 var(--serif); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ask); margin: var(--s-3) 0 0; }
+.grill-doc .plan h3 { font: 650 var(--t-13)/1.4 var(--serif); color: var(--ask); margin: var(--s-3) 0 0; }
 .grill-q { font-family: var(--serif); border: 1px solid var(--rule); border-left: 3px solid var(--ask); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); margin: var(--s-4) 0; background: var(--field); max-width: var(--mesure); }
 .grill-q .head { display: flex; align-items: baseline; gap: var(--s-2); margin-bottom: var(--s-2); }
 .grill-q .num { font: 650 var(--t-12)/1.5 var(--mono); color: var(--sheet); background: var(--ask); border-radius: var(--r-pill); padding: 1px var(--s-2); }
@@ -213,10 +220,10 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .grill-q .ask { margin: 0 0 var(--s-2); white-space: pre-wrap; }
 .grill-q .rec { display: flex; align-items: center; gap: var(--s-2); background: var(--tint); border-radius: var(--r-md); padding: var(--s-2) var(--s-3); margin-bottom: var(--s-2); font-size: var(--t-14); }
 .grill-q .answer { display: flex; align-items: baseline; gap: var(--s-2); border-left: 3px solid var(--ok); padding: var(--s-1) var(--s-2); font-size: var(--t-14); }
-.grill-q .answer .label { font: 600 var(--t-12)/1.4 var(--serif); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ok); white-space: nowrap; }
+.grill-q .answer .label { font: 650 var(--t-12)/1.4 var(--serif); color: var(--ok); white-space: nowrap; }
 .grill-q .answer .text { white-space: pre-wrap; }
 .grill-q textarea { min-height: 64px; border-color: var(--ask); }
-.grill-q .rec .label { font: 600 var(--t-12)/1.4 var(--serif); text-transform: uppercase; letter-spacing: 0.06em; color: var(--graphite); }
+.grill-q .rec .label { font: 650 var(--t-12)/1.4 var(--serif); color: var(--graphite); }
 .grill-q .rec .text { flex: 1; white-space: pre-wrap; }
 .grill-foot { position: sticky; bottom: 0; background: var(--sheet); border-top: 1px solid var(--rule); padding: var(--s-2) var(--s-6); }
 .grill-foot .row { align-items: center; gap: var(--s-2); }

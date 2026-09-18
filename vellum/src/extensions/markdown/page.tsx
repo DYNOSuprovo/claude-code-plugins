@@ -14,6 +14,7 @@ import type { Passage } from "../../core/protocol.ts";
 import { parseProjectPath } from "../../core/server/domain/paths.ts";
 import type { Changes, RemovedRun } from "./changes.ts";
 import { changesOf, removedLabel } from "./changes.ts";
+import { markedIndices } from "./marked.ts";
 import type { Target } from "./pinpoint.ts";
 import { boxOf, diagramPassage, rangeOf, targetAt, toggled } from "./pinpoint.ts";
 import { toTree } from "./tree.ts";
@@ -290,6 +291,21 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       }
     };
 
+    /** The block holding a commented passage carries a fillet in the sheet's margin. */
+    const fillet = (passages: readonly Passage[]): void => {
+      const blocks = [...root.querySelectorAll<HTMLElement>("[data-lines]")];
+
+      const marked = markedIndices(
+        blocks.map((block) => ({
+          tag: block.tagName.toLowerCase(),
+          lines: block.dataset.lines ?? "",
+        })),
+        passages.map((passage) => passage.lines),
+      );
+
+      blocks.forEach((block, index) => block.classList.toggle("marked", marked.has(index)));
+    };
+
     const commented = props.annotations.flatMap((annotation) =>
       annotation.anchor.kind === "text" ? annotation.anchor.passages : [],
     );
@@ -300,12 +316,14 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     paint("vellum-draft", rangesOf(picked));
     box("commented", commented);
     box("picked", picked);
+    fillet(commented);
 
     return () => {
       paint("vellum-comment", []);
       paint("vellum-draft", []);
       box("commented", []);
       box("picked", []);
+      fillet([]);
     };
   }, [props.annotations, draft, content]);
 
