@@ -51,9 +51,10 @@ claude -p --setting-sources project "/plugin-types vellum/types"    # regenerate
 
 Every command runs from the repository root; lint, types and format are the repository's
 gates, listed in its `AGENTS.md`. The server alone prints port and token and serves the page
-at `http://127.0.0.1:<port>/t/<token>/`; it exits once its last `POST /api/heartbeat` is
-90 s old and no tab holds the event stream. Only the hooks module posts the heartbeat, the
-page does not: alone, an open tab keeps it for 15 minutes, or post the heartbeat in a loop with the header
+at `http://127.0.0.1:<port>/t/<token>/`; it exits once its last `POST /api/heartbeat` is past
+the grace and no tab holds the event stream (`WATCHDOG` in `http/serve.ts` holds both delays).
+Only the hooks module posts the heartbeat, the page does not: alone, an open tab keeps it for
+a while, or post the heartbeat in a loop with the header
 `x-vellum-token: <token>`.
 
 A live session, the browser, and the facts measured on Claude Code: `docs/plugin-testing.md`

@@ -16,6 +16,15 @@ paths:
   version, the path, the text the case turns on stay in the test.
 - Before the code of a slice, its tests are listed one line each and agreed, written first,
   seen failing for the right reason.
+- A test proves something once it was seen failing: written first and seen red, or the code
+  mutated afterwards until the test falls. The commit message says which. Green tests that
+  were never red only repeat the author's model.
+- A fake must be able to disagree with the code. A fixture that returns the value under test
+  by construction, as a bottom-of-chain hook answering `{ text: e.answer }`, hides a hook that
+  reads the wrong field.
+- A file read by its structure is tested with a text that holds the structure's own markers:
+  a heading, a footer, an event line typed inside an answer. Its author is a model, and it
+  writes them.
 - Fakes at the ports, nothing else faked: the hooks module runs under the engine's own `$`,
   with the world beneath it answered by `mock.clock` and the `on(...)` hooks of
   `src/core/engine/fixtures/`; the server's file system is a temp directory through the real

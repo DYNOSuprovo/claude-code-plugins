@@ -48,7 +48,7 @@
     {
       "name": "github-flow",
       "description": "GitHub lifecycle through gh: agent-ready issues, review-ready PRs with attached images, issue and PR triage, CI-gated linear merge, commit-push-PR in one step, stacked PRs with gh stack, and an issue-to-PR loop whose worker agents land their own PR",
-      "version": "1.7.0",
+      "version": "1.7.1",
       "author": {
         "name": "Augustin BENGOLEA",
         "email": "bengous@protonmail.com"
@@ -416,7 +416,7 @@
     {
       "name": "vellum",
       "description": "Plan at the frontiers and review the plan in the browser: open choices settled first, interfaces and files before mechanics, vertical slices each closed by a check; /vellum:start opens a planning mode of its own where Claude writes the plan and its mockups, the reviewer comments text, HTML elements and diagrams in a page or approves, and the answer reaches Claude as a prompt",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "author": {
         "name": "Augustin BENGOLEA",
         "email": "bengous@protonmail.com"

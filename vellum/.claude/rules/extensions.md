@@ -46,6 +46,12 @@ and the engine events the core hands it. `grill` is the one extension with all t
 - A file whose structure is read off its lines never takes a text as it comes: `grill`'s
   transcript quotes Claude's text (`quoted` in `transcript.ts`), or a heading typed in an answer
   speaks for the reviewer, opens a round or closes the grill.
+- An extension with states, rounds or a lifecycle starts with a table, before any code: the
+  states, the events, and one owner per fact. The server owns what is allowed and says it
+  through `holds`; the module owns whether a server and a lock exist; a file owns its content.
+  A fact with two owners drifts at the first reload.
+- An extension's classes in `core/page/style.css` carry its id as a prefix (`.grill-doc`,
+  `.grill-q`): the stylesheet is global, and a bare `.grill` also styled the `.btn.grill` button.
 - A helper and its `*.spec.ts` live in the folder, beside the half that uses them: its choice
   is a pure function tested with `bun test`, its DOM part a thin adapter, since the page has
   no DOM implementation to test against.

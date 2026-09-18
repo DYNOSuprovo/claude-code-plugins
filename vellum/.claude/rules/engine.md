@@ -6,8 +6,8 @@ paths:
 
 # The hooks module
 
-`hooks/hooks.json` is what Claude Code reads, and it names `src/core/engine/register.ts`. Nine
-files there, each importing `claude-code`, a sibling `./<name>.ts`, or `import type` from
+`hooks/hooks.json` is what Claude Code reads, and it names `src/core/engine/register.ts`. The
+files there each import `claude-code`, a sibling `./<name>.ts`, or `import type` from
 `../protocol.ts`, and nothing else; `register.ts` alone also loads `../../extensions/engine.ts`,
 the registry of the engine halves. Held by `src/boundaries.spec.ts`.
 
@@ -35,7 +35,7 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
   variant, not a flag. Before writing `let x: T | null`, name the state `null` stands for.
 - A server that dies comes back where it was. `pending` throws `ServerDown` on a transport
   error or a status outside the contract, and nothing else counts: a prompt the engine dropped
-  proves nothing about the server. The third `ServerDown` in a row asks `revive`, once;
+  proves nothing about the server. `SERVER_FAILURES_BEFORE_REVIVE` of them in a row ask `revive`, once;
   `session.start` and `/vellum:start` revive a stored server that no longer answers the same
   way. A revival is `start` with the kept port, the kept token and `--existing`, so the
   reviewer's tab reconnects by itself and a directory an approval renamed is never recreated

@@ -29,7 +29,7 @@ const STOP_SKILL = "vellum:stop";
 const SUBMIT = {
   name: "submit",
   description:
-    "Submit plan.md from the vellum working directory for review in the browser. Call it once the plan and its artifacts are ready; the answer says whether to end your turn.",
+    "Submit plan.md from the vellum working directory for review in the browser, before the turn ends; the turn's end submits it anyway. Refused, with the reason, when plan.md is missing, when the plan is approved, or while a grill is open.",
   inputSchema: { type: "object" },
 };
 

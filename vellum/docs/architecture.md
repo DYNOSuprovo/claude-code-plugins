@@ -4,7 +4,7 @@ For the people who change the tree. The tree itself is drawn once, in
 [`AGENTS.md`](../AGENTS.md) § Shape; the rules an agent holds to are in
 [`.claude/rules/`](../.claude/rules/), one file per zone (engine, server, page, extensions, tests), each
 naming its own files. This file draws what those texts describe, names the shape and the
-shapes left aside, says where phases 2 and 3 landed, and where extensions go next.
+shapes left aside, shows where each part of a feature goes, and where extensions go next.
 
 ## Three runtimes, one contract
 
@@ -57,7 +57,7 @@ plain modules with no interface and no injection).
 | Hooks module | ports and adapters, `Host` the port | the engine's events (`session.start`, `skill.prompt`, `command.run`, `tool.check`, `tool.call`, `prompt.submit`, `turn.complete`) | the engine's `$` (clock, store, http, process, prompt, tool), answered by the kit in tests |
 | Server | ports and adapters, domain / app / adapters | `adapters/http/routes.ts` | the file system through `adapters/fs.ts`, real in tests (a temp directory) |
 | Page | a store of signals and components | the reviewer's clicks | `/api`, the files route, SSE |
-| `src/extensions/<id>/` | feature slices: one extension = one folder, a half per runtime it plugs into; today one per document kind | | |
+| `src/extensions/<id>/` | feature slices: one extension = one folder, a half per runtime it plugs into | | |
 
 Four levels of ceremony exist for the same principle; this is the lightest. The next one
 up, ports as interfaces with a fake each and a contract test per port, is one hour away
@@ -222,17 +222,17 @@ batches means the drafting files to name, `changesRequested` a feedback file, `a
 final directory and the notes file when its listing holds one, anything else nothing. No second variable. The module keeps one number of
 its own, in `$.store`: how many batches it already named, so a reload never repeats one.
 
-## Where phases 2 and 3 landed
+## Where the parts of a feature go
 
 | Feature | Pure part | Adapter part | Page part |
 |---|---|---|---|
-| Comment on an HTML element (#105) | `ElementRef`, the `Anchor` variant `element` and its line in the feedback text; `extensions/html/pick.ts` and `page/selection.ts` | `frame.js` built once at `startServer` and injected into `text/html` responses, `postMessage` across the sandbox | the HTML renderer bridges the frame and opens the Composer over the iframe |
-| Coloured code and Mermaid (#105) | `rehype-highlight` in the `toTree` pipeline, so the hast keeps `data-lines`; the target kind `diagram` and `diagramPassage` in `extensions/markdown/pinpoint.ts` | | the Markdown renderer turns a `mermaid` block into a `figure`, draws it after the mount, and boxes it where text is highlighted |
-| Diff `vN-1` / `vN` (#106) | `domain/diff.ts`: `lineDiff` over the `diff` package, `countChanges`; `extensions/markdown/changes.ts`: which block carries a mark, where a removed run goes | `/api/review` returns the previous version's text | `planChanges` computed once; the count beside the version, the "Changes since" toggle, the marks and the text-free removed blocks in the Markdown renderer |
-| Delete marks and quick labels (#106) | `Mark` on `Annotation`, `QUICK_LABELS` with the sentence Claude reads, in `domain/feedback.ts` | `parseMark` in the boundary block of `routes.ts` | the Composer's label row and "Delete this", the card's chip and struck quote |
-| Direct edit (#106) | `Edit`, `decideOn` (the edit is `vN+1`, refused on another version), `editOnLoad`, `landedAnnotations` in `domain/review.ts`; `shiftLines`, `shiftAnnotations` in `domain/diff.ts` | `parseEdit`; `Review.decide` writes `plan.md`, then the version file | `page/editor.tsx` and `page/caret.ts`; `edited`, `editing`, `finishEdit`, `settleEdit` in `state.ts` |
-| Approval notes (#106) | `formatNotes`, `notesFile`, `approved.notes` read off the final directory's listing, `Pending.approved.notes` | the notes file written before the rename; `engine/relay.ts` names it in the approval's prompt | the decision bar's one popover state: notes, and the warning before unsent comments are discarded |
-| Drafts (#106) | `Draft`, `DRAFT_FILE`, `takesComments` | `GET` and `PUT /api/draft`, stored and never read back; removed by a decision that lands | `start`: restore, load, then save at every change, in order |
+| Comment on an HTML element | `ElementRef`, the `Anchor` variant `element` and its line in the feedback text; `extensions/html/pick.ts` and `page/selection.ts` | `frame.js` built once at `startServer` and injected into `text/html` responses, `postMessage` across the sandbox | the HTML renderer bridges the frame and opens the Composer over the iframe |
+| Coloured code and Mermaid | `rehype-highlight` in the `toTree` pipeline, so the hast keeps `data-lines`; the target kind `diagram` and `diagramPassage` in `extensions/markdown/pinpoint.ts` | | the Markdown renderer turns a `mermaid` block into a `figure`, draws it after the mount, and boxes it where text is highlighted |
+| Diff `vN-1` / `vN` | `domain/diff.ts`: `lineDiff` over the `diff` package, `countChanges`; `extensions/markdown/changes.ts`: which block carries a mark, where a removed run goes | `/api/review` returns the previous version's text | `planChanges` computed once; the count beside the version, the "Changes since" toggle, the marks and the text-free removed blocks in the Markdown renderer |
+| Delete marks and quick labels | `Mark` on `Annotation`, `QUICK_LABELS` with the sentence Claude reads, in `domain/feedback.ts` | `parseMark` in the boundary block of `routes.ts` | the Composer's label row and "Delete this", the card's chip and struck quote |
+| Direct edit | `Edit`, `decideOn` (the edit is `vN+1`, refused on another version), `editOnLoad`, `landedAnnotations` in `domain/review.ts`; `shiftLines`, `shiftAnnotations` in `domain/diff.ts` | `parseEdit`; `Review.decide` writes `plan.md`, then the version file | `page/editor.tsx` and `page/caret.ts`; `edited`, `editing`, `finishEdit`, `settleEdit` in `state.ts` |
+| Approval notes | `formatNotes`, `notesFile`, `approved.notes` read off the final directory's listing, `Pending.approved.notes` | the notes file written before the rename; `engine/relay.ts` names it in the approval's prompt | the decision bar's one popover state: notes, and the warning before unsent comments are discarded |
+| Drafts | `Draft`, `DRAFT_FILE`, `takesComments` | `GET` and `PUT /api/draft`, stored and never read back; removed by a decision that lands | `start`: restore, load, then save at every change, in order |
 
 Every one added a pure part first; `src/core/server/domain/` is where a new domain concept
 goes, and a renderer's own choice stays beside its `page.tsx`.
@@ -279,7 +279,7 @@ config cannot hide one per repository; the module can only refuse it at `skill.p
 `userConfig` values live in the user's settings, project entries ignored, so a per-repository
 config is a file of Vellum's own.
 
-Nothing below exists yet, and `grill` landed without it: an option or a flag is added when
+Nothing below exists yet, and `grill` does without it: an option or a flag is added when
 someone asks to turn it. `grill` is the first that will: `enabled: false` there means no tool
 registered, no route, no action, no renderer, and step 2 of the `start` skill names
 `grill_suggest`, so whether the module adds that paragraph at `skill.prompt` only when `grill`

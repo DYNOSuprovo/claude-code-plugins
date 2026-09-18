@@ -51,7 +51,7 @@ function post<Name extends keyof GrillPosts>(
 const ASK: ExtensionTool = {
   name: "grill_ask",
   description:
-    "Ask one round of the open grill in the review page. q: one [title, question, recommendation] per question; the page numbers them.",
+    "Ask one round of the open grill; the reviewer answers in the review page and the reply arrives as a prompt. q: one [title, question, recommendation] per question; the page numbers them across the whole grill. Refused when no grill is open: only the reviewer opens one, after grill_suggest or on their own.",
   inputSchema: {
     type: "object",
     properties: {
@@ -90,7 +90,7 @@ const ASK: ExtensionTool = {
 const SUGGEST: ExtensionTool = {
   name: "grill_suggest",
   description:
-    "Suggest a grill to the reviewer in the review page: the subject, and in one sentence why the choices need them. The reviewer starts it, or not.",
+    "Suggest a grill to the reviewer in the review page: the subject, and in one sentence why the choices need them. It opens nothing: end your turn, and the reviewer starts it from the page, or not. Refused while a grill is open.",
   inputSchema: {
     type: "object",
     properties: { subject: { type: "string" }, reason: { type: "string" } },
