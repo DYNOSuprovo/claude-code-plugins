@@ -65,7 +65,7 @@ First line, when there is an issue: `Closes #N.`
 
 **Checks.** What ran, with its numbers: the command, passes, failures. A failure that predates the branch is named with its location and its cause. Tests added by the branch are listed apart, each with whether it was seen failing before the change; unknown is written as unknown. Nothing ran this session: run the validation commands from step 3, then report. Never a check that did not run.
 
-**Left open.** What this PR leaves alone, each measured or located: a known limit, a question without an answer, work done outside the diff. Omitted when empty.
+**Left open.** What this PR leaves alone, each measured or located: a known limit, a question without an answer, work done outside the diff. What was not measured goes here too, each with what would measure it (a live session, a device, production data): the human empties or accepts that list before a release. Omitted when empty.
 
 **Session line.** Last line of the body, always, rendered by GitHub as nothing:
 

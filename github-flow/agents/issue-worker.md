@@ -20,7 +20,7 @@ The worktree branches from the repository's default branch. When the PR base is 
 2. **Implement** in the worktree, inside the boundary the issue's *Out of scope* section draws.
 3. **Verify alone.** Run the validation commands from the prompt, `/verify` when the repository ships that skill. Run e2e when the evidence rules ask for it. At most 2 red-green rounds. Red after the second round: no commit, no push, report `blocked`.
 4. **Land.** `git:commit <n>`, then `github-flow:pr`. A visible change carries its Before/After pair; `github-flow:pr` captures and attaches it.
-5. **Report.** The PR URL, the evidence with its numbers (commands run, passes, failures, e2e count, screenshots attached), what was left out.
+5. **Report.** The PR URL, the evidence with its numbers (commands run, passes, failures, e2e count, screenshots attached), what was left out. Messages from the dispatcher cross with yours: list each instruction received after the spawn, applied or not, so the dispatcher reads it instead of guessing.
 
 ## Mode `fix <pr>`
 
