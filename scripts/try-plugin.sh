@@ -14,6 +14,7 @@ usage() {
 
 root="$(git rev-parse --show-toplevel)"
 plugin_dirs=()
+loaded=()
 
 while (($# > 0)); do
   if [[ $1 == "--" ]]; then
@@ -34,12 +35,31 @@ while (($# > 0)); do
   fi
 
   plugin_dirs+=(--plugin-dir "$dir")
+  loaded+=("$1 $(jq -r .version "$dir/.claude-plugin/plugin.json")")
   shift
 done
 
 ((${#plugin_dirs[@]} > 0)) || usage
 
+dirty=""
+[[ -z "$(git -C "$root" status --porcelain)" ]] || dirty=" + uncommitted changes"
+
 echo "plugins from: $root"
+echo "commit:       $(git -C "$root" log -1 --format='%h %s')$dirty"
+printf 'loaded:       %s\n' "${loaded[@]}"
+
+# A process a plugin spawned detached outlives the session and keeps the code it started with:
+# a session that finds it again runs old code beside the new hooks module.
+survivors="$(pgrep -af "$root/" | grep -vE '^[0-9]+ (claude |.*try-plugin)' || true)"
+
+if [[ -n $survivors ]]; then
+  echo "still alive from an earlier session, on the code of their start time:"
+
+  while read -r pid _; do
+    echo "  $pid  started $(ps -o lstart= -p "$pid")  $(ps -o args= -p "$pid" | cut -c1-120)"
+  done <<<"$survivors"
+fi
+
 echo "debug log:    ~/.claude/debug/latest"
 echo "override?     grep 'overrides installed version' ~/.claude/debug/latest"
 
