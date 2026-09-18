@@ -8,9 +8,29 @@ How to validate a plugin (skills, permissions, flow) before a release.
 command claude --permission-mode default --plugin-dir <repo>/<plugin>
 ```
 
-`scripts/try-plugin.sh <plugin>... [-- <claude args>]` is that launch with `--debug`, the
-function-hooks flag and the plugin's `bun install`, on the checkout or worktree it is run
-from: call it by its path in the main checkout from a worktree whose branch lacks it.
+`scripts/try-plugin.ts` is that launch with `--debug`, the function-hooks flag and the
+plugin's `bun install`. The owner's shell calls it `tp`.
+
+- `try-plugin.ts` alone asks two questions through `fzf`: which plugin, then which
+  source. The first screen carries each plugin's installed version, its version on
+  `dev`, and whether work on it exists outside `dev`; the second, each source's version,
+  where it sits on disk, the date of its last commit on that plugin and how far ahead of
+  `dev` it runs. `Esc` on either leaves at `130`, having launched and created nothing.
+- `try-plugin.ts <plugin>` skips the first screen.
+- `try-plugin.ts <plugin>... [-- <claude args>]` skips both screens and reads the
+  checkout it is run from, as the bash launcher did.
+- `try-plugin.ts --list` prints one plugin name per line, for shell completion.
+
+A source is a worktree on disk, or a ref carrying commits on that plugin `dev` does not
+have. Version numbers decide nothing: the histories here were rewritten, so a ref can
+sit at `dev`'s version and still hold three commits `dev` never saw.
+
+Picking a ref with no worktree **creates one** under `<main checkout>.wt/<ref>` and
+leaves it there; nothing cleans it up. A remote ref with no local branch lands on a
+detached HEAD, and the screen says so before the session starts.
+
+It reads the checkout it is run from, and the one it lives in when the shell sits
+outside the repository, so it also works from `/tmp`.
 
 - `command claude`, not `claude`: the owner's shell function injects
   `--dangerously-skip-permissions` into every plain `claude` launch, and it
