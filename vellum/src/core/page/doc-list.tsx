@@ -2,20 +2,13 @@ import type { DocGroup, DocRef, GroupedDoc } from "../protocol.ts";
 import { Badge } from "./kit.tsx";
 import { annotations, currentDoc, docs, editing, select } from "./state.ts";
 
-function imageKind(_mediaType: `image/${string}`): string {
-  return "Image";
-}
-
-function kindOf(doc: DocRef): string {
-  if (doc.mediaType === "text/markdown") return "Markdown";
-
-  if (doc.mediaType === "text/html") return "HTML";
-
-  return imageKind(doc.mediaType);
-}
-
 function nameOf(doc: DocRef): string {
   return doc.path.split("/").at(-1) ?? doc.path;
+}
+
+/** The folder's last segment; "" at the project root, where the column is not drawn. */
+function dirOf(path: string): string {
+  return path.split("/").at(-2) ?? "";
 }
 
 function count(path: string): number {
@@ -31,15 +24,16 @@ export function DocList(): preact.JSX.Element {
   const artifacts = inGroup(docs.value, "artifact");
   const cited = inGroup(docs.value, "cited");
 
-  const item = (doc: DocRef, name: string, kind: string): preact.JSX.Element => (
+  const item = (doc: DocRef, name: string, dir: string): preact.JSX.Element => (
     <button
       type="button"
       key={doc.path}
+      title={doc.path}
       aria-selected={currentDoc.value?.path === doc.path}
       onClick={() => select(doc.path)}
     >
       <span class="name">{name}</span>
-      <span class="kind">{kind}</span>
+      {dir !== "" && <span class="dir">{dir}</span>}
       {count(doc.path) > 0 && <Badge>{count(doc.path)}</Badge>}
     </button>
   );
@@ -48,11 +42,19 @@ export function DocList(): preact.JSX.Element {
     <nav class="rail" aria-label="Documents" inert={editing.value !== null}>
       {plans.length > 0 && <h5>Plan</h5>}
       {plans.map((doc) => item(doc, "Plan", nameOf(doc).replace(".md", "")))}
-      <h5>Artifacts</h5>
+      <h5>
+        Artifacts <span class="n">{artifacts.length}</span>
+      </h5>
       {artifacts.length === 0 && <div class="empty">No files yet</div>}
-      {artifacts.map((doc) => item(doc, nameOf(doc), kindOf(doc)))}
-      {cited.length > 0 && <h5>Cited in the plan</h5>}
-      {cited.map((doc) => item(doc, nameOf(doc), kindOf(doc)))}
+      {artifacts.map((doc) => item(doc, nameOf(doc), ""))}
+      {cited.length > 0 && (
+        <div class="away">
+          <h5>
+            Cited in the plan <span class="n">{cited.length}</span>
+          </h5>
+          {cited.map((doc) => item(doc, nameOf(doc), dirOf(doc.path)))}
+        </div>
+      )}
     </nav>
   );
 }

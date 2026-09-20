@@ -116,14 +116,20 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--redline)
 
 .body { flex: 1; min-height: 0; display: flex; position: relative; }
 .rail { width: 220px; flex: none; border-right: 1px solid var(--rule); padding: var(--s-3) var(--s-2); overflow: auto; display: flex; flex-direction: column; gap: 2px; background: var(--tint); }
-.rail h5 { font: 650 var(--t-12)/1 var(--serif); color: var(--graphite); margin: var(--s-3) var(--s-2) var(--s-1); }
 .rail button { font: 500 var(--t-13)/1.4 var(--serif); background: transparent; border: 0; color: var(--ink); cursor: pointer; text-align: left; padding: var(--s-1) var(--s-2); border-radius: var(--r-sm); display: flex; align-items: center; gap: var(--s-2); transition: background var(--transition); }
 .rail button:hover:not([aria-selected="true"]) { background: var(--sheet); }
 .rail button .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--mono-optical); }
 .rail button[aria-selected="true"] { background: var(--ink); color: var(--sheet); }
-.rail .kind { font-size: var(--t-12); color: var(--graphite); }
-.rail button[aria-selected="true"] .kind { color: inherit; opacity: 0.7; }
 .rail .empty { font-size: var(--t-13); color: var(--graphite); padding: var(--s-1) var(--s-2); }
+.rail h5 { font: 650 var(--t-12)/1 var(--serif); color: var(--graphite); margin: var(--s-4) var(--s-2) var(--s-1); display: flex; align-items: center; gap: var(--s-2); }
+.rail h5::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+.rail h5:first-child { margin-top: 0; }
+.rail h5 .n { font-family: var(--mono); font-weight: 400; }
+.rail .dir { font-family: var(--mono); font-size: var(--t-12); color: var(--graphite); max-width: 11ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; }
+.rail button[aria-selected="true"] .dir { color: inherit; opacity: 0.75; }
+.rail .away { flex: 1 0 auto; margin: var(--s-3) calc(var(--s-2) * -1) calc(var(--s-3) * -1); padding: var(--s-1) var(--s-2) 0; background: var(--desk); border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: 2px; }
+.rail .away h5 { margin-top: var(--s-2); }
+.rail .away h5::after { background: color-mix(in oklab, var(--rule) 65%, transparent); }
 kbd { font: 600 var(--t-12)/1.4 var(--mono); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: var(--r-sm); padding: 0 var(--s-1); background: var(--sheet); color: var(--ink); }
 .badge { display: inline-block; min-width: 1.5em; padding: 0 var(--s-2); border-radius: var(--r-pill); background: var(--redline); color: var(--sheet); font: 650 var(--t-12)/1.5 var(--serif); text-align: center; }
 .btn.send .badge { background: var(--sheet); color: var(--redline); }
