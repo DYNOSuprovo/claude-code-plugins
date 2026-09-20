@@ -9,7 +9,8 @@ paths:
 `src/core/page/` is the Preact page: `api.ts` the client (token, routes, SSE), `state.ts` the store of
 signals, `kit.tsx` the components every other `.tsx` draws with, `*.tsx` the rest of them,
 `style.css` and `fonts/` the design system, `anchoring.ts` and `highlights.ts` the text selection,
-`editor.tsx` and `caret.ts` the plan's source editor. The renderers are the page halves of
+`editor.tsx` and `caret.ts` the plan's source editor, `rail.ts` what a line of the rail prints,
+purely, so it is tested without the store. The renderers are the page halves of
 the extensions; what an extension is and how one is added is `extensions.md`, which loads
 with the same files. One bundle is a browser's: `Bun.serve` builds it from
 `src/core/page/index.html` at the first request for the page,
