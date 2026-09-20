@@ -240,11 +240,11 @@ export function removeAnnotation(id: string): void {
   annotations.value = annotations.value.filter((annotation) => annotation.id !== id);
 }
 
-export function select(path: ProjectPath | null): void {
+export function select(path: ProjectPath): void {
   if (editing.value !== null) return;
   current.value = path;
 
-  if (path === null || path === planDoc.value?.path) split.value = false;
+  if (path === planDoc.value?.path) split.value = false;
 }
 
 /** Never rejects: the saves are chained, and one rejection would silence every save after it. */
