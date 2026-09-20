@@ -50,6 +50,7 @@ export function DocList(): preact.JSX.Element {
         >
           <span class="lead">Plan</span>
           <span class="ver">{planLabel(workspace)}</span>
+          {count(plan.path) > 0 && <Badge>{count(plan.path)}</Badge>}
         </button>
       )}
       <h5>

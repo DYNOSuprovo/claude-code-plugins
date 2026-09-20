@@ -133,6 +133,7 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--redline)
 .rail .plate { width: 100%; align-items: baseline; background: var(--sheet); border: 1px solid var(--rule); box-shadow: inset 3px 0 0 var(--ink); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3); margin-bottom: var(--s-1); }
 .rail .plate .lead { font: 650 var(--t-14)/1.2 var(--serif); flex: 1; }
 .rail .plate .ver { font-family: var(--mono); font-size: var(--t-12); color: var(--graphite); }
+.rail .plate:hover:not([aria-selected="true"]) { background: color-mix(in oklab, var(--desk) 20%, var(--sheet)); }
 .rail .plate[aria-selected="true"] { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
 .rail .plate[aria-selected="true"] .ver { color: inherit; opacity: 0.75; }
 kbd { font: 600 var(--t-12)/1.4 var(--mono); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: var(--r-sm); padding: 0 var(--s-1); background: var(--sheet); color: var(--ink); }
