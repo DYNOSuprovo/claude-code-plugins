@@ -26,4 +26,13 @@ describe("markedIndices", () => {
     const blocks = [block("tr", "2-2"), block("td", "2-2")];
     expect([...markedIndices(blocks, [[2, 2]])]).toEqual([0]);
   });
+
+  test("a diagram is marked: the DOM draws a mermaid block as a figure", () => {
+    expect([...markedIndices([block("figure", "4-8")], [[5, 5]])]).toEqual([0]);
+  });
+
+  test("a diagram inside a list item is marked, never the item", () => {
+    const blocks = [block("li", "1-6"), block("figure", "2-6")];
+    expect([...markedIndices(blocks, [[3, 3]])]).toEqual([1]);
+  });
 });

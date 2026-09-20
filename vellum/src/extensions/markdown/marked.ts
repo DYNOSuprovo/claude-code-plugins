@@ -3,6 +3,9 @@ import { BLOCK_TAGS } from "./changes.ts";
 /** A rendered block as the DOM shows it: its tag and its `data-lines`. */
 export type LinedBlock = { readonly tag: string; readonly lines: string };
 
+/** `BLOCK_TAGS` names the hast's blocks; the page draws the hast's mermaid `pre` as a `figure`. */
+const DOM_BLOCK_TAGS: ReadonlySet<string> = new Set([...BLOCK_TAGS, "figure"]);
+
 /**
  * Which blocks carry the margin fillet of a commented passage: for each line of `passages`, the
  * innermost block holding it. `blocks` is in document order, so an outer block comes before the
@@ -15,7 +18,7 @@ export function markedIndices(
   const spans = blocks.map(({ tag, lines }) => {
     const match = /^(\d+)-(\d+)$/u.exec(lines);
 
-    return match === null || !BLOCK_TAGS.has(tag)
+    return match === null || !DOM_BLOCK_TAGS.has(tag)
       ? null
       : { start: Number(match[1]), end: Number(match[2]) };
   });
