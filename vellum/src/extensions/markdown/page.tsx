@@ -170,9 +170,11 @@ let diagrams = 0;
 /** Mermaid draws in the page after the mount; its bundle loads on the first diagram only. */
 async function drawDiagrams(root: HTMLElement, night: boolean): Promise<void> {
   const figures = [...root.querySelectorAll<HTMLElement>("figure.mermaid")];
+  const [first] = figures;
 
-  if (figures.length === 0) return;
+  if (first === undefined) return;
   const { default: mermaid } = await import("mermaid");
+  const { fontFamily, fontSize } = getComputedStyle(first);
   const sheet = srgb("--sheet");
   const tint = srgb("--tint");
   const ink = srgb("--ink");
@@ -201,8 +203,10 @@ async function drawDiagrams(root: HTMLElement, night: boolean): Promise<void> {
       clusterBorder: srgb("--rule"),
       edgeLabelBackground: sheet,
       titleColor: ink,
-      fontFamily: getComputedStyle(document.documentElement).getPropertyValue("--mono").trim(),
-      fontSize: "13px",
+      // The base theme's shadow is a grey literal: a halo on the dark sheet.
+      dropShadow: "none",
+      fontFamily,
+      fontSize,
     },
   });
 

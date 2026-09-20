@@ -168,7 +168,7 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .plan .hljs-title, .plan .hljs-name, .plan .hljs-section, .plan .hljs-property { color: var(--code-name); }
 .plan .hljs-addition { color: var(--code-string); }
 .plan .hljs-deletion { color: var(--redline); }
-.plan figure.mermaid { margin: var(--s-2) 0 var(--s-3); padding: var(--s-3); background: var(--tint); border-radius: var(--r-md); overflow: auto; }
+.plan figure.mermaid { margin: var(--s-2) 0 var(--s-3); padding: var(--s-3); background: var(--tint); border-radius: var(--r-md); overflow: auto; font-family: var(--mono); font-size: var(--t-13); }
 .plan figure.mermaid svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
 .plan figure.mermaid.commented { outline: 2px solid var(--marker); }
 .plan figure.mermaid.picked { outline: 2px dashed var(--redline); }
