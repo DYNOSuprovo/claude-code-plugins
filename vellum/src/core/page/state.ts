@@ -247,15 +247,6 @@ export function select(path: ProjectPath | null): void {
   if (path === null || path === planDoc.value?.path) split.value = false;
 }
 
-export function step(direction: 1 | -1): void {
-  const list = docs.value;
-
-  if (list.length === 0) return;
-  const at = list.findIndex((doc) => doc.path === currentDoc.value?.path);
-  const next = list[(at + direction + list.length) % list.length];
-  select(next?.path ?? null);
-}
-
 /** Never rejects: the saves are chained, and one rejection would silence every save after it. */
 async function saveDraft(draft: Draft): Promise<void> {
   try {

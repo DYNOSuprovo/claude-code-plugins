@@ -45,9 +45,6 @@ export function DocList(): preact.JSX.Element {
       <h5>Artifacts</h5>
       {linked.length === 0 && <div class="empty">No files yet</div>}
       {linked.map((doc) => item(doc, nameOf(doc), kindOf(doc)))}
-      <div class="hint">
-        <kbd>[</kbd> <kbd>]</kbd> previous, next
-      </div>
     </nav>
   );
 }

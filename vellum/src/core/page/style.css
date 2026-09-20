@@ -124,7 +124,6 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--redline)
 .rail .kind { font-size: var(--t-12); color: var(--graphite); }
 .rail button[aria-selected="true"] .kind { color: inherit; opacity: 0.7; }
 .rail .empty { font-size: var(--t-13); color: var(--graphite); padding: var(--s-1) var(--s-2); }
-.rail .hint { margin-top: auto; padding: var(--s-2); font-size: var(--t-12); color: var(--graphite); }
 kbd { font: 600 var(--t-12)/1.4 var(--mono); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: var(--r-sm); padding: 0 var(--s-1); background: var(--sheet); color: var(--ink); }
 .badge { display: inline-block; min-width: 1.5em; padding: 0 var(--s-2); border-radius: var(--r-pill); background: var(--redline); color: var(--sheet); font: 650 var(--t-12)/1.5 var(--serif); text-align: center; }
 .btn.send .badge { background: var(--sheet); color: var(--redline); }
