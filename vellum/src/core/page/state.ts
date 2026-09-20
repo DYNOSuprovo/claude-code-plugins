@@ -3,9 +3,9 @@ import { batch, computed, effect, signal } from "@preact/signals";
 import type {
   Annotation,
   Decision,
-  DocRef,
   Draft,
   Edit,
+  GroupedDoc,
   LineDiff,
   ReviewView,
 } from "../protocol.ts";
@@ -75,13 +75,13 @@ export const error = signal<string | null>(null);
 
 export const connection = signal<"up" | "down">("up");
 
-export const planDoc = computed<DocRef | null>(() => {
+export const planDoc = computed<GroupedDoc | null>(() => {
   const plan = review.value?.plan;
 
   // A version's file never changes: its path is the whole key.
   return plan === null || plan === undefined
     ? null
-    : { path: plan.doc, mediaType: "text/markdown", modified: 0 };
+    : { path: plan.doc, mediaType: "text/markdown", modified: 0, group: "plan" };
 });
 
 const planText = computed(() => edited.value?.text ?? review.value?.plan?.text ?? null);
@@ -99,7 +99,7 @@ export const planChanges = computed<LineDiff | null>(() =>
     : lineDiff(previousText.value, planText.value),
 );
 
-export const docs = computed<readonly DocRef[]>(() => {
+export const docs = computed<readonly GroupedDoc[]>(() => {
   const plan = planDoc.value;
   const listed = review.value?.docs ?? [];
 
@@ -107,7 +107,7 @@ export const docs = computed<readonly DocRef[]>(() => {
 });
 
 /** The selected document, or, once a version or an approval took it off the list, the plan or the first one. */
-export const currentDoc = computed<DocRef | null>(() => {
+export const currentDoc = computed<GroupedDoc | null>(() => {
   const list = docs.value;
 
   return list.find((doc) => doc.path === current.value) ?? planDoc.value ?? list[0] ?? null;
