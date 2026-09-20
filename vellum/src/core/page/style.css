@@ -130,6 +130,11 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--redline)
 .rail .away { flex: 1 0 auto; margin: var(--s-3) calc(var(--s-2) * -1) calc(var(--s-3) * -1); padding: var(--s-1) var(--s-2) 0; background: var(--desk); border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: 2px; }
 .rail .away h5 { margin-top: var(--s-2); }
 .rail .away h5::after { background: color-mix(in oklab, var(--rule) 65%, transparent); }
+.rail .plate { width: 100%; align-items: baseline; background: var(--sheet); border: 1px solid var(--rule); box-shadow: inset 3px 0 0 var(--ink); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3); margin-bottom: var(--s-1); }
+.rail .plate .lead { font: 650 var(--t-14)/1.2 var(--serif); flex: 1; }
+.rail .plate .ver { font-family: var(--mono); font-size: var(--t-12); color: var(--graphite); }
+.rail .plate[aria-selected="true"] { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
+.rail .plate[aria-selected="true"] .ver { color: inherit; opacity: 0.75; }
 kbd { font: 600 var(--t-12)/1.4 var(--mono); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: var(--r-sm); padding: 0 var(--s-1); background: var(--sheet); color: var(--ink); }
 .badge { display: inline-block; min-width: 1.5em; padding: 0 var(--s-2); border-radius: var(--r-pill); background: var(--redline); color: var(--sheet); font: 650 var(--t-12)/1.5 var(--serif); text-align: center; }
 .btn.send .badge { background: var(--sheet); color: var(--redline); }

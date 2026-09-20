@@ -1,6 +1,6 @@
-import type { DocGroup, DocRef, GroupedDoc } from "../protocol.ts";
+import type { DocGroup, DocRef, GroupedDoc, PlanWorkspace } from "../protocol.ts";
 import { Badge } from "./kit.tsx";
-import { annotations, currentDoc, docs, editing, select } from "./state.ts";
+import { annotations, currentDoc, docs, editing, review, select } from "./state.ts";
 
 function nameOf(doc: DocRef): string {
   return doc.path.split("/").at(-1) ?? doc.path;
@@ -9,6 +9,11 @@ function nameOf(doc: DocRef): string {
 /** The folder's last segment; "" at the project root, where the column is not drawn. */
 function dirOf(path: string): string {
   return path.split("/").at(-2) ?? "";
+}
+
+/** What the plate prints beside `Plan`: `draft` before the first version, `v<n>` after. */
+function planLabel(workspace: PlanWorkspace): string {
+  return workspace.kind === "drafting" ? "draft" : `v${workspace.version}`;
 }
 
 function count(path: string): number {
@@ -20,6 +25,7 @@ function inGroup(list: readonly GroupedDoc[], group: DocGroup): readonly Grouped
 }
 
 export function DocList(): preact.JSX.Element {
+  const workspace = review.value?.workspace;
   const plans = inGroup(docs.value, "plan");
   const artifacts = inGroup(docs.value, "artifact");
   const cited = inGroup(docs.value, "cited");
@@ -40,8 +46,19 @@ export function DocList(): preact.JSX.Element {
 
   return (
     <nav class="rail" aria-label="Documents" inert={editing.value !== null}>
-      {plans.length > 0 && <h5>Plan</h5>}
-      {plans.map((doc) => item(doc, "Plan", nameOf(doc).replace(".md", "")))}
+      {workspace !== undefined &&
+        plans.map((doc) => (
+          <button
+            type="button"
+            class="plate"
+            key={doc.path}
+            aria-selected={currentDoc.value?.path === doc.path}
+            onClick={() => select(doc.path)}
+          >
+            <span class="lead">Plan</span>
+            <span class="ver">{planLabel(workspace)}</span>
+          </button>
+        ))}
       <h5>
         Artifacts <span class="n">{artifacts.length}</span>
       </h5>

@@ -64,10 +64,14 @@ no build step, so what the page imports costs nothing at `cli start`.
   badge is the unfiltered total, the one count a folded panel still shows. The signal starts on
   `(max-width: 900px)`, the threshold `style.css` repeats in the media query where an open panel
   lays over the document.
-- The page draws in every state, `drafting` included: `review.docs` is the working directory's
-  renderable files, the plan at the head once there is one. A reader finds the plan by
-  `planDoc`'s path, as `DocList` does, never by its place in `docs`. Comments are taken while
-  `inReview` and while `drafting`, so `locked` names two states, not one, and Approve is drawn
+- The page draws in every state, `drafting` included. `review.docs` is a list of `GroupedDoc`:
+  the server, the one place that knows where a file came from, labels each `"plan"`,
+  `"artifact"` (a renderable file of the working directory) or `"cited"` (a file the plan links
+  outside it), and the rail filters on that label, never on a path. While `drafting` the working
+  copy `plan.md` heads the list as `"plan"`; once a version exists the plan is `review.plan`,
+  which `planDoc` of `state.ts` puts at the head with the same label. A reader finds the plan by
+  that label, as `DocList` does, or by `planDoc`'s path, never by its place in `docs`. Comments
+  are taken while `inReview` and while `drafting`, so `locked` names two states, not one, and Approve is drawn
   only where a version exists. `locked` reads `takesComments`, the domain's predicate the server
   holds a draft to as well. A renderer never reads `inputMethod`: it reads `activeMethod`, which
   is `null` on a locked page, so no composer opens there, and `addAnnotation` returns when
