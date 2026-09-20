@@ -235,6 +235,8 @@ describe("hook subprocess", () => {
     expect(existsSync(markerFile())).toBe(true);
   });
 
+  // shfmt and Bun's shell reword these errors between releases. The hook owns
+  // the prefix and passing a non-empty message through, never its wording.
   test("returns a formatter failure as context", async () => {
     const script = join(projectDir, "broken.sh");
     writeFileSync(script, "if true; then\n");
@@ -246,9 +248,7 @@ describe("hook subprocess", () => {
     expect(JSON.parse(stdout)).toEqual({
       hookSpecificOutput: {
         hookEventName: "PostToolUse",
-        additionalContext: expect.stringMatching(
-          /^`shfmt` failed on `broken\.sh`:\n.*statement list/su,
-        ),
+        additionalContext: expect.stringMatching(/^`shfmt` failed on `broken\.sh`:\n\S/u),
       },
     });
   });
@@ -264,9 +264,7 @@ describe("hook subprocess", () => {
     expect(JSON.parse(stdout)).toEqual({
       hookSpecificOutput: {
         hookEventName: "PostToolUse",
-        additionalContext: expect.stringMatching(
-          /^`shfmt` failed on `a\.sh`:\n.*command not found/su,
-        ),
+        additionalContext: expect.stringMatching(/^`shfmt` failed on `a\.sh`:\n\S/u),
       },
     });
   });
