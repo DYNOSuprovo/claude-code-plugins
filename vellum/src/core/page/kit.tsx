@@ -5,7 +5,10 @@ import type { ComponentChildren, JSX } from "preact";
  * button, badge, chip, banner and popover of the core and of the extensions is drawn with.
  */
 
-export type ButtonProps = Omit<JSX.IntrinsicElements["button"], "size" | "class" | "className"> & {
+export type ButtonProps = Omit<
+  JSX.IntrinsicElements["button"],
+  "size" | "class" | "className" | "ref"
+> & {
   readonly variant?: "default" | "send" | "grill";
   readonly size?: "md" | "sm";
   readonly class?: string | undefined;
@@ -33,7 +36,7 @@ export function Badge(props: { readonly children: ComponentChildren }): JSX.Elem
   return <span class="badge">{props.children}</span>;
 }
 
-export type ChipProps = Omit<JSX.IntrinsicElements["button"], "class" | "className"> & {
+export type ChipProps = Omit<JSX.IntrinsicElements["button"], "class" | "className" | "ref"> & {
   readonly tone?: "default" | "del";
 };
 
