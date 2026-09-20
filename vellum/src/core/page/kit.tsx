@@ -2,7 +2,7 @@ import type { ComponentChildren, JSX } from "preact";
 
 /**
  * The page's components, each one a class of `style.css` spelled in one place: what every
- * button, badge, chip, banner and popover of the core and of the extensions is drawn with.
+ * button, badge, chip, tag, banner and popover of the core and of the extensions is drawn with.
  */
 
 export type ButtonProps = Omit<
@@ -48,6 +48,11 @@ export function Chip(props: ChipProps): JSX.Element {
       {children}
     </button>
   );
+}
+
+/** A chip that shows a label and takes no click: `Chip` is a button. */
+export function Tag(props: { readonly children: ComponentChildren }): JSX.Element {
+  return <span class="chip">{props.children}</span>;
 }
 
 export type BannerKind = "sent" | "ok" | "err";

@@ -26,9 +26,9 @@ no build step, so what the page imports costs nothing at `cli start`.
   `--serif` (Literata), code and literals (a path, a version, the diff count, a key) are
   `--mono` (JetBrains Mono), and the chrome reads as prose. The fonts ship in `fonts/`, each
   under the bundler's inlining threshold, so they arrive inside the CSS chunk.
-- A button, badge, chip, banner or popover is drawn through `kit.tsx`, never through a class
-  spelled at the call; `kit.tsx` is in `PAGE_SURFACE`, so an extension draws with the same
-  five. A token consumed outside CSS (Mermaid's `themeVariables`, the frame's overlay) parses
+- A button, badge, chip, tag, banner or popover is drawn through `kit.tsx`, never through a
+  class spelled at the call; `kit.tsx` is in `PAGE_SURFACE`, so an extension draws with the same
+  six. A `Chip` is a button; what shows a label and takes no click is a `Tag`. A token consumed outside CSS (Mermaid's `themeVariables`, the frame's overlay) parses
   neither `color-mix()` nor the `oklab()` the browser serializes once computed: it goes through
   `srgb()`, which yields sRGB, and the consumer redraws on the `dark` signal of `state.ts`.
 - A commented block carries a fillet in the sheet's margin: `markdown/marked.ts` chooses,

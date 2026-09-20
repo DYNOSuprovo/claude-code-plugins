@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 
 import type { Anchor, Annotation, Mark } from "../protocol.ts";
 import { DELETE_SENTENCE, QUICK_LABELS } from "../protocol.ts";
-import { Button } from "./kit.tsx";
+import { Button, Tag } from "./kit.tsx";
 import {
   addAnnotation,
   annotations,
@@ -46,7 +46,7 @@ function MarkWords(props: { readonly mark: Mark }): preact.JSX.Element {
 
   return (
     <div>
-      <span class="chip">{QUICK_LABELS[mark.label].name}</span>
+      <Tag>{QUICK_LABELS[mark.label].name}</Tag>
       {mark.body !== "" && <div>{mark.body}</div>}
     </div>
   );
