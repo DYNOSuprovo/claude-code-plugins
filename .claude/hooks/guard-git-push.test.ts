@@ -308,4 +308,17 @@ describe("subprocess integration", () => {
 
     expect(exitCode).toBe(HOOK_EXIT.ALLOW);
   });
+
+  for (const [label, projectDir] of [
+    ["empty", ""],
+    ["the other repo", tmpDir],
+  ] as const) {
+    test(`allows a main push in another repo when CLAUDE_PROJECT_DIR is ${label}`, async () => {
+      const { exitCode } = await runHook(`cd ${tmpDir} && git push origin dev:main`, {
+        CLAUDE_PROJECT_DIR: projectDir,
+      });
+
+      expect(exitCode).toBe(HOOK_EXIT.ALLOW);
+    });
+  }
 });

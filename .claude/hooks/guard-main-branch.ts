@@ -48,8 +48,10 @@ export function getCurrentBranch(cwd?: string): string | null {
   return result.stdout.toString().trim();
 }
 
-export function getRepoRoot(cwd?: string): string | null {
-  const result = Bun.spawnSync(["git", "rev-parse", "--show-toplevel"], {
+// The common git dir, not the toplevel: every linked worktree of a repo shares
+// it, so a worktree on a protected branch stays guarded.
+export function getRepoIdentity(cwd: string): string | null {
+  const result = Bun.spawnSync(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], {
     cwd,
     stdout: "pipe",
     stderr: "pipe",
@@ -60,6 +62,17 @@ export function getRepoRoot(cwd?: string): string | null {
   return result.stdout.toString().trim();
 }
 
+// The guarded repo is the one this file lives in: the file does not move,
+// while CLAUDE_PROJECT_DIR and the shell cwd both drift. Other repos have
+// their own conventions and aren't ours to police.
+export function isForeignRepo(cwd: string): boolean {
+  const ownIdentity = getRepoIdentity(import.meta.dir);
+  const targetIdentity = getRepoIdentity(cwd);
+
+  return ownIdentity !== null && targetIdentity !== null && ownIdentity !== targetIdentity;
+}
+
+// TODO: `git -C <path> commit` is not read; the hook's cwd decides for it.
 // Extract the target directory of a leading `cd <path> &&` (or `;`) clause.
 // Returns null if no leading cd is present. Quoted paths are unquoted.
 export function extractCdTarget(cmd: string): string | null {
@@ -101,23 +114,9 @@ if (import.meta.main) {
 
   if (!isBranchMutatingCommand(cmd)) process.exit(HOOK_EXIT.ALLOW);
 
-  // If the command targets a different repo via a leading `cd`, only enforce
-  // when that repo is the same as the hook's project repo. Other repos have
-  // their own conventions and aren't ours to police.
-  const cdTarget = extractCdTarget(cmd);
-  const effectiveCwd = cdTarget ?? undefined;
+  const effectiveCwd = extractCdTarget(cmd) ?? process.cwd();
 
-  if (cdTarget) {
-    const targetRoot = getRepoRoot(cdTarget);
-    // Resolve the project repo from CLAUDE_PROJECT_DIR, not the hook's cwd:
-    // the shell cwd drifts across calls, and a drifted cwd would make the
-    // project repo look identical to the target and re-police other repos.
-    const projectRoot = getRepoRoot(process.env["CLAUDE_PROJECT_DIR"]);
-
-    if (targetRoot && projectRoot && targetRoot !== projectRoot) {
-      process.exit(HOOK_EXIT.ALLOW);
-    }
-  }
+  if (isForeignRepo(effectiveCwd)) process.exit(HOOK_EXIT.ALLOW);
 
   const branch = getCurrentBranch(effectiveCwd);
 

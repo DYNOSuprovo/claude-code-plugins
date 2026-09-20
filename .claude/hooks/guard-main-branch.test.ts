@@ -1,4 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { HOOK_EXIT } from "./guard-destructive.ts";
 import {
@@ -314,5 +317,98 @@ describe("subprocess integration", () => {
     });
 
     expect(await proc.exited).toBe(HOOK_EXIT.ALLOW);
+  });
+
+  async function runHookInOtherRepo(command: string, projectDir: string) {
+    Bun.spawnSync(
+      ["git", "--git-dir", `${tmpDir}/.git`, "symbolic-ref", "HEAD", "refs/heads/main"],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+
+    const proc = Bun.spawn(["bun", hookPath], {
+      stdin: new Blob([JSON.stringify({ tool_input: { command } })]),
+      stdout: "pipe",
+      stderr: "pipe",
+      cwd: tmpDir,
+      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
+    });
+
+    return await proc.exited;
+  }
+
+  for (const [label, projectDir] of [
+    ["empty", ""],
+    ["the other repo", tmpDir],
+  ] as const) {
+    test(`allows cd-prefixed commit on another repo's main when CLAUDE_PROJECT_DIR is ${label}`, async () => {
+      const exitCode = await runHookInOtherRepo(`cd ${tmpDir} && git commit -m 'x'`, projectDir);
+      expect(exitCode).toBe(HOOK_EXIT.ALLOW);
+    });
+  }
+
+  test("allows a commit without cd when the hook's cwd is another repo on main", async () => {
+    const exitCode = await runHookInOtherRepo("git commit -m 'x'", `${import.meta.dir}/../..`);
+    expect(exitCode).toBe(HOOK_EXIT.ALLOW);
+  });
+});
+
+// -- integration: the repo that carries the hook stays guarded ----------------
+
+describe("own repo", () => {
+  let fixture = "";
+  let worktree = "";
+  let copiedHook = "";
+
+  beforeAll(() => {
+    fixture = mkdtempSync(join(tmpdir(), "guard-main-branch-own-"));
+    worktree = `${fixture}-wt`;
+    copiedHook = `${fixture}/.claude/hooks/guard-main-branch.ts`;
+
+    const init = Bun.spawnSync(
+      [
+        "bash",
+        "-c",
+        [
+          `cd "${fixture}"`,
+          "git init -q -b main",
+          // CI runners carry no git identity; the commit below needs one.
+          'git config user.email "test@test.com"',
+          'git config user.name "Test"',
+          "git commit --allow-empty -m init -q",
+          "git branch master",
+          `git worktree add -q "${worktree}" master`,
+          "mkdir -p .claude/hooks",
+          `cp "${import.meta.dir}/guard-main-branch.ts" "${import.meta.dir}/guard-destructive.ts" .claude/hooks/`,
+        ].join(" && "),
+      ],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+
+    if (init.exitCode !== 0) {
+      throw new Error(`Failed to create own-repo fixture: ${init.stderr.toString()}`);
+    }
+  });
+
+  afterAll(() => {
+    Bun.spawnSync(["rm", "-rf", fixture, worktree]);
+  });
+
+  async function runCopiedHook(command: string) {
+    const proc = Bun.spawn(["bun", copiedHook], {
+      stdin: new Blob([JSON.stringify({ tool_input: { command } })]),
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, CLAUDE_PROJECT_DIR: "" },
+    });
+
+    return await proc.exited;
+  }
+
+  test("blocks a commit on main from the main checkout", async () => {
+    expect(await runCopiedHook(`cd ${fixture} && git commit -m 'x'`)).toBe(HOOK_EXIT.BLOCK);
+  });
+
+  test("blocks a commit on master from a linked worktree", async () => {
+    expect(await runCopiedHook(`cd ${worktree} && git commit -m 'x'`)).toBe(HOOK_EXIT.BLOCK);
   });
 });

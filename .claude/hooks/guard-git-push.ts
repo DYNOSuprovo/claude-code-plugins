@@ -28,7 +28,7 @@
  */
 
 import { HOOK_EXIT, parseHookInput, stripStringLiterals } from "./guard-destructive.ts";
-import { extractCdTarget, getCurrentBranch, getRepoRoot } from "./guard-main-branch.ts";
+import { extractCdTarget, getCurrentBranch, isForeignRepo } from "./guard-main-branch.ts";
 
 export interface PushTarget {
   readonly ref: string;
@@ -178,18 +178,11 @@ if (import.meta.main) {
 
   if (push.kind === "not-push") process.exit(HOOK_EXIT.ALLOW);
 
-  const cdTarget = extractCdTarget(cmd);
+  const effectiveCwd = extractCdTarget(cmd) ?? process.cwd();
 
-  if (cdTarget) {
-    const targetRoot = getRepoRoot(cdTarget);
-    const projectRoot = getRepoRoot(process.env["CLAUDE_PROJECT_DIR"]);
+  if (isForeignRepo(effectiveCwd)) process.exit(HOOK_EXIT.ALLOW);
 
-    if (targetRoot && projectRoot && targetRoot !== projectRoot) {
-      process.exit(HOOK_EXIT.ALLOW);
-    }
-  }
-
-  const verdict = decide(push, getCurrentBranch(cdTarget ?? undefined));
+  const verdict = decide(push, getCurrentBranch(effectiveCwd));
 
   if (verdict.kind === "deny") {
     console.error(`BLOCKED: ${verdict.reason}`);
