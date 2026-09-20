@@ -266,8 +266,32 @@ describe("Review", () => {
     expect(view.workspace.kind).toBe("inReview");
     expect(view.plan?.doc).toBe(`${WIP}.review/v1.md` as never);
     expect(view.docs).toEqual([
-      { path: `${WIP}mockup.html` as never, mediaType: "text/html", modified: expect.any(Number) },
+      {
+        path: `${WIP}mockup.html` as never,
+        mediaType: "text/html",
+        modified: expect.any(Number),
+        group: "artifact",
+      },
     ]);
+  });
+
+  test("view under review groups a file the plan links outside its directory as cited", async () => {
+    const s = setup();
+    mkdirSync(join(s.root, "docs"));
+    writeFileSync(join(s.root, "docs", "guide.md"), "# Guide\n");
+    writeFileSync(join(s.root, WIP, "plan.md"), "# Plan\n\nSee [guide](docs/guide.md).\n");
+    await s.review.gate();
+    const view = await s.review.view();
+    expect(view.docs.map((doc) => [doc.path, doc.group])).toEqual([
+      [`${WIP}mockup.html` as never, "artifact"],
+      ["docs/guide.md" as never, "cited"],
+    ]);
+  });
+
+  test("a plan under review that writes `plan.md` does not bring its working copy back", async () => {
+    const { review } = await gated("# Plan\n\nThe working copy is `plan.md`.\n");
+    const view = await review.view();
+    expect(view.docs.map((doc) => doc.path)).toEqual([`${WIP}mockup.html` as never]);
   });
 
   test("view carries no previous text at v1, and v1's text at v2", async () => {
@@ -300,9 +324,19 @@ describe("Review", () => {
     const view = await review.view();
     expect(view.plan).toBeNull();
     expect(view.docs.map((doc) => doc.path)).toEqual([
-      `${WIP}mockup.html` as never,
       `${WIP}plan.md` as never,
+      `${WIP}mockup.html` as never,
       `${WIP}sub/a.md` as never,
+    ]);
+  });
+
+  test("view while drafting groups plan.md as the plan, and the rest as artifacts", async () => {
+    const { review, root } = setup();
+    writeFileSync(join(root, WIP, "plan.md"), "# Draft\n");
+    const view = await review.view();
+    expect(view.docs.map((doc) => [doc.path, doc.group])).toEqual([
+      [`${WIP}plan.md` as never, "plan"],
+      [`${WIP}mockup.html` as never, "artifact"],
     ]);
   });
 

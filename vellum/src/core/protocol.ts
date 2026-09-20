@@ -43,6 +43,12 @@ export type DocLink = { readonly path: ProjectPath; readonly mediaType: MediaTyp
 /** `modified` is the file's mtime in ms: the page refetches a document when it changes. */
 export type DocRef = DocLink & { readonly modified: number };
 
+/** Where a document comes from, seen from the plan: the plan itself, a file of its directory, a file it cites. */
+export type DocGroup = "plan" | "artifact" | "cited";
+
+/** A document as the review classes it. `DocRef` stays what a file is, with no origin. */
+export type GroupedDoc = DocRef & { readonly group: DocGroup };
+
 export type ReviewView = {
   readonly workspace: PlanWorkspace;
   readonly plan: {
@@ -51,7 +57,7 @@ export type ReviewView = {
     /** The version before this one, for the page to diff against; `null` at v1. */
     readonly previous: { readonly version: Version; readonly text: string } | null;
   } | null;
-  readonly docs: readonly DocRef[];
+  readonly docs: readonly GroupedDoc[];
   /** What the first extension that holds the review says holds it, for the greyed button and the approval's warning. */
   readonly held: string | null;
 };

@@ -1,5 +1,5 @@
 import type { ServerContext, ServerExtension } from "../../extension.ts";
-import type { DocRef, ReviewView } from "../../protocol.ts";
+import type { DocGroup, DocRef, GroupedDoc, ReviewView } from "../../protocol.ts";
 import {
   finalize as renameWorkspace,
   listFiles,
@@ -53,6 +53,10 @@ export type GateOptions = { readonly unchanged: "record" | "keep" };
 const RECORD_UNCHANGED: GateOptions = { unchanged: "record" };
 
 const HELD_GATE = "the plan is submitted once the reviewer ends it";
+
+function grouped(docs: readonly DocRef[], group: DocGroup): GroupedDoc[] {
+  return docs.map((doc) => ({ ...doc, group }));
+}
 
 /** The use case: reads the directory, lets the domain decide, applies: files, memory, listeners. */
 export class Review {
@@ -298,7 +302,21 @@ export class Review {
 
     const held = await this.held();
 
-    if (workspace.kind === "drafting") return { workspace, plan: null, docs: listed, held };
+    const draft = projectPath(`${workspace.dir}${PLAN_FILE}`);
+
+    const files = grouped(
+      listed.filter((file) => file.path !== draft),
+      "artifact",
+    );
+
+    if (workspace.kind === "drafting") {
+      const plans = grouped(
+        listed.filter((file) => file.path === draft),
+        "plan",
+      );
+
+      return { workspace, plan: null, docs: [...plans, ...files], held };
+    }
 
     const doc = this.planDoc(workspace.version, workspace.dir);
     const text = await this.planText(workspace.version, workspace.dir);
@@ -308,9 +326,7 @@ export class Review {
       ? { version: before.value, text: await this.planText(before.value, workspace.dir) }
       : null;
 
-    const draft = projectPath(`${workspace.dir}${PLAN_FILE}`);
-    const files = listed.filter((file) => file.path !== draft);
-    const linked = await this.linkedDocs(text, doc, workspace.dir, files);
+    const linked = grouped(await this.linkedDocs(text, doc, workspace.dir, listed), "cited");
 
     return { workspace, plan: { doc, text, previous }, docs: [...files, ...linked], held };
   }
