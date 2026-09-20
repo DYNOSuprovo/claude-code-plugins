@@ -168,11 +168,15 @@ function draftUnder(
 let diagrams = 0;
 
 /** Mermaid draws in the page after the mount; its bundle loads on the first diagram only. */
-async function drawDiagrams(root: HTMLElement): Promise<void> {
+async function drawDiagrams(root: HTMLElement, night: boolean): Promise<void> {
   const figures = [...root.querySelectorAll<HTMLElement>("figure.mermaid")];
 
   if (figures.length === 0) return;
   const { default: mermaid } = await import("mermaid");
+  const sheet = srgb("--sheet");
+  const tint = srgb("--tint");
+  const ink = srgb("--ink");
+  const graphite = srgb("--graphite");
 
   mermaid.initialize({
     startOnLoad: false,
@@ -181,20 +185,22 @@ async function drawDiagrams(root: HTMLElement): Promise<void> {
     suppressErrorRendering: true,
     theme: "base",
     themeVariables: {
-      background: srgb("--sheet"),
-      mainBkg: srgb("--tint"),
-      primaryColor: srgb("--tint"),
-      primaryTextColor: srgb("--ink"),
-      primaryBorderColor: srgb("--graphite"),
-      secondaryColor: srgb("--sheet"),
-      tertiaryColor: srgb("--sheet"),
-      nodeBorder: srgb("--graphite"),
-      lineColor: srgb("--graphite"),
-      textColor: srgb("--ink"),
-      clusterBkg: srgb("--sheet"),
+      // The base theme derives what is not given here (an ER row, a colour scale) toward light unless told.
+      darkMode: night,
+      background: sheet,
+      mainBkg: tint,
+      primaryColor: tint,
+      primaryTextColor: ink,
+      primaryBorderColor: graphite,
+      secondaryColor: sheet,
+      tertiaryColor: sheet,
+      nodeBorder: graphite,
+      lineColor: graphite,
+      textColor: ink,
+      clusterBkg: sheet,
       clusterBorder: srgb("--rule"),
-      edgeLabelBackground: srgb("--sheet"),
-      titleColor: srgb("--ink"),
+      edgeLabelBackground: sheet,
+      titleColor: ink,
       fontFamily: getComputedStyle(document.documentElement).getPropertyValue("--mono").trim(),
       fontSize: "13px",
     },
@@ -332,7 +338,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   useEffect(() => {
     const root = container.current;
 
-    if (root !== null) void drawDiagrams(root);
+    if (root !== null) void drawDiagrams(root, night);
   }, [content, night]);
 
   const onMouseUp = (): void => {

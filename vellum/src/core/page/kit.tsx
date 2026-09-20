@@ -102,6 +102,8 @@ export function srgb(token: string): string {
   if (brush === null) throw new Error(`no 2d canvas context to resolve ${token} with`);
   const probe = document.createElement("div");
   probe.style.color = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+
+  if (probe.style.color === "") throw new Error(`${token} is not a colour token of :root`);
   document.body.append(probe);
   brush.fillStyle = getComputedStyle(probe).color;
   probe.remove();
