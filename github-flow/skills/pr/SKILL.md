@@ -30,6 +30,8 @@ A PR body is a review brief. Its reader is a different agent, in a fresh session
    - The repo's `AGENTS.md` or `CLAUDE.md`: the validation commands.
    - What ran this session, with its numbers.
 4. **Images.** A change the reader sees (a page, a view, a component, a stylesheet) gets a Before/After pair when `$ARGUMENTS` gave none. The browser tool of the session captures the base state (the live page, else the base branch served) and the branch, one state per file, outside the repo. No reachable base: After alone, and the caption says so. A change with no visible result gets no image.
+
+   A pair of stills proves a state. A clip proves a transition two images cannot show: an animation, a navigation, a sequence of gestures. Record one only then, and for the After: the Before stays a still, because what it proves is that nothing happened. Playwright drives the recording, from a script that touches no file of the repo. Recipe, traps and publishing: `references/video.md`
 5. **Body.** Pick the size from step 3, fill the sections below. The title follows the convention of `git log --oneline -10`.
 6. **Publish.** No question before it: the skill is the guard, and a caller that wants a look first passes `--dry-run`. Files the issue puts out of scope go in *Ask*, so the reviewer decides. Body in a temporary file outside the repo. A PR already open on the branch (`gh pr view --json number,body`) is edited, else one is created:
 
@@ -53,7 +55,7 @@ Measured on `git diff --stat <base>...HEAD`. A change to a shared module (kernel
 
 First line, when there is an issue: `Closes #N.`
 
-**Why.** The problem observed, or the cause for a fix, then what the change does about it. A visual change carries a Before/After pair here: `**Before**, <where>:` then `![<what the reader sees>](./before.png)`, the same for After. The alt text names what is in the picture, not the file.
+**Why.** The problem observed, or the cause for a fix, then what the change does about it. A visual change carries a Before/After pair here: `**Before**, <where>:` then `![<what the reader sees>](./before.png)`, the same for After. The alt text names what is in the picture, not the file. A clip is written the same way, `![](./after.mp4)`, with no alt text: GitHub renders it as a player, and the line above it says what to watch for.
 
 **What.** One bullet per file or group of files: the path, then what it owns now. The non-obvious choice gets its reason in the same bullet. The bullet that carries the risk comes first.
 
