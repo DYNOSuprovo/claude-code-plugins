@@ -29,15 +29,6 @@ function linesOf(node: Node): readonly [number, number] | null {
   return parseLines(element?.closest<HTMLElement>("[data-lines]")?.dataset.lines);
 }
 
-/** The selection inside `container`, as a passage; `null` when empty or outside. */
-export function passageFromSelection(container: Element): Passage | null {
-  const selection = document.getSelection();
-
-  if (selection === null || selection.rangeCount === 0 || selection.isCollapsed) return null;
-
-  return passageFromRange(container, selection.getRangeAt(0));
-}
-
 /** `range` inside `container`, as a quote with its context and source lines; `null` when empty or outside. */
 export function passageFromRange(container: Element, range: Range): Passage | null {
   if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {

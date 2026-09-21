@@ -150,9 +150,12 @@ kbd { font: 600 var(--t-12)/1.4 var(--mono); border: 1px solid var(--rule); bord
 .toggle { display: inline-flex; align-items: center; gap: var(--s-2); cursor: pointer; }
 .tools:empty { display: none; }
 .tools { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-1) var(--s-3); border-bottom: 1px solid var(--rule); font-size: var(--t-13); color: var(--graphite); background: var(--tint); }
-.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--r-md); padding: 2px; background: var(--sheet); }
-.seg button { font: 600 var(--t-13)/1.4 var(--serif); padding: 2px var(--s-2); border: 0; border-radius: var(--r-sm); background: transparent; color: var(--graphite); cursor: pointer; transition: background var(--transition), color var(--transition); }
-.seg button[aria-pressed="true"] { background: var(--ink); color: var(--sheet); }
+.switch { display: inline-flex; align-items: center; gap: var(--s-2); border: 0; background: none; padding: 2px 0; font: 600 var(--t-13)/1.4 var(--serif); color: var(--graphite); cursor: pointer; }
+.switch .track { width: calc(var(--s-6) + var(--s-1)); height: var(--s-4); border-radius: var(--r-pill); background: var(--rule); position: relative; transition: background var(--transition); }
+.switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: var(--s-3); height: var(--s-3); border-radius: 50%; background: var(--sheet); transition: left var(--transition); }
+.switch[aria-checked="true"] { color: var(--ink); }
+.switch[aria-checked="true"] .track { background: var(--redline); }
+.switch[aria-checked="true"] .track::after { left: calc(100% - var(--s-3) - 2px); }
 .sep { width: 1px; align-self: stretch; background: var(--rule); }
 .panes { flex: 1; min-height: 0; display: flex; }
 .pane { flex: 1; min-width: 0; overflow: auto; position: relative; }

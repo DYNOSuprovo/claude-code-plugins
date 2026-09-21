@@ -28,7 +28,7 @@ export type FrameTheme = {
 };
 
 export type PageToFrame =
-  | { readonly type: "vellum:method"; readonly method: "select" | "pinpoint" }
+  | { readonly type: "vellum:commenting"; readonly on: boolean }
   | { readonly type: "vellum:holding"; readonly holding: boolean }
   | { readonly type: "vellum:comments"; readonly selectors: readonly string[] }
   | { readonly type: "vellum:theme"; readonly theme: FrameTheme }

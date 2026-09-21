@@ -1,6 +1,4 @@
 import { parseLines } from "../../core/page/anchoring.ts";
-import type { Relation } from "../../core/page/selection.ts";
-import { nextSelection } from "../../core/page/selection.ts";
 import type { Passage } from "../../core/protocol.ts";
 
 export type TargetKind = "block" | "inline" | "code" | "table" | "row" | "cell" | "diagram";
@@ -31,41 +29,6 @@ export type Target = {
   readonly kind: TargetKind;
   readonly label: string;
 };
-
-/**
- * Two targets overlap when their texts do, which their elements do not tell: a list item
- * holds its nested items in the DOM, and stops before them in its text.
- */
-function relationTo(chosen: HTMLElement, element: HTMLElement): Relation {
-  if (chosen === element) return "same";
-  const a = rangeOf(chosen);
-  const b = rangeOf(element);
-
-  if (a === null || b === null) return "separate";
-
-  return a.compareBoundaryPoints(Range.START_TO_END, b) === 1 &&
-    a.compareBoundaryPoints(Range.END_TO_START, b) === -1
-    ? "overlapping"
-    : "separate";
-}
-
-/** The set after a Ctrl+click on `one`, in document order. */
-export function toggled<T extends { readonly element: HTMLElement }>(
-  chosen: readonly T[],
-  one: T,
-): readonly T[] {
-  const { keep, add } = nextSelection(
-    chosen.map((other) => relationTo(other.element, one.element)),
-  );
-
-  const next = chosen.filter((_, index) => keep.includes(index));
-
-  return [...next, ...(add ? [one] : [])].toSorted((a, b) =>
-    (a.element.compareDocumentPosition(b.element) & Node.DOCUMENT_POSITION_FOLLOWING) === 0
-      ? 1
-      : -1,
-  );
-}
 
 const BLOCKS: ReadonlyMap<string, string> = new Map([
   ["p", "paragraph"],
@@ -222,6 +185,15 @@ export function rangeOf(element: HTMLElement): Range | null {
   const range = document.createRange();
   range.setStart(first, 0);
   range.setEnd(last, last.textContent?.trimEnd().length ?? 0);
+
+  return range;
+}
+
+/** A diagram as its whole figure (`selectNode`), any other target as its text (`rangeOf`). */
+export function targetRange(target: Target): Range | null {
+  if (target.kind !== "diagram") return rangeOf(target.element);
+  const range = document.createRange();
+  range.selectNode(target.element);
 
   return range;
 }

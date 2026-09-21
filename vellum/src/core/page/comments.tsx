@@ -131,7 +131,9 @@ export function Comments(): preact.JSX.Element {
       </header>
       <div class="list">
         {list.length === 0 && (
-          <div class="none">No comments yet. Select text or use the box below.</div>
+          <div class="none">
+            No comments yet. Turn on Comment to pick text, or use the box below.
+          </div>
         )}
         {list.map((annotation) => (
           <Card key={annotation.id} annotation={annotation} />

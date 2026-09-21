@@ -357,21 +357,46 @@ describe("locked", () => {
     expect(locked.value).toBe(expected);
   });
 
-  test("a locked page has no input method, and takes no comment", async () => {
-    const { activeMethod, addAnnotation, annotations, review } = await freshStore();
+  test("a locked page takes no comment", async () => {
+    const { addAnnotation, annotations, review } = await freshStore();
     review.value = versioned({ version: 1, kind: "changesRequested" });
     addAnnotation(comment("", `${WIP}.review/v1.md`));
 
-    expect(activeMethod.value).toBeNull();
     expect(annotations.value).toEqual([]);
   });
+});
 
-  test("an open page has the chosen input method", async () => {
-    const { activeMethod, inputMethod, review } = await freshStore();
+describe("the comment switch", () => {
+  test("a fresh store has the switch off, so an open page does not comment", async () => {
+    const { commentSwitch, commenting, review } = await freshStore();
     review.value = versioned({ version: 1 });
-    inputMethod.value = "pinpoint";
 
-    expect(activeMethod.value).toBe("pinpoint");
+    expect(commentSwitch.value).toBe(false);
+    expect(commenting.value).toBe(false);
+  });
+
+  test("a locked page does not comment, whatever the switch", async () => {
+    const { commentSwitch, commenting, review } = await freshStore();
+    review.value = versioned({ version: 1, kind: "changesRequested" });
+    commentSwitch.value = true;
+
+    expect(commenting.value).toBe(false);
+  });
+
+  test("an open page comments once the switch is flipped on", async () => {
+    const { commenting, flipCommentSwitch, review } = await freshStore();
+    review.value = versioned({ version: 1 });
+    flipCommentSwitch();
+
+    expect(commenting.value).toBe(true);
+  });
+
+  test("a flip on a locked page leaves the switch as it was", async () => {
+    const { commentSwitch, flipCommentSwitch, review } = await freshStore();
+    review.value = versioned({ version: 1, kind: "approved" });
+    flipCommentSwitch();
+
+    expect(commentSwitch.value).toBe(false);
   });
 });
 

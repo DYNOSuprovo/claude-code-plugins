@@ -66,6 +66,6 @@ describe("parseFrameToPage", () => {
   test("what is not a message of the frame is refused", () => {
     expect(parseFrameToPage(null)).toBeNull();
     expect(parseFrameToPage("vellum:unpick")).toBeNull();
-    expect(parseFrameToPage({ type: "vellum:method", method: "select" })).toBeNull();
+    expect(parseFrameToPage({ type: "vellum:commenting", on: true })).toBeNull();
   });
 });
