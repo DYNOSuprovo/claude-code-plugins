@@ -1,6 +1,6 @@
 import type { HookFailure, ResultOf } from "claude-code";
 
-import type { ProjectDir, Workdir } from "./parse.ts";
+import type { Workdir } from "./parse.ts";
 
 /**
  * `allow` runs the call whatever the session's mode, `check` hands it to the session's own
@@ -11,58 +11,28 @@ export type Verdict =
   | { readonly kind: "check" }
   | { readonly kind: "deny"; readonly reason: string };
 
-/** The project's prefix; a project at `/` owns every path. */
-function projectPrefix(project: string): string {
-  const root = resolvePath("/", project);
-
-  return root === "/" ? "/" : `${root}/`;
-}
-
-/** A project Claude Code runs on Windows is named by its drive: `C:\…` or `C:/…`. */
-const WINDOWS = /^[A-Za-z]:[\\/]/u;
-
 /**
- * Windows spells one file several ways: `\` or `/`, any case, since NTFS folds it, and rooted
- * on the session's drive without naming it, or long (`\\?\C:\…`). Each becomes one POSIX
- * spelling with the drive as its first segment, so the prefixes compare. The long prefix is
- * dropped before a drive only: `\\?\UNC\…` is a share, never under the project.
- *
- * A pure function cannot see every alias: a short 8.3 name (`PROJEC~1`) or an administrative
- * share (`\\localhost\C$\…`) reaches a file under the project and is read as outside it, and
- * `toLowerCase` only approximates the NTFS case table outside ASCII.
+ * Where the three paths of a verdict land, as `placed` answers them: `file` is `null` when
+ * nothing can tell, and so is `workdir`.
  */
-function windowsSpelling(path: string, drive: string): string {
-  const spelled = path
-    .replaceAll("\\", "/")
-    .toLowerCase()
-    .replace(/^\/\/\?\/(?=[a-z]:\/)/u, "");
+export type Landed = {
+  readonly file: string | null;
+  readonly project: string;
+  readonly workdir: string | null;
+};
 
-  if (WINDOWS.test(spelled)) return `/${spelled}`;
+/** `realPath` answers the platform's own separator, and `placed` joins a missing tail with `/`. */
+const SEPARATORS = /[\\/]+/gu;
 
-  return spelled.startsWith("/") ? `/${drive}${spelled}` : spelled;
+/** One spelling to compare: `/` alone between segments and none at the end, so `/` is `""`. */
+function spelled(path: string): string {
+  const joined = path.replaceAll(SEPARATORS, "/");
+
+  return joined.endsWith("/") ? joined.slice(0, -1) : joined;
 }
 
-/** How the lock spells a path: as written on POSIX, in one spelling on a Windows project. */
-function spellingOf(project: ProjectDir, cwd: string): (path: string) => string {
-  if (!WINDOWS.test(project)) return (path) => path;
-
-  const drive = (WINDOWS.test(cwd) ? cwd : project).slice(0, 2).toLowerCase();
-
-  return (path) => windowsSpelling(path, drive);
-}
-
-/** Absolute, `.` and `..` folded: a relative path resolves against the session's directory. */
-function resolvePath(cwd: string, path: string): string {
-  const segments: string[] = [];
-
-  for (const segment of (path.startsWith("/") ? path : `${cwd}/${path}`).split("/")) {
-    if (segment === "" || segment === ".") continue;
-
-    if (segment === "..") segments.pop();
-    else segments.push(segment);
-  }
-
-  return `/${segments.join("/")}`;
+function holds(root: string, file: string): boolean {
+  return file.startsWith(`${root}/`);
 }
 
 /**
@@ -72,25 +42,32 @@ function resolvePath(cwd: string, path: string): string {
  * it, as it does for `Bash`: the scratchpad passes there without a prompt, and a write to a
  * home or system file still asks. Every other tool goes to that flow too, so reads are
  * untouched.
+ *
+ * The verdict compares where the paths land, so a symbolic link, a `..` or a platform's other
+ * spelling of a file is already that file. `realPath` keeps a case alias as written: the allow
+ * compares as written and the deny folds the case, so on a volume that folds it (NTFS, APFS)
+ * another case never takes a project file to the session's flow. Where the case counts, the
+ * cost is a deny on `/work/PROJ` beside a project at `/work/proj`. A file that lands nowhere
+ * known is denied, since the tool may still open it.
  */
-export function lockVerdict(
-  path: string,
-  cwd: string,
-  project: ProjectDir,
-  workdir: Workdir,
-): Verdict {
-  const spell = spellingOf(project, cwd);
-  const root = spell(project);
-  const resolved = resolvePath(spell(cwd), spell(path));
+export function lockVerdict(path: string, workdir: Workdir, landed: Landed): Verdict {
+  if (landed.file === null) {
+    return {
+      kind: "deny",
+      reason: `vellum is planning and cannot tell where ${path} lands; name the file by its full path`,
+    };
+  }
 
-  if (!resolved.startsWith(projectPrefix(root))) return { kind: "check" };
+  const file = spelled(landed.file);
 
-  return resolved.startsWith(`${resolvePath(root, spell(workdir))}/`)
-    ? { kind: "allow" }
-    : {
+  if (landed.workdir !== null && holds(spelled(landed.workdir), file)) return { kind: "allow" };
+
+  return holds(spelled(landed.project).toLowerCase(), file.toLowerCase())
+    ? {
         kind: "deny",
         reason: `vellum is planning: files outside ${workdir} change after the plan is approved`,
-      };
+      }
+    : { kind: "check" };
 }
 
 /**

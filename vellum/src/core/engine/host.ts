@@ -1,4 +1,5 @@
 import type {
+  FsStat,
   HttpInit,
   HttpResponse,
   ProcessRunInit,
@@ -19,6 +20,9 @@ export type Host = {
   sessionId: () => Promise<string>;
 
   cwd: () => Promise<string>;
+
+  /** `$.fs.stat(path, { resolve: true })`: `realPath` is where the path lands, and a missing path rejects. */
+  stat: (path: string) => Promise<FsStat>;
 
   readonly pluginRoot: string;
 

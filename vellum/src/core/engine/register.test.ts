@@ -181,12 +181,10 @@ describe("tool.check", () => {
     await $.skill.prompt(START_PROMPT);
     seen.refuseCwd = "boom";
 
-    expect(await $.tool.check({ tool: "Edit", input: { file_path: `${CWD}/src/cli.ts` } })).toEqual(
-      {
-        decision: "deny",
-        reason: "the lock failed (throw); retry the call",
-      },
-    );
+    expect(await $.tool.check({ tool: "Edit", input: { file_path: "src/cli.ts" } })).toEqual({
+      decision: "deny",
+      reason: "the lock failed (throw); retry the call",
+    });
   });
 
   test("outside the mode a failing session directory changes nothing", async ($, on) => {

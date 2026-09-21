@@ -4,6 +4,8 @@ export * from "./cwd.ts";
 
 export * from "./date.ts";
 
+export * from "./disk.ts";
+
 export * from "./drafts-prompt.ts";
 
 export * from "./final.ts";

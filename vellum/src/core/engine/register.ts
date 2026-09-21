@@ -19,6 +19,7 @@ import {
   type Wiring,
 } from "./mode.ts";
 import { editedPath, type GateWire, sessionId } from "./parse.ts";
+import { landed } from "./place.ts";
 import { submitPlan, submitResult } from "./relay.ts";
 import { completed, NO_TURN, ownOf, prompted, started, type Turns } from "./turn.ts";
 
@@ -51,6 +52,7 @@ function hostOf($: EngineInterface): Host {
   return {
     sessionId: () => $.session.id(),
     cwd: () => $.session.cwd(),
+    stat: (path) => $.fs.stat(path, { resolve: true }),
     pluginRoot: $.plugin.root,
     storeGet: (key) => $.store.get(key),
     storeSet: (key, value) => $.store.set(key, value),
@@ -196,8 +198,7 @@ export const register: Register = (on) => {
     const path = editedPath(e.tool, e.input);
 
     if (path === null) return checkVerdict(e.tool, await next(e));
-    const { project, workdir } = session;
-    const verdict = lockVerdict(path, await $.session.cwd(), project, workdir);
+    const verdict = lockVerdict(path, session.workdir, await landed(hostOf($), session, path));
 
     if (verdict.kind === "deny") return { decision: "deny", reason: verdict.reason };
 

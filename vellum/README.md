@@ -70,6 +70,7 @@ The plugin installs a hooks module that refuses writes and spawns a process. The
 | `$.tool.register` | The `submit` tool and the two grill tools, at the session's start. |
 | `$.session.id` | Which session the mode belongs to; a `/clear` mints a new one. |
 | `$.session.cwd` | Where the session runs now, to resolve a relative path the lock reads. |
+| `$.fs.stat` | Where a path the lock reads lands, every link followed, whatever the platform's spelling; the project and the working directory are asked the same way. |
 | `$.store.get`, `$.store.set`, `$.store.delete` | The session's server and what the poll already relayed, so a module reload repeats neither. |
 | `$.http.fetch` | Every call to the review server, with the token header. |
 | `$.process.run` | Spawns the detached server, `bun src/core/server/cli.ts start`, and revives a dead one on its port and token. |

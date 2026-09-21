@@ -16,6 +16,7 @@ register.ts  the engine adapter: the one `let state`, one hook per event, and `h
 host.ts      `Host`, the port: one member per `$` call, named for the call
 mode.ts      the machine: State, Session, Live, and restore / connect / close
 lock.ts      the policy: lockVerdict, checkVerdict; pure
+place.ts     where a path lands: placed, landed; asks the host's `stat`
 turn.ts      whose turn runs: Turns, prompted / started / completed, ownOf; pure
 relay.ts     what the poll says and what it remembers: prompts, Relayed, tick
 server.ts    the review server's client: every route, the token header, the launcher
@@ -61,13 +62,22 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
   follows the session's own permission flow: the scratchpad passes there without a prompt, a
   home or system file still asks. Every other tool passes on.
   `lockVerdict` decides as a pure function, the hook applies.
+- The lock compares where paths land, never how they are spelled. `placed` asks
+  `$.fs.stat(path, { resolve: true })` for `realPath`, which the engine's types name the robust
+  guard: every link followed, whatever separators, drive or prefix the platform writes. A file
+  not written yet lands under the first of its folders that exists; a path that lands nowhere
+  known (a link that leads nowhere, a network path, a name Windows reads as a drive) is denied,
+  since the tool may still open it. The project and the working directory are placed the same
+  way on each call. `realPath` keeps a case alias as written, so the allow compares as written
+  and the deny folds the case. A new platform case is a question for `stat`, not a spelling
+  rule in `lock.ts`. Measured on Linux; what a Windows disk answers is not measured.
 - The lock fails closed. A hook that throws or overruns "is skipped and what is beneath it
   runs in its place", which for a lock means the write goes through, so the registration
   carries a `.catch`: while `live`, `lockFailed` denies either way, whether the failure landed
   before or after `next(e)`; while `idle` the hook only passed `next(e)` through, so the
   handler replays it and a failure beneath is not vellum's deny. The lock reads
-  `$.session.cwd()` for `Edit`, `Write` and `NotebookEdit` alone, so a failure there never
-  denies a read. `claude plugin validate` lists the hook but not its handler, so nothing but
+  `$.fs.stat` for `Edit`, `Write` and `NotebookEdit` alone, and `$.session.cwd()` for a
+  relative path of theirs alone, so a failure there never denies a read. `claude plugin validate` lists the hook but not its handler, so nothing but
   this rule says the handler is there.
 - `/clear` and `/resume` suspend the mode, on `command.run` and after `next(e)`: timers stopped,
   status cleared, `session:<id>` kept, so a later `/resume` of that session finds its directory.
