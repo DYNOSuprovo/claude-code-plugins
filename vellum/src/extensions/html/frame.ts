@@ -10,6 +10,10 @@ import { labelOf, selectorOf, targetIndex } from "./pick.ts";
  * page.
  */
 
+/**
+ * A click quotes this much of its element, which may hold a whole page. A drag quotes its whole
+ * text: the reviewer chose each word of it.
+ */
 const TEXT_LIMIT = 120;
 
 /** The colours are the page's tokens, posted resolved with `vellum:theme` and set on the layer. */
@@ -86,7 +90,7 @@ function stepOf(element: Element): Step {
 }
 
 function quoted(text: string): string {
-  return text.replaceAll(/\s+/gu, " ").trim().slice(0, TEXT_LIMIT);
+  return text.replaceAll(/\s+/gu, " ").trim();
 }
 
 function refOf(pick: Pick): ElementRef {
@@ -104,7 +108,7 @@ function clickPick(element: Element): Pick {
   range.selectNode(element);
   const shown = element instanceof HTMLElement ? element.innerText : (element.textContent ?? "");
 
-  return { element, range, text: quoted(shown) };
+  return { element, range, text: quoted(shown).slice(0, TEXT_LIMIT) };
 }
 
 function boxFor(of: Element | Range, kind: string, label: string | null): HTMLElement {
