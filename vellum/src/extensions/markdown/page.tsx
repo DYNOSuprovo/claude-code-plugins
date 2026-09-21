@@ -388,10 +388,13 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     const root = container.current;
 
     if (root === null || activeMethod.value !== "select") return;
-    const range = document.getSelection()?.getRangeAt(0);
+    // `getRangeAt(0)` throws with no range: `passageFromSelection` is the guard, so it runs first.
     const passage = passageFromSelection(root);
 
-    if (range === undefined || passage === null) return;
+    if (passage === null) return;
+    const range = document.getSelection()?.getRangeAt(0);
+
+    if (range === undefined) return;
     const node = range.commonAncestorContainer;
     const element = node instanceof HTMLElement ? node : (node.parentElement ?? root);
     setDraft(draftUnder(root, [{ element, passage }], range.getBoundingClientRect()));
