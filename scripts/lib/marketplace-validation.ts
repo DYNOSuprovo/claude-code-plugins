@@ -191,12 +191,16 @@ export function setVersionInReadme(content: string, pluginName: string, version:
 
 /**
  * The description is the third cell of the row: [plugin-name](src/) | X.Y.Z | text.
- * The capture stops at the next column separator and at a line break, so a row
- * whose description cell is empty reads as an empty string, not as the rest of
- * the table.
+ * The match starts at a line that opens a table row, so a link to the plugin in
+ * the README's prose is no candidate; no cell crosses a line break, so a row
+ * whose description cell is empty reads as an empty string, and a plugin that
+ * prose names but the table does not reads as no row at all.
  */
 const readmeDescriptionPattern = (pluginName: string) =>
-  new RegExp(`(\\[${escapeForRegex(pluginName)}\\][^|]+\\|[^|\\n]*\\|)([^|\\n]*)`, "u");
+  new RegExp(
+    `(^[ \\t]*\\|\\s*\\[${escapeForRegex(pluginName)}\\][^|\\n]*\\|[^|\\n]*\\|)([^|\\n]*)`,
+    "mu",
+  );
 
 /**
  * Extract the description from the README markdown table for a given plugin.
@@ -224,20 +228,29 @@ export function setDescriptionInReadme(
   );
 }
 
+const CELL_FLAWS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\|/u, 'holds a "|"'],
+  [/[\r\n]/u, "holds a line break"],
+  [/^\s|\s$/u, "opens or ends on whitespace"],
+];
+
 /**
- * A README row is a Markdown table cell, so a `|` inside a description would
- * close the cell early and shift every column after it. Such a description is
- * refused rather than escaped: the author rewords it in plugin.json, where the
- * text is read by consumers as well.
+ * A README row is one line of a Markdown table: a `|` would close the cell early
+ * and shift every column after it, a line break would split the row in two, and
+ * edge whitespace never survives the read back, so the sync would rewrite the
+ * row at every run. Such a description is refused rather than repaired: the
+ * author rewords it in plugin.json, where consumers read the text as well.
  */
 export function validateDescriptionCell(pluginName: string, description: string): ValidationResult {
-  if (!description.includes("|")) {
+  const flaw = CELL_FLAWS.find(([pattern]) => pattern.test(description));
+
+  if (!flaw) {
     return { passed: true, message: "Description fits a README cell" };
   }
 
   return {
     passed: false,
-    message: `Description of ${pluginName} holds a "|", which no README table cell can carry`,
+    message: `Description of ${pluginName} ${flaw[1]}, which no README table cell can carry`,
   };
 }
 
@@ -255,7 +268,7 @@ export function validateReadmeDescription(
 
   return {
     passed: false,
-    message: `README description mismatch: ${pluginName}`,
+    message: `README description mismatch: ${pluginName} (README=${readmeDescription}\n    marketplace=${expectedDescription})`,
   };
 }
 

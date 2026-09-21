@@ -350,6 +350,26 @@ describe("extractDescriptionFromReadme", () => {
     expect(extractDescriptionFromReadme(content, "plugin-a")).toBe("");
   });
 
+  test("skips a prose link and reads the table row", () => {
+    const content = `Start with [plugin-a](plugin-a/), the core one.
+
+| Plugin | Version | Description |
+|--------|---------|-------------|
+| [plugin-a](plugin-a/) | 1.0.0 | Desc A |`;
+
+    expect(extractDescriptionFromReadme(content, "plugin-a")).toBe("Desc A");
+  });
+
+  test("returns null for a plugin only prose names", () => {
+    const content = `Start with [plugin-a](plugin-a/), the core one.
+
+| Plugin | Version | Description |
+|--------|---------|-------------|
+| [plugin-b](b/) | 2.0.0 | Desc B |`;
+
+    expect(extractDescriptionFromReadme(content, "plugin-a")).toBeNull();
+  });
+
   test("handles plugin names with special regex characters", () => {
     const content = "| [my-plugin.js](my-plugin/) | 1.0.0 | Desc |";
     expect(extractDescriptionFromReadme(content, "my-plugin.js")).toBe("Desc");
@@ -392,6 +412,28 @@ describe("setDescriptionInReadme", () => {
     const updated = setDescriptionInReadme(content, "git-tools", "New blurb");
     expect(extractDescriptionFromReadme(updated, "git-tools")).toBe("New blurb");
   });
+
+  test("leaves the header a prose link would match first", () => {
+    const content = `Start with [plugin-a](plugin-a/), the core one.
+
+| Plugin | Version | Description |
+|--------|---------|-------------|
+| [plugin-a](plugin-a/) | 1.0.0 | Desc A |`;
+
+    const result = setDescriptionInReadme(content, "plugin-a", "New blurb");
+    expect(result).toContain("| Plugin | Version | Description |");
+    expect(result).toContain("| [plugin-a](plugin-a/) | 1.0.0 | New blurb |");
+  });
+
+  test("leaves content unchanged for a plugin only prose names", () => {
+    const content = `Start with [plugin-a](plugin-a/), the core one.
+
+| Plugin | Version | Description |
+|--------|---------|-------------|
+| [plugin-b](b/) | 2.0.0 | Desc B |`;
+
+    expect(setDescriptionInReadme(content, "plugin-a", "New blurb")).toBe(content);
+  });
 });
 
 describe("validateDescriptionCell", () => {
@@ -405,7 +447,24 @@ describe("validateDescriptionCell", () => {
     const result = validateDescriptionCell("git-tools", "Pipes a | through the row");
     expect(result.passed).toBe(false);
     expect(result.message).toContain("git-tools");
+    expect(result.message).toContain('holds a "|"');
     expect(result.message).toContain("README table cell");
+  });
+
+  test("refuses a description holding a line break", () => {
+    for (const description of ["Line one\nline two", "Line one\r\nline two"]) {
+      const result = validateDescriptionCell("git-tools", description);
+      expect(result.passed).toBe(false);
+      expect(result.message).toContain("holds a line break");
+    }
+  });
+
+  test("refuses a description that opens or ends on whitespace", () => {
+    for (const description of ["Ends on a space ", " Opens on a space"]) {
+      const result = validateDescriptionCell("git-tools", description);
+      expect(result.passed).toBe(false);
+      expect(result.message).toContain("opens or ends on whitespace");
+    }
   });
 });
 
@@ -414,9 +473,11 @@ describe("validateReadmeDescription", () => {
     expect(validateReadmeDescription("A plugin", "A plugin", "git-tools").passed).toBe(true);
   });
 
-  test("fails when descriptions differ", () => {
+  test("fails when descriptions differ, naming both", () => {
     const result = validateReadmeDescription("An older blurb", "A plugin", "git-tools");
     expect(result.passed).toBe(false);
     expect(result.message).toContain("git-tools");
+    expect(result.message).toContain("An older blurb");
+    expect(result.message).toContain("A plugin");
   });
 });

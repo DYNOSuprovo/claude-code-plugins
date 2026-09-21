@@ -59,6 +59,18 @@ describe("sync-versions CLI", () => {
     );
   });
 
+  test("writes the table row, not the header a prose link matches first", async () => {
+    const tempDir = await setupTestRepo("description-drift");
+    tempDirs.push(tempDir);
+
+    await runSync(tempDir);
+    const content = await readme(tempDir);
+
+    expect(content).toContain("| Plugin | Version | Description |");
+    expect(content).toContain("Start with [plugin-a](plugin-a/), the core one.");
+    expect(content).not.toContain("A staler README blurb");
+  });
+
   test("a second run reports nothing left to sync", async () => {
     const tempDir = await setupTestRepo("description-drift");
     tempDirs.push(tempDir);

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Version sync script (pre-commit auto-fix)
+ * Version and description sync script (pre-commit auto-fix)
  *
  * plugin.json is the single source of truth for a plugin's version and for its
  * description. This script propagates both into the two derived locations:
