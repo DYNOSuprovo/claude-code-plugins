@@ -21,6 +21,11 @@ jobs:
       - name: Set up tools (bun, lefthook, shellcheck, shfmt via mise)
         uses: jdx/mise-action@v4
 
+      # The action caches installs under the hash of mise.toml, so `latest` stays where it
+      # was first resolved; the hooks module's kit needs the engine its types were written by.
+      - name: Refresh Claude Code past the cached `latest`
+        run: mise upgrade claude && claude --version
+
       - name: Install script dependencies
         run: bun install --frozen-lockfile
 

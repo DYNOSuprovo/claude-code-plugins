@@ -58,7 +58,11 @@ export async function landed(
 ): Promise<Landed> {
   const project = await placed(host, session.project);
 
-  if (project === null) throw new Error(`the project ${session.project} lands nowhere`);
+  if (project === null) {
+    throw new Error(
+      `the project ${session.project} lands nowhere: \`$.fs.stat\` answered no \`realPath\`, as an engine older than the one \`types/claude-code.d.ts\` was written by does`,
+    );
+  }
 
   return {
     file: await placed(
