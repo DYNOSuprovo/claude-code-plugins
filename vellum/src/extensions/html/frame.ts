@@ -240,7 +240,11 @@ function onClick(event: MouseEvent): void {
   if (target !== null) choose(clickPick(target), event);
 }
 
-/** `C` inside the mockup flips the page's switch; while on, the mockup's own listeners never see it. */
+/**
+ * `C` inside the mockup flips the page's switch. While on, the key stops here, before every
+ * listener of the mockup's document; a `window` listener that the mockup adds before this script,
+ * which the server appends at the end of `body`, still hears it.
+ */
 function onSwitchKey(event: KeyboardEvent): void {
   if (!isSwitchKey(keyPressOf(event))) return;
   post({ type: "vellum:switch" });

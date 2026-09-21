@@ -104,7 +104,9 @@ export function isSwitchKey(press: KeyPress): boolean {
 
 /** Field by field: a spread copies none of a KeyboardEvent's fields, which are getters. */
 export function keyPressOf(event: KeyboardEvent): KeyPress {
-  const { target } = event;
+  // The path's first node, not `target`: an open shadow root retargets a key typed in its input
+  // to its host.
+  const [origin] = event.composedPath();
 
   return {
     key: event.key,
@@ -113,7 +115,7 @@ export function keyPressOf(event: KeyboardEvent): KeyPress {
     altKey: event.altKey,
     repeat: event.repeat,
     typing:
-      target instanceof HTMLElement &&
-      (target.isContentEditable || target.matches("input, textarea, select")),
+      origin instanceof HTMLElement &&
+      (origin.isContentEditable || origin.matches("input, textarea, select")),
   };
 }
