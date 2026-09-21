@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 
 import type { Anchor, Annotation, Mark } from "../protocol.ts";
 import { DELETE_SENTENCE, QUICK_LABELS } from "../protocol.ts";
-import { Badge, Button, Chevron, Tag } from "./kit.tsx";
+import { Badge, Button, Handle, Tag } from "./kit.tsx";
 import {
   addAnnotation,
   annotations,
@@ -88,19 +88,18 @@ export function CommentsHandle(): preact.JSX.Element {
   const count = annotations.value.length;
 
   return (
-    <button
-      type="button"
-      class="handle"
-      aria-controls="comments"
-      aria-expanded={commentsOpen.value}
-      aria-label={`Comments (${count})`}
-      onClick={() => {
+    <Handle
+      side="right"
+      open={commentsOpen.value}
+      controls="comments"
+      name="Comments"
+      label={`Comments (${count})`}
+      onToggle={() => {
         commentsOpen.value = !commentsOpen.value;
       }}
     >
       {count > 0 && <Badge>{count}</Badge>}
-      <Chevron />
-    </button>
+    </Handle>
   );
 }
 

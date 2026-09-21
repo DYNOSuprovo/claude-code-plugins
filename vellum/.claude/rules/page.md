@@ -27,9 +27,9 @@ no build step, so what the page imports costs nothing at `cli start`.
   `--serif` (Literata), code and literals (a path, a version, the diff count, a key) are
   `--mono` (JetBrains Mono), and the chrome reads as prose. The fonts ship in `fonts/`, each
   under the bundler's inlining threshold, so they arrive inside the CSS chunk.
-- A button, badge, chip, tag, banner, popover or chevron is drawn through `kit.tsx`, never through
-  one of its classes spelled at the call; `kit.tsx` is in `PAGE_SURFACE`, so an extension draws
-  with the same seven. A `Chip` is a button; what shows a label and takes no click is a `Tag`.
+- A button, badge, chip, tag, banner, popover, chevron or handle is drawn through `kit.tsx`, never
+  through one of its classes spelled at the call; `kit.tsx` is in `PAGE_SURFACE`, so an extension
+  draws with the same eight. A `Chip` is a button; what shows a label and takes no click is a `Tag`.
   The types hold part of it, locked in `kit.spec.ts`: `ChipProps` takes no `class`, and neither
   takes `className`. `ButtonProps` takes a `class`, joined to the kit's own, for a state the kit
   has no prop for (`lit` in `grill/page.tsx`): there a kit class spelled at the call compiles,

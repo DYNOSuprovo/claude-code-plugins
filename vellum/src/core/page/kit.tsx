@@ -2,8 +2,8 @@ import type { ComponentChildren, JSX } from "preact";
 
 /**
  * The page's components, each one a class of `style.css` spelled in one place: what every
- * button, badge, chip, tag, banner, popover and chevron of the core and of the extensions is
- * drawn with.
+ * button, badge, chip, tag, banner, popover, chevron and handle of the core and of the extensions
+ * is drawn with.
  */
 
 export type ButtonProps = Omit<
@@ -94,6 +94,37 @@ export function Popover(props: {
     >
       {props.children}
     </div>
+  );
+}
+
+/** A side panel's fold control, on the panel's edge: the panel's name above a chevron that points where the panel goes. */
+export function Handle(props: {
+  /** Which of the page's two panels: "left" follows `--rail-width`, "right" `--comments-width`. */
+  readonly side: "left" | "right";
+  readonly open: boolean;
+  /** The id of the panel it folds. */
+  readonly controls: string;
+  /** The panel's name, written on the handle. */
+  readonly name: string;
+  /** The accessible name, when it says more than `name`: the comments' count. */
+  readonly label?: string;
+  readonly onToggle: () => void;
+  /** What a folded panel still shows: the comments' badge. */
+  readonly children?: ComponentChildren;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      class={`handle ${props.side}`}
+      aria-controls={props.controls}
+      aria-expanded={props.open}
+      aria-label={props.label ?? props.name}
+      onClick={props.onToggle}
+    >
+      {props.children}
+      <span class="name">{props.name}</span>
+      <Chevron />
+    </button>
   );
 }
 

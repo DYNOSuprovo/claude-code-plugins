@@ -278,13 +278,15 @@ textarea { width: 100%; font: var(--t-14)/1.45 var(--serif); border: 1px solid v
 .global { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: var(--s-2) var(--s-3); }
 .global label { display: block; font-size: var(--t-12); color: var(--graphite); margin-bottom: var(--s-1); }
 
-.handle { position: absolute; z-index: 3; top: 50%; right: var(--comments-width); width: var(--s-6); height: calc(var(--s-8) + var(--s-10)); transform: translateY(-50%); display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; border: 1px solid var(--rule); border-right: 0; border-radius: var(--r-md) 0 0 var(--r-md); background: var(--sheet); color: var(--graphite); transition: right var(--transition), color var(--transition); }
+.handle { position: absolute; z-index: 3; top: 50%; width: var(--s-6); min-height: calc(var(--s-8) + var(--s-10)); transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-2); padding: var(--s-3) 0; cursor: pointer; border: 1px solid var(--rule); background: var(--sheet); color: var(--graphite); transition: right var(--transition), color var(--transition); }
 .handle:hover { color: var(--ink); }
-.handle[aria-expanded="false"] { right: 0; }
-.handle[aria-expanded="false"] .chevron { transform: rotate(180deg); }
+.handle.right { right: var(--comments-width); border-right: 0; border-radius: var(--r-md) 0 0 var(--r-md); }
+.handle.right[aria-expanded="false"] { right: 0; }
+.handle.right[aria-expanded="false"] .chevron { transform: rotate(180deg); }
+.handle .name { writing-mode: vertical-rl; font: 650 var(--t-12)/1 var(--serif); letter-spacing: 0.02em; }
 /* Pinned to the top left corner: the overhang goes toward the document, never toward the window's edge, where a folded handle would have it cut. The ring lifts it off the text behind. */
 .handle .badge { position: absolute; top: calc(var(--s-2) * -1); left: calc(var(--s-3) * -1); min-width: 0; padding: 0 var(--s-1); box-shadow: 0 0 0 2px var(--sheet); }
-.handle .chevron { width: var(--s-3); height: var(--s-3); }
+.handle .chevron { width: var(--s-3); height: var(--s-3); flex: none; }
 
 @media (max-width: 900px) {
   .comments { position: absolute; top: 0; right: 0; bottom: 0; z-index: 2; box-shadow: var(--shadow); }
