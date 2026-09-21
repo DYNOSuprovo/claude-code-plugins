@@ -18,7 +18,7 @@ import { changesOf, removedLabel } from "./changes.ts";
 import { linkedDoc } from "./links.ts";
 import { markedIndices } from "./marked.ts";
 import type { Target } from "./pinpoint.ts";
-import { boxOf, diagramPassage, rangeOf, targetAt, targetRange } from "./pinpoint.ts";
+import { boxOf, diagramPassage, targetAt, targetRange } from "./pinpoint.ts";
 import { waitingText } from "./sheet.ts";
 import { toTree } from "./tree.ts";
 
@@ -235,14 +235,10 @@ async function drawDiagrams(root: HTMLElement, night: boolean): Promise<void> {
 }
 
 /** A diagram stands for its source block; every other target for the text it shows. */
-function passageOf(root: HTMLElement, target: Target): Passage | null {
-  if (target.kind === "diagram") {
-    return diagramPassage(target.element.dataset.lines, target.element.dataset.source);
-  }
-
-  const range = rangeOf(target.element);
-
-  return range === null ? null : passageFromRange(root, range);
+function passageOf(root: HTMLElement, target: Target, range: Range): Passage | null {
+  return target.kind === "diagram"
+    ? diagramPassage(target.element.dataset.lines, target.element.dataset.source)
+    : passageFromRange(root, range);
 }
 
 /**
@@ -405,7 +401,6 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     setWash(null);
   }, [on]);
 
-  /** Both gestures end here: alone, a place starts a new set; under Ctrl, it joins the open one. */
   const choose = (root: HTMLElement, one: Chosen, event: MouseEvent): void => {
     const adding = (event.ctrlKey || event.metaKey) && draft !== null;
     const [first, ...rest] = adding && draft !== null ? toggled(draft.chosen, one) : [one];
@@ -472,7 +467,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     if (!(event.target instanceof Element)) return;
     const target = targetAt(root, event.target, event.clientX, event.clientY);
     const range = target === null ? null : targetRange(target);
-    const passage = target === null ? null : passageOf(root, target);
+    const passage = target === null || range === null ? null : passageOf(root, target, range);
 
     if (range === null || passage === null) return;
     choose(root, { range, passage }, event);

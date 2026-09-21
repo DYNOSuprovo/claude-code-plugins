@@ -80,17 +80,11 @@ export function dragRange(event: MouseEvent): Range | null {
   return selection.getRangeAt(selection.rangeCount - 1).cloneRange();
 }
 
-export type KeyPress = {
-  readonly key: string;
-  readonly ctrlKey: boolean;
-  readonly metaKey: boolean;
-  readonly altKey: boolean;
-  readonly repeat: boolean;
+export type KeyPress = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey" | "repeat"> & {
   /** The key went to a field: `input`, `textarea`, `select` or editable content. */
   readonly typing: boolean;
 };
 
-/** `c` or `C` alone, pressed once, outside a field. */
 export function isSwitchKey(press: KeyPress): boolean {
   return (
     (press.key === "c" || press.key === "C") &&

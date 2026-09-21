@@ -107,7 +107,8 @@ function clickPick(element: Element): Pick {
   return { element, range, text: quoted(shown) };
 }
 
-function boxFor(rect: DOMRect, kind: string, label: string | null): HTMLElement {
+function boxFor(of: Element | Range, kind: string, label: string | null): HTMLElement {
+  const rect = of.getBoundingClientRect();
   const box = document.createElement("div");
   box.className = `box ${kind}`;
   box.style.cssText = `top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;height:${rect.height}px`;
@@ -137,19 +138,11 @@ function draw(): void {
   const adding = holding && chosen.length > 0;
 
   layer.replaceChildren(
-    ...commentedElements().map((element) =>
-      boxFor(element.getBoundingClientRect(), "comment", null),
-    ),
-    ...chosen.map((pick) => boxFor(pick.range.getBoundingClientRect(), "chosen", null)),
+    ...commentedElements().map((element) => boxFor(element, "comment", null)),
+    ...chosen.map((pick) => boxFor(pick.range, "chosen", null)),
     ...(hovered === null
       ? []
-      : [
-          boxFor(
-            hovered.getBoundingClientRect(),
-            adding ? "wash adding" : "wash",
-            labelOf(stepOf(hovered)),
-          ),
-        ]),
+      : [boxFor(hovered, adding ? "wash adding" : "wash", labelOf(stepOf(hovered)))]),
   );
 }
 
@@ -189,7 +182,6 @@ function onKey(event: KeyboardEvent): void {
   hold(event.ctrlKey || event.metaKey);
 }
 
-/** Both gestures end here: alone, a pick starts a new set; under Ctrl, it joins the open one. */
 function choose(one: Pick, event: MouseEvent): void {
   chosen = (event.ctrlKey || event.metaKey) && chosen.length > 0 ? toggled(chosen, one) : [one];
   sendPick();

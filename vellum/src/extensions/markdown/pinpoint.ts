@@ -167,7 +167,7 @@ export function diagramPassage(
 }
 
 /** The text of `element` as a range; a list item stops before its first nested list. */
-export function rangeOf(element: HTMLElement): Range | null {
+function rangeOf(element: HTMLElement): Range | null {
   const nested = nestedListOf(element);
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
   const nodes: Node[] = [];
