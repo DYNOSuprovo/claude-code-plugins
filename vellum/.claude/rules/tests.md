@@ -30,6 +30,12 @@ paths:
   `src/core/engine/fixtures/`; the server's file system is a temp directory through the real
   adapter; `adapters/http` starts the server on port 0. No module mocking, no spy on an
   internal call.
+- The page's ports are the browser's globals it reads: `fetch`, `EventSource`, `location`,
+  `window.matchMedia`. A suite puts a fake there for one test and takes it away after (`port` in
+  `core/page/state.spec.ts`); `api.ts` is never mocked. The store is module state, and one
+  `bun test` run keeps one module registry for all its suites: a suite that drives `state.ts`
+  imports it under a query of its own for each test (`freshStore`, same file), so no signal, and
+  no saving effect `start` leaves behind, reaches another test or another suite.
 - The kit cannot raise one case: the lock's overrun. `mock.clock` lets a wait held past a
   hook's budget go, and a test's own budget is shorter still, so a hook that outruns the
   dispatch is measured in a live session instead (`docs/plugin-testing.md`).

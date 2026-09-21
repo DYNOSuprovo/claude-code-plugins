@@ -100,7 +100,8 @@ no build step, so what the page imports costs nothing at `cli start`.
   then the first load, then the saving effect, then the event stream. Nothing may `PUT` a draft
   before the restore, or every reload replaces the file with the page's empty state. After it,
   each change of the comments or of the edit is one write, sent in order; signals that change
-  together change in one `batch`.
+  together change in one `batch`. `state.spec.ts` holds the order through the page's ports, a fake
+  `fetch` and a fake `EventSource` that log what reaches them.
 - An unsent edit is an `Edit`: a text with the version it edits. The stamp is taken when the
   editor opens, and `Editor` keeps that version and its base text for its whole session: a
   version that lands under an open editor must not restamp it. They travel as one `EditSession`,
