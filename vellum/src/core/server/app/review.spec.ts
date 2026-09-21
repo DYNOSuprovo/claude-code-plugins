@@ -294,6 +294,13 @@ describe("Review", () => {
     expect(view.docs.map((doc) => doc.path)).toEqual([`${WIP}mockup.html` as never]);
   });
 
+  test("view names the working copy the version was taken from, renamed once approved", async () => {
+    const { review } = await gated();
+    expect((await review.view()).plan?.workingCopy).toBe(`${WIP}plan.md` as never);
+    await review.decide(APPROVE);
+    expect((await review.view()).plan?.workingCopy).toBe(`${FINAL}plan.md` as never);
+  });
+
   test("a plan under review that names a version file does not list it as cited", async () => {
     const s = await gated("# Plan\n\nAs in `.review/v1.md`.\n");
     writeFileSync(join(s.root, WIP, "plan.md"), "# Plan\n\nStill as in `.review/v1.md`.\n");

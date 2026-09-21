@@ -9,11 +9,21 @@ import { docUrl, fileUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { paint } from "../../core/page/highlights.ts";
 import { srgb } from "../../core/page/kit.tsx";
-import { activeMethod, dark, docs, error, holding, locked, select } from "../../core/page/state.ts";
+import {
+  activeMethod,
+  dark,
+  docs,
+  error,
+  holding,
+  locked,
+  review,
+  select,
+} from "../../core/page/state.ts";
 import type { DocRef, Passage } from "../../core/protocol.ts";
 import { parseProjectPath } from "../../core/server/domain/paths.ts";
 import type { Changes, RemovedRun } from "./changes.ts";
 import { changesOf, removedLabel } from "./changes.ts";
+import { linkedDoc } from "./links.ts";
 import { markedIndices } from "./marked.ts";
 import type { Target } from "./pinpoint.ts";
 import { boxOf, diagramPassage, rangeOf, targetAt, toggled } from "./pinpoint.ts";
@@ -243,18 +253,18 @@ function passageOf(root: HTMLElement, target: Target): Passage | null {
   return range === null ? null : passageFromRange(root, range);
 }
 
-/** A link to a listed document switches the view; any other link opens in a new tab. */
+/** A link to a document the page holds switches the view; any other link opens in a new tab. */
 function onClick(event: MouseEvent): void {
   if (activeMethod.value === "pinpoint") return;
   const link = event.target instanceof Element ? event.target.closest("a") : null;
   const wanted = link?.dataset.path;
 
   if (wanted === undefined) return;
-  const target = docs.value.find((doc) => doc.path === wanted || doc.path.endsWith(`/${wanted}`));
+  const target = linkedDoc(wanted, docs.value, review.value?.plan ?? null);
 
-  if (target === undefined) return;
+  if (target === null) return;
   event.preventDefault();
-  select(target.path);
+  select(target);
 }
 
 /** The document's text, or `null` with the failure in the banner: an error page is not the document. */

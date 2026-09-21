@@ -303,16 +303,16 @@ export class Review {
 
     const held = await this.held();
 
-    const draft = projectPath(`${workspace.dir}${PLAN_FILE}`);
+    const planFile = projectPath(`${workspace.dir}${PLAN_FILE}`);
 
     const files = grouped(
-      listed.filter((file) => file.path !== draft),
+      listed.filter((file) => file.path !== planFile),
       "artifact",
     );
 
     if (workspace.kind === "drafting") {
       const plans = grouped(
-        listed.filter((file) => file.path === draft),
+        listed.filter((file) => file.path === planFile),
         "plan",
       );
 
@@ -329,7 +329,12 @@ export class Review {
 
     const linked = grouped(await this.linkedDocs(text, doc, workspace.dir, listed), "cited");
 
-    return { workspace, plan: { doc, text, previous }, docs: [...files, ...linked], held };
+    return {
+      workspace,
+      plan: { doc, text, workingCopy: planFile, previous },
+      docs: [...files, ...linked],
+      held,
+    };
   }
 
   private async linkedDocs(

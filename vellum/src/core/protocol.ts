@@ -54,6 +54,8 @@ export type ReviewView = {
   readonly plan: {
     readonly doc: ProjectPath;
     readonly text: string;
+    /** The file the version was taken from, left out of `docs`: a link to it names the plan. */
+    readonly workingCopy: ProjectPath;
     /** The version before this one, for the page to diff against; `null` at v1. */
     readonly previous: { readonly version: Version; readonly text: string } | null;
   } | null;

@@ -71,7 +71,11 @@ no build step, so what the page imports costs nothing at `cli start`.
   outside it), and the rail filters on that label, never on a path. While `drafting` the working
   copy `plan.md` heads the list as `"plan"`; once a version exists the plan is `review.plan`,
   which `planDoc` of `state.ts` puts at the head with the same label. A reader finds the plan by
-  that label, as `DocList` does, or by `planDoc`'s path, never by its place in `docs`. Comments
+  that label, as `DocList` does, or by `planDoc`'s path, never by its place in `docs`. Past
+  `drafting` the working copy is on no list, and `review.plan.workingCopy` names it, since the
+  server is again the one that knows the two are one document: a link to that path selects the
+  plan, as `linkedDoc` of `markdown/links.ts` decides, and a link the page holds no document for
+  keeps the new tab its anchor carries. Comments
   are taken while `inReview` and while `drafting`, so `locked` names two states, not one, and Approve is drawn
   only where a version exists. `locked` reads `takesComments`, the domain's predicate the server
   holds a draft to as well. A renderer never reads `inputMethod`: it reads `activeMethod`, which
