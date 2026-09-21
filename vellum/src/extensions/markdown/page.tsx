@@ -17,6 +17,7 @@ import { changesOf, removedLabel } from "./changes.ts";
 import { markedIndices } from "./marked.ts";
 import type { Target } from "./pinpoint.ts";
 import { boxOf, diagramPassage, rangeOf, targetAt, toggled } from "./pinpoint.ts";
+import { waitingText } from "./sheet.ts";
 import { toTree } from "./tree.ts";
 
 function attributeName(property: string): string {
@@ -272,6 +273,7 @@ async function sourceOf(doc: DocRef): Promise<string | null> {
 
 function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const [text, setText] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
   const [drafted, setDraft] = useState<Draft | null>(null);
   // A page that locks under an open composer closes it: its comment could not be added.
   const draft = locked.value ? null : drafted;
@@ -292,6 +294,8 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
 
   useEffect(() => {
     void sourceOf(props.doc).then((source) => {
+      setFailed(source === null);
+
       if (source !== null) setText(source);
     });
   }, [props.doc.path, props.doc.modified]);
@@ -443,7 +447,9 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     setDraft(first === undefined ? null : draftUnder(root, [first, ...rest], boxOf(target)));
   };
 
-  if (content === null) return <div class="waiting">Loading…</div>;
+  const waiting = waitingText(content !== null, failed);
+
+  if (waiting !== null) return <div class="waiting">{waiting}</div>;
   const adding = holding.value && draft !== null && activeMethod.value === "pinpoint";
 
   return (
