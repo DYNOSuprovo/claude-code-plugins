@@ -41,6 +41,8 @@ export function parseFrameToPage(value: unknown): FrameToPage | null {
 
   if (type === "vellum:unpick") return { type };
 
+  if (type === "vellum:switch") return { type };
+
   if (type === "vellum:holding")
     return typeof value.holding === "boolean" ? { type, holding: value.holding } : null;
 

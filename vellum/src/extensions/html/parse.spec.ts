@@ -55,6 +55,18 @@ describe("parseFrameToPage", () => {
     });
   });
 
+  test("a switch crosses: C was pressed inside the mockup", () => {
+    const flip: FrameToPage = { type: "vellum:switch" };
+
+    expect(parseFrameToPage(flip)).toEqual(flip);
+  });
+
+  test("a switch with fields the contract does not name crosses as its type alone", () => {
+    expect(parseFrameToPage({ type: "vellum:switch", on: false, by: "x" })).toEqual({
+      type: "vellum:switch",
+    });
+  });
+
   test("holding needs its boolean", () => {
     expect(parseFrameToPage({ type: "vellum:holding", holding: true })).toEqual({
       type: "vellum:holding",

@@ -9,7 +9,10 @@ export type PickBox = {
   readonly height: number;
 };
 
-/** `box` is in the frame's coordinates; the page adds the iframe's own rect. */
+/**
+ * `box` is in the frame's coordinates; the page adds the iframe's own rect. `vellum:switch` is
+ * `C` pressed inside the mockup, whose keys never reach the page.
+ */
 export type FrameToPage =
   | {
       readonly type: "vellum:pick";
@@ -17,7 +20,8 @@ export type FrameToPage =
       readonly box: PickBox;
     }
   | { readonly type: "vellum:unpick" }
-  | { readonly type: "vellum:holding"; readonly holding: boolean };
+  | { readonly type: "vellum:holding"; readonly holding: boolean }
+  | { readonly type: "vellum:switch" };
 
 /** The page's tokens the frame's overlay draws with, resolved to sRGB: its shadow root reads none of the page's properties. */
 export type FrameTheme = {

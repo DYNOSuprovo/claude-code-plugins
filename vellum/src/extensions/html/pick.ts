@@ -1,5 +1,3 @@
-import type { Relation } from "../../core/page/selection.ts";
-
 /** One element of a chain, as a selector needs it: its tag, its id, its classes, its rank among same-tag siblings. */
 export type Step = {
   readonly tag: string;
@@ -47,11 +45,4 @@ export function labelOf(step: Step): string {
   const first = step.classes[0];
 
   return first === undefined ? step.tag : `${step.tag}.${first}`;
-}
-
-/** Two elements overlap when one holds the other; the DOM says so, unlike Markdown's texts. */
-export function elementRelation(same: boolean, aContainsB: boolean, bContainsA: boolean): Relation {
-  if (same) return "same";
-
-  return aContainsB || bContainsA ? "overlapping" : "separate";
 }

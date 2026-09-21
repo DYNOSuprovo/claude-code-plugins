@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { Step } from "./pick.ts";
-import { elementRelation, selectorOf, targetIndex } from "./pick.ts";
+import { selectorOf, targetIndex } from "./pick.ts";
 
 function step(tag: string, extra: Partial<Step> = {}): Step {
   return { tag, id: null, classes: [], nthOfType: 1, sameTagSiblings: 1, ...extra };
@@ -43,20 +43,5 @@ describe("targetIndex", () => {
 
   test("html and body alone are no target", () => {
     expect(targetIndex(["body", "html"])).toBeNull();
-  });
-});
-
-describe("elementRelation", () => {
-  test("the same element is same", () => {
-    expect(elementRelation(true, false, false)).toBe("same");
-  });
-
-  test("one element inside the other is overlapping", () => {
-    expect(elementRelation(false, true, false)).toBe("overlapping");
-    expect(elementRelation(false, false, true)).toBe("overlapping");
-  });
-
-  test("two unrelated elements are separate", () => {
-    expect(elementRelation(false, false, false)).toBe("separate");
   });
 });
