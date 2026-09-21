@@ -1,12 +1,13 @@
-import { nextSelection } from "../../core/page/selection.ts";
+import { isSwitchKey, keyPressOf, toggled } from "../../core/page/selection.ts";
 import type { ElementRef } from "../../core/protocol.ts";
 import type { FrameToPage, PageToFrame } from "./messages.ts";
 import type { Step } from "./pick.ts";
-import { elementRelation, labelOf, selectorOf, targetIndex } from "./pick.ts";
+import { labelOf, selectorOf, targetIndex } from "./pick.ts";
 
 /**
  * Injected into every HTML file the server serves, so it runs inside the sandboxed mockup:
- * it owns hovering and selection there, and reports the chosen elements to the page.
+ * it owns hovering and selection there, and reports the chosen elements and the `C` key to the
+ * page.
  */
 
 const TEXT_LIMIT = 120;
@@ -22,15 +23,21 @@ const STYLE = `
   font: 600 11px/1 ui-monospace, Menlo, monospace; background: var(--redline); color: var(--sheet); white-space: nowrap; }
 `;
 
+/** The element a comment names, and what of it was chosen: all of it on a click, the text on a drag. */
+type Pick = { readonly element: Element; readonly range: Range; readonly text: string };
+
 let commenting = false;
 
-let chosen: readonly Element[] = [];
+let chosen: readonly Pick[] = [];
 
 let hovered: Element | null = null;
 
 let holding = false;
 
 let commented: readonly string[] = [];
+
+// The click that ends a drag: the drag chose its place already.
+let swallow = false;
 
 const layer = document.createElement("div");
 
@@ -78,38 +85,29 @@ function stepOf(element: Element): Step {
   };
 }
 
-function refOf(element: Element): ElementRef {
-  const steps = chainOf(element)
+function quoted(text: string): string {
+  return text.replaceAll(/\s+/gu, " ").trim().slice(0, TEXT_LIMIT);
+}
+
+function refOf(pick: Pick): ElementRef {
+  const steps = chainOf(pick.element)
     .filter((one) => one !== document.body && one !== document.documentElement)
     .toReversed()
     .map((one) => stepOf(one));
 
+  return { selector: selectorOf(steps), text: pick.text, label: labelOf(stepOf(pick.element)) };
+}
+
+/** A click picks the whole element: its range holds any drag inside it, so the two overlap. */
+function clickPick(element: Element): Pick {
+  const range = document.createRange();
+  range.selectNode(element);
   const shown = element instanceof HTMLElement ? element.innerText : (element.textContent ?? "");
 
-  return {
-    selector: selectorOf(steps),
-    text: shown.replaceAll(/\s+/gu, " ").trim().slice(0, TEXT_LIMIT),
-    label: labelOf(stepOf(element)),
-  };
+  return { element, range, text: quoted(shown) };
 }
 
-/** A Ctrl+click, in document order: the same element leaves, one that holds another replaces it. */
-function toggled(current: readonly Element[], one: Element): readonly Element[] {
-  const { keep, add } = nextSelection(
-    current.map((other) =>
-      elementRelation(other === one, other.contains(one), one.contains(other)),
-    ),
-  );
-
-  const next = current.filter((_, index) => keep.includes(index));
-
-  return [...next, ...(add ? [one] : [])].toSorted((a, b) =>
-    (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) === 0 ? 1 : -1,
-  );
-}
-
-function boxFor(element: Element, kind: string, label: string | null): HTMLElement {
-  const rect = element.getBoundingClientRect();
+function boxFor(rect: DOMRect, kind: string, label: string | null): HTMLElement {
   const box = document.createElement("div");
   box.className = `box ${kind}`;
   box.style.cssText = `top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;height:${rect.height}px`;
@@ -139,16 +137,24 @@ function draw(): void {
   const adding = holding && chosen.length > 0;
 
   layer.replaceChildren(
-    ...commentedElements().map((element) => boxFor(element, "comment", null)),
-    ...chosen.map((element) => boxFor(element, "chosen", null)),
+    ...commentedElements().map((element) =>
+      boxFor(element.getBoundingClientRect(), "comment", null),
+    ),
+    ...chosen.map((pick) => boxFor(pick.range.getBoundingClientRect(), "chosen", null)),
     ...(hovered === null
       ? []
-      : [boxFor(hovered, adding ? "wash adding" : "wash", labelOf(stepOf(hovered)))]),
+      : [
+          boxFor(
+            hovered.getBoundingClientRect(),
+            adding ? "wash adding" : "wash",
+            labelOf(stepOf(hovered)),
+          ),
+        ]),
   );
 }
 
 function sendPick(): void {
-  const [first, ...rest] = chosen.map((element) => refOf(element));
+  const [first, ...rest] = chosen.map((pick) => refOf(pick));
   const last = chosen.at(-1);
 
   if (first === undefined || last === undefined) {
@@ -157,7 +163,7 @@ function sendPick(): void {
     return;
   }
 
-  const rect = last.getBoundingClientRect();
+  const rect = last.range.getBoundingClientRect();
 
   post({
     type: "vellum:pick",
@@ -183,25 +189,68 @@ function onKey(event: KeyboardEvent): void {
   hold(event.ctrlKey || event.metaKey);
 }
 
+/** Both gestures end here: alone, a pick starts a new set; under Ctrl, it joins the open one. */
+function choose(one: Pick, event: MouseEvent): void {
+  chosen = (event.ctrlKey || event.metaKey) && chosen.length > 0 ? toggled(chosen, one) : [one];
+  sendPick();
+  draw();
+}
+
 function onMove(event: PointerEvent): void {
-  const target = commenting ? targetFrom(event.target) : null;
+  const target = commenting && event.buttons === 0 ? targetFrom(event.target) : null;
 
   if (target === hovered) return;
   hovered = target;
   draw();
 }
 
+/** A drag picks the innermost element that holds the whole selection, with the dragged text. */
+function onMouseUp(event: MouseEvent): void {
+  const selection = document.getSelection();
+
+  // `getRangeAt` throws on a selection with no range: the guard comes first.
+  if (!commenting || selection === null || selection.rangeCount === 0 || selection.isCollapsed) {
+    return;
+  }
+
+  const range = selection.getRangeAt(selection.rangeCount - 1).cloneRange();
+  const ancestor = range.commonAncestorContainer;
+  // A phrase inside one text node has that node as its ancestor, and `targetFrom` takes elements.
+  const element = targetFrom(ancestor instanceof Element ? ancestor : ancestor.parentElement);
+  const text = quoted(range.toString());
+
+  if (element === null || text === "") return;
+  selection.removeAllRanges();
+  swallow = true;
+  choose({ element, range, text }, event);
+}
+
+/**
+ * The click that ends a drag is stopped too, then swallowed: a drag that ends on a mockup's
+ * button never runs it.
+ */
 function onClick(event: MouseEvent): void {
   if (!commenting) return;
   event.preventDefault();
   event.stopPropagation();
+
+  if (swallow) {
+    swallow = false;
+
+    return;
+  }
+
   const target = targetFrom(event.target);
 
-  if (target === null) return;
-  chosen =
-    (event.ctrlKey || event.metaKey) && chosen.length > 0 ? toggled(chosen, target) : [target];
-  sendPick();
-  draw();
+  if (target !== null) choose(clickPick(target), event);
+}
+
+/** `C` inside the mockup flips the page's switch; while on, the mockup's own listeners never see it. */
+function onSwitchKey(event: KeyboardEvent): void {
+  if (!isSwitchKey(keyPressOf(event))) return;
+  post({ type: "vellum:switch" });
+
+  if (commenting) event.stopImmediatePropagation();
 }
 
 function onMessage(event: MessageEvent): void {
@@ -241,7 +290,20 @@ document.addEventListener("pointerleave", () => {
   draw();
 });
 
+// A drag that no click follows would otherwise swallow the next real click.
+document.addEventListener(
+  "pointerdown",
+  () => {
+    swallow = false;
+  },
+  true,
+);
+
+document.addEventListener("mouseup", onMouseUp, true);
+
 document.addEventListener("click", onClick, true);
+
+window.addEventListener("keydown", onSwitchKey, true);
 
 document.addEventListener("keydown", onKey);
 

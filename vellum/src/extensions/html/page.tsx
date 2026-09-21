@@ -4,7 +4,7 @@ import type { RendererProps, PageExtension } from "../../core/extension.ts";
 import { docUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { srgb } from "../../core/page/kit.tsx";
-import { commenting, dark, holding } from "../../core/page/state.ts";
+import { commenting, dark, flipCommentSwitch, holding } from "../../core/page/state.ts";
 import type { ElementRef } from "../../core/protocol.ts";
 import type { FrameTheme, PageToFrame, PickBox } from "./messages.ts";
 import { parseFrameToPage } from "./parse.ts";
@@ -78,6 +78,8 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
 
       if (message.type === "vellum:holding") setFrameHolding(message.holding);
 
+      if (message.type === "vellum:switch") flipCommentSwitch();
+
       if (message.type === "vellum:pick" && commenting.value) {
         const [first, ...rest] = message.elements;
 
@@ -114,7 +116,7 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
       {draft !== null && at !== null && (
         <Composer
           picks={draft.elements.map((element) => ({
-            key: element.selector,
+            key: `${element.selector}-${element.text}`,
             text: element.text,
             where: element.label,
           }))}
