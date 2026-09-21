@@ -12,10 +12,35 @@ export type Verdict =
   | { readonly kind: "deny"; readonly reason: string };
 
 /** The project's prefix; a project at `/` owns every path. */
-function projectPrefix(project: ProjectDir): string {
+function projectPrefix(project: string): string {
   const root = resolvePath("/", project);
 
   return root === "/" ? "/" : `${root}/`;
+}
+
+/** A project Claude Code runs on Windows is named by its drive: `C:\…` or `C:/…`. */
+const WINDOWS = /^[A-Za-z]:[\\/]/u;
+
+/**
+ * Windows spells one file several ways: `\` or `/`, any case, since NTFS folds it, and rooted
+ * on the session's drive without naming it. Each becomes one POSIX spelling with the drive as
+ * its first segment, so the prefixes compare.
+ */
+function windowsSpelling(path: string, drive: string): string {
+  const spelled = path.replaceAll("\\", "/").toLowerCase();
+
+  if (WINDOWS.test(spelled)) return `/${spelled}`;
+
+  return spelled.startsWith("/") ? `/${drive}${spelled}` : spelled;
+}
+
+/** How the lock spells a path: as written on POSIX, in one spelling on a Windows project. */
+function spellingOf(project: ProjectDir, cwd: string): (path: string) => string {
+  if (!WINDOWS.test(project)) return (path) => path;
+
+  const drive = (WINDOWS.test(cwd) ? cwd : project).slice(0, 2).toLowerCase();
+
+  return (path) => windowsSpelling(path, drive);
 }
 
 /** Absolute, `.` and `..` folded: a relative path resolves against the session's directory. */
@@ -46,11 +71,13 @@ export function lockVerdict(
   project: ProjectDir,
   workdir: Workdir,
 ): Verdict {
-  const resolved = resolvePath(cwd, path);
+  const spell = spellingOf(project, cwd);
+  const root = spell(project);
+  const resolved = resolvePath(spell(cwd), spell(path));
 
-  if (!resolved.startsWith(projectPrefix(project))) return { kind: "check" };
+  if (!resolved.startsWith(projectPrefix(root))) return { kind: "check" };
 
-  return resolved.startsWith(`${resolvePath(project, workdir)}/`)
+  return resolved.startsWith(`${resolvePath(root, spell(workdir))}/`)
     ? { kind: "allow" }
     : {
         kind: "deny",

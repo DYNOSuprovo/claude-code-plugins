@@ -65,6 +65,51 @@ describe("lockVerdict", () => {
   });
 });
 
+describe("lockVerdict on a Windows project", () => {
+  // Claude Code on Windows names the project, the session's directory and every file by drive.
+  const PROJECT = projectDir("C:\\work\\proj");
+  const INSIDE = `C:\\work\\proj\\${WORKDIR.replaceAll("/", "\\")}`;
+
+  function win(path: string, cwd: string = PROJECT): Verdict {
+    return lockVerdict(path, cwd, PROJECT, WORKDIR);
+  }
+
+  test("a file under the working directory is allowed outright", () => {
+    expect(win(`${INSIDE}plan.md`)).toEqual({ kind: "allow" });
+  });
+
+  test("forward slashes and a lowercase drive name the same file", () => {
+    expect(win(`c:/work/proj/${WORKDIR}plan.md`)).toEqual({ kind: "allow" });
+  });
+
+  test("a file under the project and outside the working directory is denied", () => {
+    expect(win("C:\\work\\proj\\src\\cli.ts")).toEqual(DENIED);
+  });
+
+  test("another case does not take a file out of the project: NTFS folds it", () => {
+    expect(win("C:\\WORK\\PROJ\\src\\cli.ts")).toEqual(DENIED);
+  });
+
+  test("a path rooted on the session's drive is under the project when it names it", () => {
+    expect(win("\\work\\proj\\src\\cli.ts")).toEqual(DENIED);
+  });
+
+  test("a file outside the project, on its drive, another or a share, is the session's to decide", () => {
+    for (const path of [
+      "C:\\Temp\\x.md",
+      "D:\\proj\\x.md",
+      "\\\\host\\share\\x.md",
+    ]) {
+      expect(win(path), path).toEqual({ kind: "check" });
+    }
+  });
+
+  test("a relative path is resolved against the session's directory", () => {
+    expect(win("plan.md", INSIDE)).toEqual({ kind: "allow" });
+    expect(win("..\\..\\..\\src\\cli.ts", INSIDE)).toEqual(DENIED);
+  });
+});
+
 describe("submitResult", () => {
   test("a version tells the model to end its turn, recorded or kept: it acts the same on both", () => {
     expect(submitResult({ version: 1, kept: false })).toEqual({
