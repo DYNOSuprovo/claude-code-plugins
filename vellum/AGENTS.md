@@ -18,6 +18,7 @@ src/core/server/adapters/      http/routes.ts, http/serve.ts, fs.ts, browser.ts:
 src/core/server/app/review.ts  the use case: read, decide, apply
 src/core/server/domain/        pure, no IO: paths, workspace, review, feedback, diff, slug, links
 src/core/server/cli.ts         the entry point: `start` spawns `serve` detached
+src/core/server/preview.ts     the page alone on any directory of documents: a working copy, served, taken away
 src/core/protocol.ts           what crosses HTTP and an extension boundary; JSON
 src/core/extension.ts          the contract an extension fills: PageExtension, ServerExtension
                                (EngineExtension lives with the hooks module, core/engine/extension.ts)
@@ -46,6 +47,7 @@ CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test vellum       # the hooks 
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum   # what the hooks module hooks and calls
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 command claude --permission-mode default --plugin-dir vellum   # a live session from source
 bun vellum/src/core/server/cli.ts serve --session <id> --project <dir> --workdir plans/<date>/wip-<sid8>/   # the server alone, for page work; the trailing slash is required; `--port <n> --token <t> --existing` revives one where it was
+bun vellum/src/core/server/preview.ts <dir holding plan.md> [--minutes <n>] [--port <n>]   # the same page on any directory, working or final: it prints the URL and serves a copy it takes away on the way out
 claude -p --setting-sources project "/plugin-types vellum/types"    # regenerate types/claude-code.d.ts after a Claude Code update; keep claude-code.d.ts only
 ```
 
@@ -56,6 +58,14 @@ the grace and no tab holds the event stream (`WATCHDOG` in `http/serve.ts` holds
 Only the hooks module posts the heartbeat, the page does not: alone, an open tab keeps it for
 a while, or post the heartbeat in a loop with the header
 `x-vellum-token: <token>`.
+
+`preview.ts` takes that heartbeat off your hands: nothing beats it, so `--minutes` is its whole
+lifetime, thirty by default, and a tab holds it no longer. It copies the directory into a scratch
+`plans/<date>/wip-<sid8>/` rather than linking it, since a listing keeps files alone and a link is
+not one, and since the server writes `.review/` and an edited `plan.md` where it serves: an edit
+of a source document reaches the next run, never the one in flight. Ctrl-C, `SIGTERM` and the
+lifetime all take the copy away; `SIGKILL` leaves it, and `find plans/<date>/ -type f -delete`
+then `find plans/<date>/ -depth -type d -empty -delete` finishes the job.
 
 A live session, the browser, and the facts measured on Claude Code: `docs/plugin-testing.md`
 at the repository root, § Testing a hooks module, and `plans/2026-09-15/plan-review-rewrite/`.
