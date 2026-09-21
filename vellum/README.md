@@ -2,8 +2,6 @@
 
 Write a plan the way its reviewer reads it, then review it in the browser. The skill orders the plan by what the reviewer is most likely to change and buries the mechanics; the hooks module holds a planning mode of its own: `/vellum:start` enters it, Claude writes the plan and its mockups in a working directory, the reviewer comments them in a page or approves, and the answer reaches Claude as a prompt.
 
-Replaces `plan-frontiers` and `software-craft:thorough-plan`.
-
 ## Requirements
 
 - Claude Code with function hooks, launched with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` until they ship publicly. Without the flag the hooks module does not load: the skill still writes a plan under `plans/<date>/<slug>/`, but there is no mode, no page and no `mcp__vellum__submit` tool; use the native plan mode for that session.
