@@ -37,9 +37,9 @@ async function blocksOf(path: string): Promise<Block[] | null> {
       return (await response.json()) as Block[];
     }
 
-    error.value = `GET ${ID}/blocks failed: ${response.status}`;
+    error.value = `GET ${path} failed: ${response.status}`;
   } catch (cause) {
-    error.value = `GET ${ID}/blocks failed: ${String(cause)}`;
+    error.value = `GET ${path} failed: ${String(cause)}`;
   }
 
   return null;

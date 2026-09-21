@@ -113,10 +113,11 @@ no build step, so what the page imports costs nothing at `cli start`.
   catches, or an aborted request reaches nobody. A read that only refreshes what is on
   screen may fail in silence, since the next workspace event reads again:
   `loadState` in `grill/page.tsx`.
-- The banner says the failure, the sheet says the state it leaves: a first load that failed
-  prints it where the wait was, a failed reload keeps the text the reviewer is reading.
-  `waitingText` in `markdown/sheet.ts` chooses, purely, and `MarkdownDoc` draws it in the one
-  `.waiting` line it already had.
+- In the Markdown renderer the banner says the failure and the sheet says the state it leaves: a
+  first load that failed prints it where the wait was, a failed reload keeps the text the reviewer
+  is reading. `waitingText` in `markdown/sheet.ts` chooses, purely, and `MarkdownDoc` draws it in
+  the one `.waiting` line it already had. No other renderer has that state: a grill's transcript
+  whose blocks failed to load stays an empty sheet under the banner.
 - A block says its source lines in `data-lines="start-end"`: `markdown/tree.ts` writes it,
   `parseLines` of `anchoring.ts` is the one place it is read, and `tree.spec.ts` holds the two
   together. Every reader calls it, the pure helpers of `markdown/` included: a second copy of
