@@ -60,8 +60,8 @@ export type RouteKey = `${"GET" | "POST"} ${string}`;
 
 /**
  * A server extension proposes documents linked from the plan, and the server keeps those that
- * exist outside its own `.review/`; it brings its own routes, mounted at `/api/x/<id>/<name>`
- * behind the token.
+ * exist and lie under no `.review/`, its own or another plan's; it brings its own routes,
+ * mounted at `/api/x/<id>/<name>` behind the token.
  */
 export type ServerExtension = {
   readonly id: string;

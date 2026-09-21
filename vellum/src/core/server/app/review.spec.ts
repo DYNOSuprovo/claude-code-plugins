@@ -310,6 +310,19 @@ describe("Review", () => {
     expect(view.docs.map((doc) => doc.path)).toEqual([`${WIP}mockup.html` as never]);
   });
 
+  test("a cited file whose own name holds .review is listed: the segment is what counts", async () => {
+    const s = setup();
+    mkdirSync(join(s.root, "docs"));
+    writeFileSync(join(s.root, "docs", "notes.review.md"), "# Notes\n");
+    writeFileSync(join(s.root, WIP, "plan.md"), "# Plan\n\nSee [notes](docs/notes.review.md).\n");
+    await s.review.gate();
+    const view = await s.review.view();
+    expect(view.docs.map((doc) => doc.path)).toEqual([
+      `${WIP}mockup.html` as never,
+      "docs/notes.review.md" as never,
+    ]);
+  });
+
   test("a plan that names a feedback file does not list it as cited", async () => {
     const s = await gated("# Plan\n\nThe answer is in `.review/v1.feedback.md`.\n");
     writeFileSync(join(s.root, WIP, ".review", "v1.feedback.md"), "# Changes\n");

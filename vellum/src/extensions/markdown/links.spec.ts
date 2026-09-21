@@ -39,9 +39,19 @@ describe("linkedDoc", () => {
     expect(linkedDoc("plans/2026-09-01/other/plan.md", [], PLAN)).toBeNull();
   });
 
-  test("a listed document is preferred to the working copy", () => {
-    const cited = doc("plans/2026-09-01/other/plan.md", "cited");
-    expect(linkedDoc("plan.md", [cited], PLAN)).toBe("plans/2026-09-01/other/plan.md" as never);
+  test("a listed document named in full comes before the working copy", () => {
+    expect(linkedDoc("plan.md", [doc("plan.md", "cited")], PLAN)).toBe("plan.md" as never);
+  });
+
+  test("the working copy comes before a listed document a bare name only ends", () => {
+    expect(linkedDoc("plan.md", [doc("shots/plan.md", "cited")], PLAN)).toBe(
+      `${WIP}.review/v2.md` as never,
+    );
+  });
+
+  test("two documents end on the same name, and the first of the list answers", () => {
+    const listed = [doc(`${WIP}notes.md`), doc(`${WIP}sub/notes.md`)];
+    expect(linkedDoc("notes.md", listed, PLAN)).toBe(`${WIP}notes.md` as never);
   });
 
   test("while drafting the working copy is listed, and the link names it there", () => {

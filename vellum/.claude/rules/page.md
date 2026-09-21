@@ -73,14 +73,16 @@ no build step, so what the page imports costs nothing at `cli start`.
   which `planDoc` of `state.ts` puts at the head with the same label. A reader finds the plan by
   that label, as `DocList` does, or by `planDoc`'s path, never by its place in `docs`. Past
   `drafting` the working copy is on no list, and `review.plan.workingCopy` names it, since the
-  server is again the one that knows the two are one document: a link to that path selects the
-  plan, as `linkedDoc` of `markdown/links.ts` decides, and a link the page holds no document for
-  keeps the new tab its anchor carries. Comments
-  are taken while `inReview` and while `drafting`, so `locked` names two states, not one, and Approve is drawn
-  only where a version exists. `locked` reads `takesComments`, the domain's predicate the server
-  holds a draft to as well. A renderer never reads `inputMethod`: it reads `activeMethod`, which
-  is `null` on a locked page, so no composer opens there, and `addAnnotation` returns when
-  locked, as `select` does while the editor is open. A comment nobody can send is a silent loss.
+  server is again the one that knows the two are one document. The choice is `linkedDoc` of
+  `markdown/links.ts`, three answers read in order: a listed document named in full, then the
+  working copy, which selects the plan, then a listed document the name only ends. So `plan.md`
+  selects the plan as it does while `drafting`, and a link the page holds no document for keeps
+  the new tab its anchor carries. Comments are taken while `inReview` and while `drafting`, so
+  `locked` names two states, not one, and Approve is drawn only where a version exists. `locked`
+  reads `takesComments`, the domain's predicate the server holds a draft to as well. A renderer
+  never reads `inputMethod`: it reads `activeMethod`, which is `null` on a locked page, so no
+  composer opens there, and `addAnnotation` returns when locked, as `select` does while the
+  editor is open. A comment nobody can send is a silent loss.
 - `review.held` is what holds the review, or `null`. Held, Send feedback is disabled with the
   reason as its title, and every way to an approval goes through the warning popover, which
   says the approval ends what holds it. The bar prints the reason and never reads which
