@@ -83,8 +83,8 @@ async function failingBareImports(files: readonly string[]): Promise<string[]> {
     console.log(JSON.stringify(failed));
   `;
 
-  // From the repository root, where the one `tsconfig.json` names Preact as the JSX runtime.
-  const bare = Bun.spawn(["bun", "-e", script], { cwd: join(ROOT, ".."), stderr: "inherit" });
+  // From the plugin's root: `bun -e` reads the JSX runtime in the `tsconfig.json` of where it runs.
+  const bare = Bun.spawn(["bun", "-e", script], { cwd: ROOT, stderr: "inherit" });
 
   // SAFETY: the script above prints one JSON array of strings, and nothing else writes to its stdout.
   const failed = JSON.parse(await new Response(bare.stdout).text()) as string[];
