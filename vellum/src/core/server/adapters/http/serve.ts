@@ -6,7 +6,7 @@ import { serverExtensions } from "../../../../extensions/server.ts";
 import type { Route, ServerContext } from "../../../extension.ts";
 import index from "../../../page/index.html";
 import { Review } from "../../app/review.ts";
-import type { WipDir } from "../../domain/paths.ts";
+import type { FinalDir, WipDir } from "../../domain/paths.ts";
 import { REVIEW_DIR } from "../../domain/workspace.ts";
 import { openInBrowser } from "../browser.ts";
 import { watchFiles } from "../fs.ts";
@@ -44,6 +44,8 @@ export type Started = {
   readonly server: Bun.Server<undefined>;
   readonly token: string;
   readonly url: string;
+  /** Where the review lives now: an approval renames the working directory under whoever serves it. */
+  readonly dir: () => WipDir | FinalDir;
   /** Stops the server and its watchdog; for tests, which share one process. */
   readonly stop: () => void;
 };
@@ -106,7 +108,11 @@ export async function startServer(options: ServeOptions): Promise<Started> {
   // The page hears of every file Claude writes; the approval renames the directory, and there the watch ends.
   const unwatch = watchFiles(options.project, options.workdir, () => void review.notify());
 
+  let dir: WipDir | FinalDir = options.workdir;
+
   review.subscribe((workspace) => {
+    dir = workspace.dir;
+
     if (workspace.kind === "approved") unwatch();
   });
 
@@ -166,6 +172,7 @@ export async function startServer(options: ServeOptions): Promise<Started> {
     server,
     token,
     url,
+    dir: () => dir,
     stop: () => {
       unwatch();
       clearInterval(watchdog);

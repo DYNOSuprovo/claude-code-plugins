@@ -5,9 +5,9 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { startServer } from "./adapters/http/serve.ts";
-import type { WipDir } from "./domain/paths.ts";
+import type { FinalDir, WipDir } from "./domain/paths.ts";
 import { dateOf, parseWipDir } from "./domain/paths.ts";
-import { PLAN_FILE } from "./domain/workspace.ts";
+import { DRAFT_FILE, PLAN_FILE } from "./domain/workspace.ts";
 
 /** The page alone on any directory of documents: a working copy, served, taken away on the way out. */
 
@@ -35,14 +35,17 @@ export function scratchDir(date: string, id: string): WipDir {
 /**
  * Copied, never linked: `listFiles` keeps an entry its listing calls a file, and a symbolic link
  * is not one, so a linked document reaches no page. The server writes in its working directory
- * too, `.review/draft.json` and an edited `plan.md`, which a link would carry to the source.
+ * too, `.review/draft.json` and an edited `plan.md`, which a link would carry to the source. The
+ * source's own draft stays there: its comments name the paths of a directory nobody serves here.
  */
 export function stage(source: string, project: string, dir: WipDir): void {
-  cpSync(source, join(project, dir), { recursive: true });
+  cpSync(source, join(project, dir), {
+    recursive: true,
+    filter: (from) => !from.endsWith(`/${DRAFT_FILE}`),
+  });
 }
 
-/** The copy, and the `plans/` directories it was the only plan of. */
-export function discard(project: string, dir: WipDir): void {
+export function discard(project: string, dir: WipDir | FinalDir): void {
   rmSync(join(project, dir), { recursive: true, force: true });
   removeIfEmpty(join(project, "plans", dateOf(dir)));
   removeIfEmpty(join(project, "plans"));
@@ -82,12 +85,16 @@ if (import.meta.main) {
   const project = process.cwd();
   const dir = scratchDir(today(), scratchId());
 
-  stage(from, project, dir);
-  process.on("exit", () => discard(project, dir));
+  // Registered before the copy: one that fails halfway leaves the files it did write.
+  let served: () => WipDir | FinalDir = () => dir;
+
+  process.on("exit", () => discard(project, served()));
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, () => process.exit(0));
   }
+
+  stage(from, project, dir);
 
   // No module beats this server, so the watchdog is its lifetime: a tab holds it no longer.
   const ttlMs = minutes * 60_000;
@@ -104,8 +111,10 @@ if (import.meta.main) {
     },
   });
 
+  served = started.dir;
+
   console.log(started.url);
   console.error(
-    `${from} copied to ${dir}; pid ${process.pid}; gone on Ctrl-C, on kill ${process.pid}, or in ${minutes} min`,
+    `${from} copied to ${join(project, dir)}; pid ${process.pid}; gone on Ctrl-C, on kill ${process.pid}, or in ${minutes} min`,
   );
 }

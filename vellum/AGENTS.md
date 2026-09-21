@@ -57,15 +57,25 @@ at `http://127.0.0.1:<port>/t/<token>/`; it exits once its last `POST /api/heart
 the grace and no tab holds the event stream (`WATCHDOG` in `http/serve.ts` holds both delays).
 Only the hooks module posts the heartbeat, the page does not: alone, an open tab keeps it for
 a while, or post the heartbeat in a loop with the header
-`x-vellum-token: <token>`.
+`x-vellum-token: <token>`. A `POST /api/gate` or `POST /api/open` sent while no tab holds the
+event stream calls the opener (`streams.open === 0` in `routes.ts`), so a gate driven by curl
+launches `xdg-open` on the human's desktop; `bun test` alone is spared, by `NODE_ENV`.
 
 `preview.ts` takes that heartbeat off your hands: nothing beats it, so `--minutes` is its whole
 lifetime, thirty by default, and a tab holds it no longer. It copies the directory into a scratch
 `plans/<date>/wip-<sid8>/` rather than linking it, since a listing keeps files alone and a link is
 not one, and since the server writes `.review/` and an edited `plan.md` where it serves: an edit
-of a source document reaches the next run, never the one in flight. Ctrl-C, `SIGTERM` and the
-lifetime all take the copy away; `SIGKILL` leaves it, and `find plans/<date>/ -type f -delete`
-then `find plans/<date>/ -depth -type d -empty -delete` finishes the job.
+of a source document reaches the next run, never the one in flight.
+
+The copy carries `.review/`, so the page opens where the source left the review: `drafting` on a
+directory that has none, `inReview v<last>` on a final plan, `changesRequested v<n>` where the last
+version was refused, and there the page takes no comment. The source's own `.review/draft.json`
+stays behind, its annotations naming the paths of a directory nobody serves here. Run the command
+from the repository root: the project is the current directory, and anywhere else the plan's cited
+files resolve against the wrong root and `plans/` is made where you stand. Ctrl-C, `SIGTERM`, the
+lifetime running out and an approval in the page all take the copy away, under the name the
+approval renamed it to; `SIGKILL` leaves it, and `find plans/<date>/ -type f -delete` then
+`find plans/<date>/ -depth -type d -empty -delete` finishes the job.
 
 A live session, the browser, and the facts measured on Claude Code: `docs/plugin-testing.md`
 at the repository root, § Testing a hooks module, and `plans/2026-09-15/plan-review-rewrite/`.

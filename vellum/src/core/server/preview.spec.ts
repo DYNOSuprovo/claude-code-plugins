@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { afterEach, describe, expect, test } from "bun:test";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -10,6 +10,8 @@ import { discard, scratchDir, scratchId, stage, today } from "./preview.ts";
 const PREVIEW = join(import.meta.dir, "preview.ts");
 
 const DIR = scratchDir("2026-09-15", "4c2a9d93");
+
+const APPROVE = JSON.stringify({ kind: "approve", edit: null, notes: "" });
 
 type Fixture = { readonly project: string; readonly source: string };
 
@@ -43,15 +45,37 @@ async function firstLine(stream: ReadableStream<Uint8Array>): Promise<string> {
   return buffered.split("\n")[0] ?? "";
 }
 
-async function viewOf(url: string): Promise<ReviewView> {
+function api(url: string, path: string, body: string | null = null): Promise<Response> {
   const token = url.split("/t/")[1]?.replace("/", "") ?? "";
 
-  const answer = await fetch(`${new URL(url).origin}/api/review`, {
-    headers: { "x-vellum-token": token },
+  return fetch(`${new URL(url).origin}${path}`, {
+    method: body === null ? "GET" : "POST",
+    headers: { "x-vellum-token": token, "content-type": "application/json" },
+    body,
+  });
+}
+
+async function viewOf(url: string): Promise<ReviewView> {
+  // SAFETY: `GET /api/review` answers `Response.json(await review.view())`, a `ReviewView`.
+  return (await (await api(url, "/api/review")).json()) as ReviewView;
+}
+
+/** Nothing else kills a preview, and one left running holds its copy for thirty minutes. */
+const running: Bun.Subprocess[] = [];
+
+afterEach(() => {
+  for (const preview of running.splice(0)) preview.kill("SIGKILL");
+});
+
+function spawnPreview(fixed: Fixture): Bun.Subprocess<"ignore", "pipe", "pipe"> {
+  const preview = Bun.spawn(["bun", PREVIEW, fixed.source], {
+    cwd: fixed.project,
+    stderr: "pipe",
   });
 
-  // SAFETY: `GET /api/review` answers `Response.json(await review.view())`, a `ReviewView`.
-  return (await answer.json()) as ReviewView;
+  running.push(preview);
+
+  return preview;
 }
 
 describe("the scratch directory", () => {
@@ -96,12 +120,21 @@ describe("the copy", () => {
 
     expect(readdirSync(join(project, "plans/2026-09-15"))).toEqual(["kept"]);
   });
+
+  test("leaves the source's unsent draft where it was, since its comments name the source", () => {
+    const { project, source } = fixture();
+    writeFileSync(join(source, ".review/draft.json"), '{"annotations":[],"edit":null}');
+    stage(source, project, DIR);
+
+    expect(readdirSync(join(project, DIR, ".review"))).toEqual(["v1.md"]);
+    expect(existsSync(join(source, ".review/draft.json"))).toBe(true);
+  });
 });
 
 describe("the command", () => {
   test("serves a directory that is no working one, and takes its copy away on SIGINT", async () => {
-    const { project, source } = fixture();
-    const preview = Bun.spawn(["bun", PREVIEW, source], { cwd: project, stderr: "ignore" });
+    const fixed = fixture();
+    const preview = spawnPreview(fixed);
     const url = await firstLine(preview.stdout);
     const view = await viewOf(url);
 
@@ -111,12 +144,36 @@ describe("the command", () => {
     preview.kill("SIGINT");
     await preview.exited;
 
-    expect(existsSync(join(project, "plans"))).toBe(false);
+    expect(existsSync(join(fixed.project, "plans"))).toBe(false);
+  });
+
+  test("takes away the approved name the copy was renamed to, not the one it was staged at", async () => {
+    const fixed = fixture();
+    const preview = spawnPreview(fixed);
+    const url = await firstLine(preview.stdout);
+    await api(url, "/api/decision", APPROVE);
+
+    expect(readdirSync(join(fixed.project, "plans", today()))).toEqual(["plan"]);
+    preview.kill("SIGINT");
+    await preview.exited;
+
+    expect(existsSync(join(fixed.project, "plans"))).toBe(false);
+  });
+
+  test("leaves no half copy behind when a file of the source cannot be read", async () => {
+    const fixed = fixture();
+    chmodSync(join(fixed.source, "shots/mockup.html"), 0o000);
+    const preview = spawnPreview(fixed);
+
+    expect(await preview.exited).toBe(1);
+    expect(existsSync(join(fixed.project, "plans"))).toBe(false);
   });
 
   test("refuses a directory that holds no plan.md, and stages nothing", async () => {
     const { project } = fixture();
     const preview = Bun.spawn(["bun", PREVIEW, project], { cwd: project, stderr: "pipe" });
+
+    running.push(preview);
 
     expect(await preview.exited).toBe(2);
     expect(await new Response(preview.stderr).text()).toContain("plan.md");
