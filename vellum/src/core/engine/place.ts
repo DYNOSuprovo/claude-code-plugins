@@ -1,6 +1,6 @@
 import type { Host } from "./host.ts";
 import type { Landed, Platform } from "./lock.ts";
-import type { ProjectDir, Workdir } from "./parse.ts";
+import type { ProjectDir } from "./parse.ts";
 
 /**
  * A missing name Windows reads off the folder it seems to be in: `D:x` lands in drive D's own
@@ -75,14 +75,14 @@ export async function placed(host: Host, path: string, platform: Platform): Prom
 }
 
 /**
- * Where a call's file, the project and the working directory land. The project's `realPath`
- * also says the platform: POSIX answers it from `/`, Windows from a drive or a share. A
- * relative path hangs off the session's directory, read for that path alone. A project that
- * cannot be placed throws, and the lock fails closed on it.
+ * Where a call's file and the project land. The project's `realPath` also says the platform:
+ * POSIX answers it from `/`, Windows from a drive or a share. A relative path hangs off the
+ * session's directory, read for that path alone. A project that cannot be placed throws, and
+ * the lock fails closed on it.
  */
 export async function landed(
   host: Host,
-  session: { readonly project: ProjectDir; readonly workdir: Workdir },
+  session: { readonly project: ProjectDir },
   path: string,
 ): Promise<Landed> {
   const project = (await host.stat(session.project)).realPath;
@@ -99,10 +99,5 @@ export async function landed(
     ? path
     : `${(await host.cwd()).replace(SEPARATORS[platform].trailing, "")}/${path}`;
 
-  return {
-    file: await placed(host, whole, platform),
-    project,
-    workdir: await placed(host, `${session.project}/${session.workdir}`, platform),
-    platform,
-  };
+  return { file: await placed(host, whole, platform), project, platform };
 }

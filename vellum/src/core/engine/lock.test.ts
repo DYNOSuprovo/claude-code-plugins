@@ -3,11 +3,15 @@ import { describe, expect, test, tier } from "claude-code/testing";
 import {
   approved,
   CWD,
+  DATE,
   DIR,
+  FILE,
   FINAL,
   link,
   refused,
+  SERVER,
   START_PROMPT,
+  storedSession,
   WORKDIR,
   world,
 } from "./fixtures/index.ts";
@@ -29,7 +33,7 @@ const ENGINE = { decision: "ask", reason: "the session's own flow" } as const;
 const INSIDE = `${CWD}/${WORKDIR}`;
 
 function landedOn(file: string | null, at: Partial<Landed> = {}): Landed {
-  return { file, project: CWD, workdir: INSIDE.slice(0, -1), platform: "posix", ...at };
+  return { file, project: CWD, platform: "posix", ...at };
 }
 
 describe("lockVerdict", () => {
@@ -65,12 +69,6 @@ describe("lockVerdict", () => {
     });
   });
 
-  test("a working directory that lands nowhere allows nothing", () => {
-    expect(lockVerdict("x", WORKDIR, landedOn(`${INSIDE}plan.md`, { workdir: null }))).toEqual(
-      DENIED,
-    );
-  });
-
   test("another case does not take a file out of the project: NTFS and APFS fold it", () => {
     expect(lockVerdict("x", WORKDIR, landedOn("/PROJECT/src/cli.ts"))).toEqual(DENIED);
   });
@@ -81,22 +79,20 @@ describe("lockVerdict", () => {
 });
 
 describe("lockVerdict on what a Windows disk answers", () => {
-  const windows = {
-    project: "C:\\work\\proj",
-    workdir: `C:\\work\\proj\\${WORKDIR.replaceAll("/", "\\").slice(0, -1)}`,
-    platform: "windows",
-  } as const;
+  const windows = { project: "C:\\work\\proj", platform: "windows" } as const;
+
+  const workdir = `C:\\work\\proj\\${WORKDIR.replaceAll("/", "\\").slice(0, -1)}`;
 
   function win(file: string): ReturnType<typeof lockVerdict> {
     return lockVerdict("x", WORKDIR, landedOn(file, windows));
   }
 
   test("a file under the working directory is allowed outright", () => {
-    expect(win(`${windows.workdir}\\plan.md`)).toEqual({ kind: "allow" });
+    expect(win(`${workdir}\\plan.md`)).toEqual({ kind: "allow" });
   });
 
   test("a file not written yet, its tail joined with `/`, is the same file", () => {
-    expect(win(`${windows.workdir}/mockups/a.html`)).toEqual({ kind: "allow" });
+    expect(win(`${workdir}/mockups/a.html`)).toEqual({ kind: "allow" });
     expect(win("C:\\work\\proj/src/new.ts")).toEqual(DENIED);
   });
 
@@ -216,6 +212,34 @@ describe("the lock places a path before it decides", () => {
     ).toEqual(ENGINE);
   });
 
+  test("a working directory that is a link into the project allows nothing there", async ($, on) => {
+    world(on, { disk: new Map([[INSIDE.slice(0, -1), link("../../src")]]) });
+    on("tool.check", () => ENGINE);
+    await $.skill.prompt(START_PROMPT);
+
+    for (const file_path of [`${CWD}/src/cli.ts`, `${INSIDE}plan.md`]) {
+      expect(await $.tool.check({ tool: "Write", input: { file_path } }), file_path).toEqual(
+        DENIAL,
+      );
+    }
+  });
+
+  test("a working directory that is a link out of the project leaves its target to the session", async ($, on) => {
+    world(on, {
+      disk: new Map([
+        [INSIDE.slice(0, -1), link("/elsewhere")],
+        ["/elsewhere", DIR],
+        ["/elsewhere/.bashrc", FILE],
+      ]),
+    });
+    on("tool.check", () => ENGINE);
+    await $.skill.prompt(START_PROMPT);
+
+    expect(
+      await $.tool.check({ tool: "Write", input: { file_path: "/elsewhere/.bashrc" } }),
+    ).toEqual(ENGINE);
+  });
+
   test("a folder whose stat is refused is not missing: nothing tells where the path lands", async ($, on) => {
     world(on, { disk: new Map([[`${INSIDE}l`, refused("a sandbox keeps plugins out of it")]]) });
     on("tool.check", () => ENGINE);
@@ -224,6 +248,23 @@ describe("the lock places a path before it decides", () => {
     expect(
       await $.tool.check({ tool: "Write", input: { file_path: `${INSIDE}l/cli.ts` } }),
     ).toMatchObject({ decision: "deny", reason: expect.stringContaining("cannot tell where") });
+  });
+
+  test("a project at the root of the file system allows its working directory", async ($, on) => {
+    world(on, {
+      stored: storedSession(SERVER, "/"),
+      disk: new Map([
+        ["/plans", DIR],
+        [`/plans/${DATE}`, DIR],
+        [`/${WORKDIR}`.slice(0, -1), DIR],
+      ]),
+    });
+    on("tool.check", () => ENGINE);
+    await $.skill.prompt(START_PROMPT);
+
+    expect(
+      await $.tool.check({ tool: "Write", input: { file_path: `/${WORKDIR}plan.md` } }),
+    ).toEqual({ decision: "allow" });
   });
 
   test("a relative path hangs off the session's directory", async ($, on) => {

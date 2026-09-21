@@ -15,13 +15,12 @@ export type Verdict =
 export type Platform = "posix" | "windows";
 
 /**
- * Where the three paths of a verdict land, as `placed` answers them: `file` is `null` when
- * nothing can tell, and so is `workdir`.
+ * Where the call's file and the project land, as `placed` answers them: `file` is `null` when
+ * nothing can tell.
  */
 export type Landed = {
   readonly file: string | null;
   readonly project: string;
-  readonly workdir: string | null;
   readonly platform: Platform;
 };
 
@@ -48,11 +47,13 @@ function holds(root: string, file: string): boolean {
  * untouched.
  *
  * The verdict compares where the paths land, so a symbolic link, a `..` or a platform's other
- * spelling of a file is already that file. `realPath` keeps a case alias as written: the allow
- * compares as written and the deny folds the case, so on a volume that folds it (NTFS, APFS)
- * another case never takes a project file to the session's flow. Where the case counts, the
- * cost is a deny on `/work/PROJ` beside a project at `/work/proj`. A file that lands nowhere
- * known is denied, since the tool may still open it.
+ * spelling of a file is already that file. The working directory is the project's own: where
+ * the project lands, then `workdir` as written, so a link on the way to it, or the directory
+ * itself a link, leads out of it and allows nothing. `realPath` keeps a case alias as written:
+ * the allow compares as written and the deny folds the case, so on a volume that folds it
+ * (NTFS, APFS) another case never takes a project file to the session's flow. Where the case
+ * counts, the cost is a deny on `/work/PROJ` beside a project at `/work/proj`. A file that
+ * lands nowhere known is denied, since the tool may still open it.
  */
 export function lockVerdict(path: string, workdir: Workdir, landed: Landed): Verdict {
   if (landed.file === null) {
@@ -63,12 +64,11 @@ export function lockVerdict(path: string, workdir: Workdir, landed: Landed): Ver
   }
 
   const file = spelled(landed.file, landed.platform);
+  const project = spelled(landed.project, landed.platform);
 
-  if (landed.workdir !== null && holds(spelled(landed.workdir, landed.platform), file)) {
-    return { kind: "allow" };
-  }
+  if (holds(spelled(`${project}/${workdir}`, landed.platform), file)) return { kind: "allow" };
 
-  return holds(spelled(landed.project, landed.platform).toLowerCase(), file.toLowerCase())
+  return holds(project.toLowerCase(), file.toLowerCase())
     ? {
         kind: "deny",
         reason: `vellum is planning: files outside ${workdir} change after the plan is approved`,

@@ -68,12 +68,13 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
   not written yet lands under the first of its folders that exists, and only `ENOENT` says a
   folder is missing; a path that lands nowhere known (a link that leads nowhere, a stat refused
   for any other reason, a network path, a name Windows reads as a drive) is denied, since the
-  tool may still open it. The project and the working directory are placed the same way on
-  each call, and the project's `realPath` says the platform: POSIX answers it from `/`, and
-  there `\` is a character of a name. `realPath` keeps a case alias as written, so the allow
-  compares as written and the deny folds the case. A new platform case is a question for
-  `stat`, not a spelling rule in `lock.ts`. Measured on Linux; what a Windows disk answers is
-  not measured.
+  tool may still open it. The project is placed on each call, and its `realPath` says the
+  platform: POSIX answers it from `/`, and there `\` is a character of a name. The working
+  directory is the project's own, `workdir` as written under where the project lands: a link
+  on the way to it, the directory itself included, leads out of it and allows nothing.
+  `realPath` keeps a case alias as written, so the allow compares as written and the deny
+  folds the case. A new platform case is a question for `stat`, not a spelling rule in
+  `lock.ts`. Measured on Linux; what a Windows disk answers is not measured.
 - The lock fails closed. A hook that throws or overruns "is skipped and what is beneath it
   runs in its place", which for a lock means the write goes through, so the registration
   carries a `.catch`: while `live`, `lockFailed` denies either way, whether the failure landed
