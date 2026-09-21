@@ -3,12 +3,16 @@ import type { ProjectPath } from "../server/domain/paths.ts";
 
 /** The page's side of the HTTP contract: the token from the URL, the routes, the event stream. */
 
-const token = location.pathname.split("/")[2] ?? "";
+function token(): string {
+  return location.pathname.split("/")[2] ?? "";
+}
 
-const base = `/t/${token}`;
+function base(): string {
+  return `/t/${token()}`;
+}
 
 export function fileUrl(path: ProjectPath): string {
-  return `${base}/files/${path}`;
+  return `${base()}/files/${path}`;
 }
 
 /** The document's URL, changed with its mtime so a renderer reloads what Claude rewrote. */
@@ -19,7 +23,7 @@ export function docUrl(doc: DocRef): string {
 function request(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`/api/${path}`, {
     ...init,
-    headers: { "x-vellum-token": token, "content-type": "application/json" },
+    headers: { "x-vellum-token": token(), "content-type": "application/json" },
   });
 }
 
@@ -70,7 +74,7 @@ export async function postDecision(decision: Decision): Promise<number> {
  * itself: `onDown` at each attempt that fails, `onUp` once the stream is open again.
  */
 export function subscribe(onWorkspace: () => void, onDown: () => void, onUp: () => void): void {
-  const events = new EventSource(`${base}/events`);
+  const events = new EventSource(`${base()}/events`);
   events.addEventListener("message", onWorkspace);
   events.addEventListener("error", onDown);
   events.addEventListener("open", onUp);

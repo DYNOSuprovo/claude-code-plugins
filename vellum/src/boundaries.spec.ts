@@ -64,6 +64,34 @@ function short(path: string): string {
   return path.slice(ROOT.length + 1);
 }
 
+/** The two scripts a browser runs for what they do at module scope: the page's and the mockup frame's. */
+const BROWSER_ENTRIES = ["src/core/page/app.tsx", "src/extensions/html/frame.ts"];
+
+/** Imports each file in a process with no `window`, and says which ones threw, and where. */
+async function failingBareImports(files: readonly string[]): Promise<string[]> {
+  const script = `
+    const failed = [];
+    for (const file of ${JSON.stringify(files)}) {
+      try {
+        await import(file);
+      } catch (cause) {
+        const frames = String(cause?.stack ?? "").split("\\n");
+        const thrownAt = frames.find((frame) => frame.includes("/src/")) ?? "";
+        failed.push(file + ": " + String(cause) + " " + thrownAt.trim());
+      }
+    }
+    console.log(JSON.stringify(failed));
+  `;
+
+  // From the repository root, where the one `tsconfig.json` names Preact as the JSX runtime.
+  const bare = Bun.spawn(["bun", "-e", script], { cwd: join(ROOT, ".."), stderr: "inherit" });
+
+  // SAFETY: the script above prints one JSON array of strings, and nothing else writes to its stdout.
+  const failed = JSON.parse(await new Response(bare.stdout).text()) as string[];
+
+  return failed.map((line) => line.replaceAll(`${ROOT}/`, ""));
+}
+
 type RelativeImport = {
   readonly file: string;
   readonly specifier: string;
@@ -129,6 +157,16 @@ describe("dependency direction", () => {
 
   test("the server, the engine and the protocol never import the page", () => {
     expect(offending("src/core", /\/page\/(?!index\.html)/u)).toEqual([]);
+  });
+});
+
+describe("the page without a browser", () => {
+  test("every module of the page and of the extensions imports with no window: a browser read waits for a call", async () => {
+    const modules = [...sources("src/core/page"), ...sources("src/extensions")].filter(
+      (file) => !BROWSER_ENTRIES.includes(short(file)),
+    );
+
+    expect(await failingBareImports(modules)).toEqual([]);
   });
 });
 

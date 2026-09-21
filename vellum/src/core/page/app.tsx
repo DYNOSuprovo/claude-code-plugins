@@ -19,6 +19,7 @@ import {
   openEditor,
   planChanges,
   planDoc,
+  readWindow,
   showChanges,
   split,
   start,
@@ -150,4 +151,7 @@ function App(): preact.JSX.Element {
 
 const root = document.querySelector("#root");
 
-if (root !== null) render(<App />, root);
+if (root !== null) {
+  readWindow();
+  render(<App />, root);
+}

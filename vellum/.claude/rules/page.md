@@ -62,9 +62,9 @@ no build step, so what the page imports costs nothing at `cli start`.
   places on the panel's edge inside `.body`. A fold never unmounts the panel, since the general
   composer holds its half-typed text in a `useState`; a renderer with `comments: false` still
   does, as above. Folded, the panel is `inert`: zero width hides pixels, not focus. The handle's
-  badge is the unfiltered total, the one count a folded panel still shows. The signal starts on
-  `(max-width: 900px)`, the threshold `style.css` repeats in the media query where an open panel
-  lays over the document.
+  badge is the unfiltered total, the one count a folded panel still shows. `readWindow` of
+  `state.ts` sets the signal from `(max-width: 900px)`, once a load, the threshold `style.css`
+  repeats in the media query where an open panel lays over the document.
 - The page draws in every state, `drafting` included. `review.docs` is a list of `GroupedDoc`:
   the server, the one place that knows where a file came from, labels each `"plan"`,
   `"artifact"` (a renderable file of the working directory) or `"cited"` (a file the plan links
@@ -87,6 +87,15 @@ no build step, so what the page imports costs nothing at `cli start`.
   reason as its title, and every way to an approval goes through the warning popover, which
   says the approval ends what holds it. The bar prints the reason and never reads which
   extension gave it.
+- A module of the page reads the browser inside a function, never at its own scope, so a
+  `bun:test` suite imports the store and every component: `api.ts` reads the token off `location`
+  at each call, and `readWindow` of `state.ts` reads the window's width once and follows its colour
+  scheme. Two scripts are exempt, since a browser runs them for what they do at that scope:
+  `app.tsx` and `html/frame.ts`. `app.tsx` calls `readWindow` before the first render, never from
+  `start`: `Comments` draws `commentsOpen` at that render and `start` runs in an effect after it,
+  so under 900px the panel would paint open, then fold through its width transition. Held by
+  `src/boundaries.spec.ts`, which imports every other module in a process with no `window` and
+  names the file that throws.
 - `start` is the page's one way in, and its order is the rule: the saved draft into the signals,
   then the first load, then the saving effect, then the event stream. Nothing may `PUT` a draft
   before the restore, or every reload replaces the file with the page's empty state. After it,

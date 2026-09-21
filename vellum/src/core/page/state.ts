@@ -31,19 +31,12 @@ export const split = signal(false);
 
 /**
  * Whether the comments panel takes its width: open when the window is wide, folded when narrow,
- * read again at every load. The 900px threshold is `style.css`'s media query as well, since no
- * `@media` reads a CSS property: whoever moves one moves the other.
+ * read again at every load, by `readWindow`.
  */
-export const commentsOpen = signal(!window.matchMedia("(max-width: 900px)").matches);
-
-const darkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+export const commentsOpen = signal(true);
 
 /** Whether the page draws its dark theme: what resolves tokens outside CSS redraws at each change. */
-export const dark = signal(darkScheme.matches);
-
-darkScheme.addEventListener("change", (event) => {
-  dark.value = event.matches;
-});
+export const dark = signal(false);
 
 export type InputMethod = "select" | "pinpoint";
 
@@ -256,6 +249,24 @@ async function saveDraft(draft: Draft): Promise<void> {
   } catch (cause) {
     error.value = `PUT /api/draft failed: ${String(cause)}`;
   }
+}
+
+/**
+ * What the window says, read by `app.tsx` before the first render: the width once, the colour
+ * scheme for as long as the page lives. The 900px threshold is `style.css`'s media query as well,
+ * since no `@media` reads a CSS property: whoever moves one moves the other.
+ */
+export function readWindow(): void {
+  const darkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+
+  batch(() => {
+    commentsOpen.value = !window.matchMedia("(max-width: 900px)").matches;
+    dark.value = darkScheme.matches;
+  });
+
+  darkScheme.addEventListener("change", (event) => {
+    dark.value = event.matches;
+  });
 }
 
 /**
