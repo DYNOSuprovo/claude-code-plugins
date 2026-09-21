@@ -9,7 +9,7 @@ import { docUrl, fileUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { paint } from "../../core/page/highlights.ts";
 import { srgb } from "../../core/page/kit.tsx";
-import { toggled } from "../../core/page/selection.ts";
+import { dragRange, toggled } from "../../core/page/selection.ts";
 import { commenting, dark, docs, error, holding, review, select } from "../../core/page/state.ts";
 import type { DocRef, Passage } from "../../core/protocol.ts";
 import { parseProjectPath } from "../../core/server/domain/paths.ts";
@@ -286,7 +286,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const draft = on ? drafted : null;
   const [wash, setWash] = useState<Wash | null>(null);
   const container = useRef<HTMLElement>(null);
-  // The click that ends a drag: the drag chose its place already.
+  // The click that ends a drag, which picks nothing whether the drag made a place or not.
   const swallow = useRef(false);
 
   const shown = props.source ?? text;
@@ -423,25 +423,14 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
 
   const onMouseUp = (event: MouseEvent): void => {
     const root = container.current;
-    const selection = document.getSelection();
+    const range = root === null || !commenting.value ? null : dragRange(event);
 
-    // `getRangeAt` throws on a selection with no range: the guard comes first.
-    if (
-      root === null ||
-      !commenting.value ||
-      selection === null ||
-      selection.rangeCount === 0 ||
-      selection.isCollapsed
-    ) {
-      return;
-    }
-
-    const range = selection.getRangeAt(selection.rangeCount - 1).cloneRange();
+    if (root === null || range === null) return;
+    swallow.current = true;
     const passage = passageFromRange(root, range);
 
     if (passage === null) return;
-    selection.removeAllRanges();
-    swallow.current = true;
+    document.getSelection()?.removeAllRanges();
     choose(root, { range, passage }, event);
   };
 

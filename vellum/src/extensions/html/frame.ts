@@ -1,4 +1,4 @@
-import { isSwitchKey, keyPressOf, toggled } from "../../core/page/selection.ts";
+import { dragRange, isSwitchKey, keyPressOf, toggled } from "../../core/page/selection.ts";
 import type { ElementRef } from "../../core/protocol.ts";
 import type { FrameToPage, PageToFrame } from "./messages.ts";
 import type { Step } from "./pick.ts";
@@ -36,7 +36,7 @@ let holding = false;
 
 let commented: readonly string[] = [];
 
-// The click that ends a drag: the drag chose its place already.
+// The click that ends a drag, which picks nothing whether the drag made a place or not.
 let swallow = false;
 
 const layer = document.createElement("div");
@@ -206,22 +206,17 @@ function onMove(event: PointerEvent): void {
 
 /** A drag picks the innermost element that holds the whole selection, with the dragged text. */
 function onMouseUp(event: MouseEvent): void {
-  const selection = document.getSelection();
+  const range = commenting ? dragRange(event) : null;
 
-  // `getRangeAt` throws on a selection with no range: the guard comes first.
-  if (!commenting || selection === null || selection.rangeCount === 0 || selection.isCollapsed) {
-    return;
-  }
-
-  const range = selection.getRangeAt(selection.rangeCount - 1).cloneRange();
+  if (range === null) return;
+  swallow = true;
   const ancestor = range.commonAncestorContainer;
   // A phrase inside one text node has that node as its ancestor, and `targetFrom` takes elements.
   const element = targetFrom(ancestor instanceof Element ? ancestor : ancestor.parentElement);
   const text = quoted(range.toString());
 
   if (element === null || text === "") return;
-  selection.removeAllRanges();
-  swallow = true;
+  document.getSelection()?.removeAllRanges();
   choose({ element, range, text }, event);
 }
 

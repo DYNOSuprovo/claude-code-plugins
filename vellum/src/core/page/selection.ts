@@ -59,6 +59,27 @@ export function toggled<T extends { readonly range: Range }>(
   );
 }
 
+/**
+ * What a primary-button drag leaves selected, as a copy the clearing of the selection keeps, or
+ * `null` for a click and any other button. The last range: a Firefox Ctrl+drag adds one to a
+ * selection that holds one already.
+ */
+export function dragRange(event: MouseEvent): Range | null {
+  const selection = document.getSelection();
+
+  // `getRangeAt` throws on a selection with no range: the guard comes first.
+  if (
+    event.button !== 0 ||
+    selection === null ||
+    selection.rangeCount === 0 ||
+    selection.isCollapsed
+  ) {
+    return null;
+  }
+
+  return selection.getRangeAt(selection.rangeCount - 1).cloneRange();
+}
+
 export type KeyPress = {
   readonly key: string;
   readonly ctrlKey: boolean;
