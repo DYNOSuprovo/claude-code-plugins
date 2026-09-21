@@ -1,5 +1,5 @@
 import type { Host } from "./host.ts";
-import type { Landed } from "./lock.ts";
+import type { Landed, Platform } from "./lock.ts";
 import type { ProjectDir, Workdir } from "./parse.ts";
 
 /**
@@ -12,9 +12,11 @@ const DRIVE_NAME = /^[A-Za-z]:/u;
 /** Rooted on POSIX, on a Windows drive, or on the session's drive without naming it. */
 const ROOTED = /^(?:[\\/]|[A-Za-z]:[\\/])/u;
 
-const LAST_SEPARATOR = /[\\/](?=[^\\/]*$)/u;
-
-const TRAILING_SEPARATORS = /[\\/]+$/u;
+/** Windows ends a name on `\` as well as `/`; on POSIX `\` is a character of a name. */
+const SEPARATORS = {
+  posix: { last: /\/(?=[^/]*$)/u, trailing: /\/+$/u },
+  windows: { last: /[\\/](?=[^\\/]*$)/u, trailing: /[\\/]+$/u },
+} as const;
 
 /**
  * Where a path lands, as the file system answers it: every symbolic link followed, whatever
@@ -22,7 +24,8 @@ const TRAILING_SEPARATORS = /[\\/]+$/u;
  * exists. `null` when nothing can tell: a link that leads nowhere, a network or device path,
  * a name Windows reads as a drive. The lock denies on `null`, since the tool may still open it.
  */
-export async function placed(host: Host, path: string): Promise<string | null> {
+export async function placed(host: Host, path: string, platform: Platform): Promise<string | null> {
+  const { last, trailing } = SEPARATORS[platform];
   const missing: string[] = [];
   let rest = path;
 
@@ -33,11 +36,11 @@ export async function placed(host: Host, path: string): Promise<string | null> {
     if (found !== null) {
       return found.realPath === undefined
         ? null
-        : [found.realPath.replace(TRAILING_SEPARATORS, ""), ...missing].join("/");
+        : [found.realPath.replace(trailing, ""), ...missing].join("/");
     }
 
-    const named = rest.replace(TRAILING_SEPARATORS, "");
-    const cut = named.search(LAST_SEPARATOR);
+    const named = rest.replace(trailing, "");
+    const cut = named.search(last);
     const name = named.slice(cut + 1);
 
     if (name === "" || name === "." || name === ".." || DRIVE_NAME.test(name)) return null;
@@ -47,29 +50,34 @@ export async function placed(host: Host, path: string): Promise<string | null> {
 }
 
 /**
- * Where a call's file, the project and the working directory land. A relative path hangs off
- * the session's directory, read for that path alone. A project that lands nowhere throws, and
- * the lock fails closed on it.
+ * Where a call's file, the project and the working directory land. The project's `realPath`
+ * also says the platform: POSIX answers it from `/`, Windows from a drive or a share. A
+ * relative path hangs off the session's directory, read for that path alone. A project that
+ * cannot be placed throws, and the lock fails closed on it.
  */
 export async function landed(
   host: Host,
   session: { readonly project: ProjectDir; readonly workdir: Workdir },
   path: string,
 ): Promise<Landed> {
-  const project = await placed(host, session.project);
+  const project = (await host.stat(session.project)).realPath;
 
-  if (project === null) {
+  if (project === undefined) {
     throw new Error(
       `the project ${session.project} lands nowhere: \`$.fs.stat\` answered no \`realPath\`, as an engine older than the one \`types/claude-code.d.ts\` was written by does`,
     );
   }
 
+  const platform = project.startsWith("/") ? "posix" : "windows";
+
+  const whole = ROOTED.test(path)
+    ? path
+    : `${(await host.cwd()).replace(SEPARATORS[platform].trailing, "")}/${path}`;
+
   return {
-    file: await placed(
-      host,
-      ROOTED.test(path) ? path : `${(await host.cwd()).replace(TRAILING_SEPARATORS, "")}/${path}`,
-    ),
+    file: await placed(host, whole, platform),
     project,
-    workdir: await placed(host, `${session.project}/${session.workdir}`),
+    workdir: await placed(host, `${session.project}/${session.workdir}`, platform),
+    platform,
   };
 }

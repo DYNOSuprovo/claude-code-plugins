@@ -11,6 +11,9 @@ export type Verdict =
   | { readonly kind: "check" }
   | { readonly kind: "deny"; readonly reason: string };
 
+/** Where `\` separates names, as `/` does, or is a character of one. */
+export type Platform = "posix" | "windows";
+
 /**
  * Where the three paths of a verdict land, as `placed` answers them: `file` is `null` when
  * nothing can tell, and so is `workdir`.
@@ -19,14 +22,15 @@ export type Landed = {
   readonly file: string | null;
   readonly project: string;
   readonly workdir: string | null;
+  readonly platform: Platform;
 };
 
 /** `realPath` answers the platform's own separator, and `placed` joins a missing tail with `/`. */
-const SEPARATORS = /[\\/]+/gu;
+const SEPARATORS = { posix: /\/+/gu, windows: /[\\/]+/gu } as const;
 
 /** One spelling to compare: `/` alone between segments and none at the end, so `/` is `""`. */
-function spelled(path: string): string {
-  const joined = path.replaceAll(SEPARATORS, "/");
+function spelled(path: string, platform: Platform): string {
+  const joined = path.replaceAll(SEPARATORS[platform], "/");
 
   return joined.endsWith("/") ? joined.slice(0, -1) : joined;
 }
@@ -58,11 +62,13 @@ export function lockVerdict(path: string, workdir: Workdir, landed: Landed): Ver
     };
   }
 
-  const file = spelled(landed.file);
+  const file = spelled(landed.file, landed.platform);
 
-  if (landed.workdir !== null && holds(spelled(landed.workdir), file)) return { kind: "allow" };
+  if (landed.workdir !== null && holds(spelled(landed.workdir, landed.platform), file)) {
+    return { kind: "allow" };
+  }
 
-  return holds(spelled(landed.project).toLowerCase(), file.toLowerCase())
+  return holds(spelled(landed.project, landed.platform).toLowerCase(), file.toLowerCase())
     ? {
         kind: "deny",
         reason: `vellum is planning: files outside ${workdir} change after the plan is approved`,

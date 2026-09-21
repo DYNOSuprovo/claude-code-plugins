@@ -19,7 +19,7 @@ const ENGINE = { decision: "ask", reason: "the session's own flow" } as const;
 const INSIDE = `${CWD}/${WORKDIR}`;
 
 function landedOn(file: string | null, at: Partial<Landed> = {}): Landed {
-  return { file, project: CWD, workdir: INSIDE.slice(0, -1), ...at };
+  return { file, project: CWD, workdir: INSIDE.slice(0, -1), platform: "posix", ...at };
 }
 
 describe("lockVerdict", () => {
@@ -74,7 +74,8 @@ describe("lockVerdict on what a Windows disk answers", () => {
   const windows = {
     project: "C:\\work\\proj",
     workdir: `C:\\work\\proj\\${WORKDIR.replaceAll("/", "\\").slice(0, -1)}`,
-  };
+    platform: "windows",
+  } as const;
 
   function win(file: string): ReturnType<typeof lockVerdict> {
     return lockVerdict("x", WORKDIR, landedOn(file, windows));
@@ -101,9 +102,9 @@ describe("lockVerdict on what a Windows disk answers", () => {
   });
 
   test("a project at the root of a drive holds the whole drive", () => {
-    expect(lockVerdict("x", WORKDIR, landedOn("C:\\src\\cli.ts", { project: "C:\\" }))).toEqual(
-      DENIED,
-    );
+    expect(
+      lockVerdict("x", WORKDIR, landedOn("C:\\src\\cli.ts", { ...windows, project: "C:\\" })),
+    ).toEqual(DENIED);
   });
 });
 
@@ -182,6 +183,27 @@ describe("the lock places a path before it decides", () => {
         reason: expect.stringContaining("cannot tell where"),
       });
     }
+  });
+
+  test("on POSIX a backslash is a character of a name, never a separator", async ($, on) => {
+    world(on);
+    on("tool.check", () => ENGINE);
+    await $.skill.prompt(START_PROMPT);
+    const named = WORKDIR.replaceAll("/", "\\");
+
+    for (const file_path of [
+      `${CWD}/${named}x.md`,
+      `${named}x.md`,
+      `${INSIDE.slice(0, -1)}\\x.md`,
+    ]) {
+      expect(await $.tool.check({ tool: "Write", input: { file_path } }), file_path).toEqual(
+        DENIAL,
+      );
+    }
+
+    expect(
+      await $.tool.check({ tool: "Write", input: { file_path: `${CWD}\\${named}x.md` } }),
+    ).toEqual(ENGINE);
   });
 
   test("a relative path hangs off the session's directory", async ($, on) => {
