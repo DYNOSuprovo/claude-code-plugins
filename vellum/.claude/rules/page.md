@@ -170,5 +170,7 @@ no build step, so what the page imports costs nothing at `cli start`.
   sides import; every message crosses with the target `"*"` and each side checks `event.source`.
   That check proves the window, not the sender: `frameTag` in `http/routes.ts` adds `frame.js` to
   every HTML file served, so the mockup's own scripts, the model's, post from the same window.
+  Those scripts can post `vellum:switch` as they can post `vellum:pick`, an accepted risk: the
+  mockup is the model's own document under review, and at worst the switch flips under the reviewer.
   The page reads a frame's message through `parseFrameToPage` of `html/parse.ts` and drops what
   is not a whole `FrameToPage`; `frame.ts` casts, since the sender it verified is the page.
