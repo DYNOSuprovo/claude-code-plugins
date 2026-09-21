@@ -13,6 +13,7 @@ import {
   removeAnnotation,
   review,
 } from "./state.ts";
+import { switchShown } from "./tools.tsx";
 
 /** What the card says above the quotes: general, the lines of the passages, or the elements. */
 function whereOf(anchor: Anchor): string {
@@ -36,6 +37,16 @@ function quotesOf(anchor: Anchor): readonly { readonly key: string; readonly tex
   }
 
   return anchor.elements.map((element) => ({ key: element.selector, text: element.text }));
+}
+
+/** The empty panel names the switch only where `Tools` draws it, and the box only where it takes text. */
+function emptyLine(boxOpen: boolean): string {
+  if (!boxOpen) return "No comments yet.";
+
+  // `true`: `app.tsx` draws the panel only where what is on screen takes comments.
+  return switchShown(true)
+    ? "No comments yet. Turn on Comment to pick text, or use the box below."
+    : "No comments yet. Use the box below.";
 }
 
 function MarkWords(props: { readonly mark: Mark }): preact.JSX.Element {
@@ -130,11 +141,7 @@ export function Comments(): preact.JSX.Element {
         Comments <span>{list.length}</span>
       </header>
       <div class="list">
-        {list.length === 0 && (
-          <div class="none">
-            No comments yet. Turn on Comment to pick text, or use the box below.
-          </div>
-        )}
+        {list.length === 0 && <div class="none">{emptyLine(!locked.value && doc !== null)}</div>}
         {list.map((annotation) => (
           <Card key={annotation.id} annotation={annotation} />
         ))}
