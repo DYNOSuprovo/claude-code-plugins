@@ -48,7 +48,7 @@ CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum   # what the h
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 command claude --permission-mode default --plugin-dir vellum   # a live session from source
 bun vellum/src/core/server/cli.ts serve --session <id> --project <dir> --workdir plans/<date>/wip-<sid8>/   # the server alone, for page work; the trailing slash is required; `--port <n> --token <t> --existing` revives one where it was
 bun vellum/src/core/server/preview.ts <dir holding plan.md> [--minutes <n>] [--port <n>]   # the same page on any directory, working or final: it prints the URL and serves a copy it takes away on the way out
-claude -p --setting-sources project "/plugin-types vellum/types"    # regenerate types/claude-code.d.ts after a Claude Code update; keep claude-code.d.ts only
+CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude -p --setting-sources project --settings '{"disableAllHooks":true}' "/plugin-types vellum/types"    # regenerate types/claude-code.d.ts, as a session on dev does at start; keep claude-code.d.ts only
 ```
 
 Every command runs from the repository root; lint, types and format are the repository's

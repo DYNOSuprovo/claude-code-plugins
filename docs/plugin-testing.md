@@ -263,7 +263,9 @@ under the rule on `$` below.
   hook that will not fire.
 - `/plugin-types <plugin>/types` writes the contract of the running build;
   regenerate it after each Claude Code update. It runs headless too:
-  `claude -p --setting-sources project "/plugin-types <plugin>/types"`. Keep
+  `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude -p --setting-sources project "/plugin-types <plugin>/types"`;
+  without the variable the command does not exist, and the prompt goes to
+  the model. Keep
   `claude-code.d.ts` only; the `-mcp` and `-plugins` files describe the
   developer's own session.
 - A plugin with `package.json` + `bun.lock` gets `bun install

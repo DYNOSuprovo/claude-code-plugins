@@ -3,7 +3,6 @@
 .claude/settings.local.json
 .claude/exports/
 .claude/rebase/
-.claude-version
 .t-plan/
 plans/
 
