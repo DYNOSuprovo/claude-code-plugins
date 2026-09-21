@@ -27,6 +27,24 @@ async function loadState(): Promise<void> {
   grill.value = response.ok ? ((await response.json()) as GrillState) : null;
 }
 
+/** The transcript's blocks, or `null` with the failure in the banner: the reviewer waits on them. */
+async function blocksOf(path: string): Promise<Block[] | null> {
+  try {
+    const response = await extensionRequest(ID, `blocks?file=${encodeURIComponent(path)}`);
+
+    if (response.ok) {
+      // SAFETY: the server's own `Block[]`, serialized by `Response.json` in grill/server.ts.
+      return (await response.json()) as Block[];
+    }
+
+    error.value = `GET ${ID}/blocks failed: ${response.status}`;
+  } catch (cause) {
+    error.value = `GET ${ID}/blocks failed: ${String(cause)}`;
+  }
+
+  return null;
+}
+
 async function post<Name extends keyof GrillPosts>(
   path: Name,
   body: GrillPosts[Name],
@@ -196,10 +214,8 @@ function GrillDoc(props: RendererProps): preact.JSX.Element {
   };
 
   useEffect(() => {
-    void extensionRequest(ID, `blocks?file=${encodeURIComponent(path)}`).then(async (response) => {
-      if (!response.ok) return;
-      // SAFETY: the server's own `Block[]`, serialized by `Response.json` in grill/server.ts.
-      setBlocks((await response.json()) as Block[]);
+    void blocksOf(path).then((loaded) => {
+      if (loaded !== null) setBlocks(loaded);
     });
   }, [path, modified]);
 

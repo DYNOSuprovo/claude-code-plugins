@@ -108,10 +108,15 @@ no build step, so what the page imports costs nothing at `cli start`.
   `modified`: a rewrite reloads that document alone, and nothing else remounts.
 - What the reviewer waits on fails in the banner, through `error` of `state.ts`, as the core's
   own requests do: a write (`post` in `grill/page.tsx`) and a document's load (`sourceOf` in
-  `markdown/page.tsx`). A load checks `response.ok` before it reads the body, or the server's
-  error page is drawn as the document and takes comments. A read that only refreshes what is on
+  `markdown/page.tsx`, `blocksOf` in `grill/page.tsx`). A load checks `response.ok` before it
+  reads the body, or the server's error page is drawn as the document and takes comments, and it
+  catches, or an aborted request reaches nobody. A read that only refreshes what is on
   screen may fail in silence, since the next workspace event reads again:
   `loadState` in `grill/page.tsx`.
+- The banner says the failure, the sheet says the state it leaves: a first load that failed
+  prints it where the wait was, a failed reload keeps the text the reviewer is reading.
+  `waitingText` in `markdown/sheet.ts` chooses, purely, and `MarkdownDoc` draws it in the one
+  `.waiting` line it already had.
 - A block says its source lines in `data-lines="start-end"`: `markdown/tree.ts` writes it,
   `parseLines` of `anchoring.ts` is the one place it is read, and `tree.spec.ts` holds the two
   together. Every reader calls it, the pure helpers of `markdown/` included: a second copy of
