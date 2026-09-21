@@ -281,9 +281,11 @@ describe("subprocess integration", () => {
           `mkdir -p "${tmpDir}"`,
           `cd "${tmpDir}"`,
           "git init -q",
-          // CI runners carry no git identity; the commit below needs one.
+          // A CI runner carries no git identity, and the owner's global config
+          // signs every commit: the commit below needs one and reaches for no key.
           'git config user.email "test@test.com"',
           'git config user.name "Test"',
+          "git config commit.gpgsign false",
           "git commit --allow-empty -m init -q",
         ].join(" && "),
       ],

@@ -164,18 +164,24 @@ describe("subprocess integration", () => {
         "bash",
         "-c",
         [
+          // Joined by lines under `set -e`: the `|| true` of a branch below
+          // would otherwise answer for the whole `&&` chain, and a failed
+          // commit would leave an empty repo behind an exit code of 0.
+          "set -e",
           `rm -rf "${tmpDir}"`,
           `mkdir -p "${tmpDir}"`,
           `cd "${tmpDir}"`,
           "git init -q",
-          // CI runners carry no git identity; the commit below needs one.
+          // A CI runner carries no git identity, and the owner's global config
+          // signs every commit: the commit below needs one and reaches for no key.
           'git config user.email "test@test.com"',
           'git config user.name "Test"',
+          "git config commit.gpgsign false",
           "git commit --allow-empty -m init -q",
           "git checkout -b main -q 2>/dev/null || true",
           "git branch master 2>/dev/null || true",
           "git branch feature/new-thing 2>/dev/null || true",
-        ].join(" && "),
+        ].join("\n"),
       ],
       { stdout: "pipe", stderr: "pipe" },
     );
@@ -371,9 +377,11 @@ describe("own repo", () => {
         [
           `cd "${fixture}"`,
           "git init -q -b main",
-          // CI runners carry no git identity; the commit below needs one.
+          // A CI runner carries no git identity, and the owner's global config
+          // signs every commit: the commit below needs one and reaches for no key.
           'git config user.email "test@test.com"',
           'git config user.name "Test"',
+          "git config commit.gpgsign false",
           "git commit --allow-empty -m init -q",
           "git branch master",
           `git worktree add -q "${worktree}" master`,
