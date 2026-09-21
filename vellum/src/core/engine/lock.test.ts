@@ -1,6 +1,16 @@
 import { describe, expect, test, tier } from "claude-code/testing";
 
-import { approved, CWD, DIR, FINAL, link, START_PROMPT, WORKDIR, world } from "./fixtures/index.ts";
+import {
+  approved,
+  CWD,
+  DIR,
+  FINAL,
+  link,
+  refused,
+  START_PROMPT,
+  WORKDIR,
+  world,
+} from "./fixtures/index.ts";
 import { type Landed, lockVerdict } from "./lock.ts";
 import { editedPath, parsePending } from "./parse.ts";
 import { submitResult } from "./relay.ts";
@@ -204,6 +214,16 @@ describe("the lock places a path before it decides", () => {
     expect(
       await $.tool.check({ tool: "Write", input: { file_path: `${CWD}\\${named}x.md` } }),
     ).toEqual(ENGINE);
+  });
+
+  test("a folder whose stat is refused is not missing: nothing tells where the path lands", async ($, on) => {
+    world(on, { disk: new Map([[`${INSIDE}l`, refused("a sandbox keeps plugins out of it")]]) });
+    on("tool.check", () => ENGINE);
+    await $.skill.prompt(START_PROMPT);
+
+    expect(
+      await $.tool.check({ tool: "Write", input: { file_path: `${INSIDE}l/cli.ts` } }),
+    ).toMatchObject({ decision: "deny", reason: expect.stringContaining("cannot tell where") });
   });
 
   test("a relative path hangs off the session's directory", async ($, on) => {

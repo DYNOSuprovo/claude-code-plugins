@@ -290,6 +290,16 @@ under the rule on `$` below.
   import, so the repo's `bunfig.toml` ignores `vellum/**/*.test.ts`.
 - The kit's `$` has no `classic` noun, so a `classic.PermissionRequest` hook
   cannot be raised from a test.
+- `$.fs.stat` rejects a missing path with a `HooksError` whose message ends
+  on the errno, `<plugin>: $.fs.stat(<path>) failed: ENOENT`, and sets no
+  `code`. Any other OS refusal ends on its own errno (`ENOTDIR`, `EACCES`,
+  `ELOOP`), a network path is refused as `fs.stat: a network location is not
+  reached from here (host check)`, and a hook's deny reads
+  `<plugin>: $.fs.stat: <reason>`. Only the `failed: ENOENT` ending therefore
+  says a path is not there (`vellum/src/core/engine/place.ts`). A link that
+  leads nowhere resolves, with `isLink` and no `realPath`. Measured on Linux
+  in a live session: in the kit nothing beneath the plugins answers
+  `fs.stat`, and a test answers it with `on("fs.stat", ...)`.
 - A hook answers within its dispatch's budget, about ten seconds. What must
   wait for a person (a browser decision) is polled by `$.clock.every` and
   handed to the session by `$.prompt.submit`, which runs once the session is

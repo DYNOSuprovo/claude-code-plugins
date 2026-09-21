@@ -65,12 +65,13 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
 - The lock compares where paths land, never how they are spelled. `placed` asks
   `$.fs.stat(path, { resolve: true })` for `realPath`, which the engine's types name the robust
   guard: every link followed, whatever separators, drive or prefix the platform writes. A file
-  not written yet lands under the first of its folders that exists; a path that lands nowhere
-  known (a link that leads nowhere, a network path, a name Windows reads as a drive) is denied,
-  since the tool may still open it. The project and the working directory are placed the same
-  way on each call, and the project's `realPath` says the platform: POSIX answers it from `/`,
-  and there `\` is a character of a name. `realPath` keeps a case alias as written, so the
-  allow compares as written and the deny folds the case. A new platform case is a question for
+  not written yet lands under the first of its folders that exists, and only `ENOENT` says a
+  folder is missing; a path that lands nowhere known (a link that leads nowhere, a stat refused
+  for any other reason, a network path, a name Windows reads as a drive) is denied, since the
+  tool may still open it. The project and the working directory are placed the same way on
+  each call, and the project's `realPath` says the platform: POSIX answers it from `/`, and
+  there `\` is a character of a name. `realPath` keeps a case alias as written, so the allow
+  compares as written and the deny folds the case. A new platform case is a question for
   `stat`, not a spelling rule in `lock.ts`. Measured on Linux; what a Windows disk answers is
   not measured.
 - The lock fails closed. A hook that throws or overruns "is skipped and what is beneath it

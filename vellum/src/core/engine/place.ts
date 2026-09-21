@@ -18,11 +18,34 @@ const SEPARATORS = {
   windows: { last: /[\\/](?=[^\\/]*$)/u, trailing: /[\\/]+$/u },
 } as const;
 
+/** The engine ends its rejection of a missing path on the errno, and sets no `code`. */
+const NOT_THERE = / failed: ENOENT$/u;
+
+/**
+ * What `stat` says of a path: where it lands, or that it is not there. `refused` is any other
+ * rejection (another errno, a hook above), which says nothing of where the path lands.
+ */
+type Asked =
+  | { readonly kind: "found"; readonly realPath: string | undefined }
+  | { readonly kind: "missing" }
+  | { readonly kind: "refused" };
+
+async function asked(host: Host, path: string): Promise<Asked> {
+  try {
+    return { kind: "found", realPath: (await host.stat(path)).realPath };
+  } catch (error) {
+    return error instanceof Error && NOT_THERE.test(error.message)
+      ? { kind: "missing" }
+      : { kind: "refused" };
+  }
+}
+
 /**
  * Where a path lands, as the file system answers it: every symbolic link followed, whatever
  * the platform's spelling. A file not written yet lands under the first of its folders that
- * exists. `null` when nothing can tell: a link that leads nowhere, a network or device path,
- * a name Windows reads as a drive. The lock denies on `null`, since the tool may still open it.
+ * exists. `null` when nothing can tell: a link that leads nowhere, a stat refused for another
+ * reason than a missing path, a network or device path, a name Windows reads as a drive. The
+ * lock denies on `null`, since the tool may still open it.
  */
 export async function placed(host: Host, path: string, platform: Platform): Promise<string | null> {
   const { last, trailing } = SEPARATORS[platform];
@@ -31,9 +54,11 @@ export async function placed(host: Host, path: string, platform: Platform): Prom
 
   for (;;) {
     // oxlint-disable-next-line no-await-in-loop -- a folder is asked only once what it holds is known to be missing.
-    const found = await host.stat(rest).catch(() => null);
+    const found = await asked(host, rest);
 
-    if (found !== null) {
+    if (found.kind === "refused") return null;
+
+    if (found.kind === "found") {
       return found.realPath === undefined
         ? null
         : [found.realPath.replace(trailing, ""), ...missing].join("/");
