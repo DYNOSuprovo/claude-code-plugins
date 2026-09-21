@@ -24,6 +24,7 @@ import {
   pendingOf,
   projectPath,
   takesComments,
+  underReviewDir,
   versionFile,
   workspaceOf,
 } from "../domain/workspace.ts";
@@ -344,7 +345,7 @@ export class Review {
 
     for (const extension of this.options.extensions) {
       for (const doc of extension.linkedDocs?.(plan, roots) ?? []) {
-        if (seen.has(doc.path)) continue;
+        if (seen.has(doc.path) || underReviewDir(doc.path)) continue;
         const modified = await modifiedAt(project, doc.path);
 
         if (modified === null) continue;

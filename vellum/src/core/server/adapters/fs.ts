@@ -8,7 +8,13 @@ import { rewriteLinks } from "../domain/links.ts";
 import type { FinalDir, ParseResult, ProjectPath, Slug, WipDir } from "../domain/paths.ts";
 import { dateOf, parseFinalDir } from "../domain/paths.ts";
 import type { PlanWorkspace } from "../domain/workspace.ts";
-import { PLAN_FILE, projectPath, REVIEW_DIR, workspaceFromListing } from "../domain/workspace.ts";
+import {
+  PLAN_FILE,
+  projectPath,
+  REVIEW_DIR,
+  underReviewDir,
+  workspaceFromListing,
+} from "../domain/workspace.ts";
 
 /** The file system under the project root: every read and write of the review lives here. */
 
@@ -40,7 +46,7 @@ export async function listFiles(project: string, dir: WipDir | FinalDir): Promis
     if (!entry.isFile()) continue;
     const file = join(entry.parentPath, entry.name);
     const path = relative(project, file);
-    const mediaType = path.split("/").includes(REVIEW_DIR) ? null : mediaTypeOf(path);
+    const mediaType = underReviewDir(path) ? null : mediaTypeOf(path);
 
     if (mediaType === null) continue;
     docs.push({ path: projectPath(path), mediaType, modified: (await stat(file)).mtimeMs });

@@ -8,6 +8,11 @@ import { parseProjectPath, parseVersion, parseWipDir } from "./paths.ts";
 
 export const REVIEW_DIR = ".review";
 
+/** Whether a project path lies under a `.review/`: the server's own files, never the plan's. */
+export function underReviewDir(path: string): boolean {
+  return path.split("/").includes(REVIEW_DIR);
+}
+
 /** The plan the model writes and `submit` sends for review, at the working directory's root. */
 export const PLAN_FILE = "plan.md";
 
