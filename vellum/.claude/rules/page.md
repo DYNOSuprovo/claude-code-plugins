@@ -66,12 +66,15 @@ no build step, so what the page imports costs nothing at `cli start`.
   holds its half-typed text in a `useState`; a renderer with `comments: false` still unmounts the
   comments panel, as above. Folded, a panel is `inert`: what leaves the screen hides pixels, not
   focus. The comments handle's badge is the unfiltered total, the one count a folded panel still
-  shows; the rail's carries none, since `.doc-head` prints the document's path. `readWindow` of
-  `state.ts` sets `commentsOpen` from `(max-width: 900px)`, once a load, the threshold `style.css`
-  repeats in the media query where an open comments panel lays over the document. It leaves
-  `railOpen` open at every width: the rail is how a document is chosen, so folded it costs a
-  click at each change, and under 900px it keeps its place beside the document, where a rail laid
-  over it would have to fold again after each choice.
+  shows. The rail's carries none, though folded the rail hides each document's count and any
+  document Claude writes meanwhile: it opens at every load, and only the reviewer folds it.
+  `readWindow` of `state.ts` sets `commentsOpen` from `(max-width: 900px)`, once a load, the
+  threshold `style.css` repeats in the media query where an open comments panel lays over the
+  document. It leaves `railOpen` open at every width: the rail is how a document is chosen, so
+  folded it costs a click at each change, and under 900px it keeps its place beside the
+  document, where a rail laid over it would have to fold again after each choice. Under 900px the
+  open comments panel and its handle paint over the rail's handle, one `z-index` below, so on a
+  narrow window the comments fold first.
 - The page draws in every state, `drafting` included. `review.docs` is a list of `GroupedDoc`:
   the server, the one place that knows where a file came from, labels each `"plan"`,
   `"artifact"` (a renderable file of the working directory) or `"cited"` (a file the plan links

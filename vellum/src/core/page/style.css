@@ -283,14 +283,14 @@ textarea { width: 100%; font: var(--t-14)/1.45 var(--serif); border: 1px solid v
 .handle { position: absolute; z-index: 3; top: 50%; width: var(--s-6); min-height: calc(var(--s-8) + var(--s-10)); transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-2); padding: var(--s-3) 0; cursor: pointer; border: 1px solid var(--rule); background: var(--sheet); color: var(--graphite); transition: left var(--transition), right var(--transition), color var(--transition); }
 .handle:hover { color: var(--ink); }
 .handle.right { right: var(--comments-width); border-right: 0; border-radius: var(--r-md) 0 0 var(--r-md); }
-.handle.left { left: var(--rail-width); border-left: 0; border-radius: 0 var(--r-md) var(--r-md) 0; }
+.handle.left { left: var(--rail-width); z-index: 2; border-left: 0; border-radius: 0 var(--r-md) var(--r-md) 0; }
 .handle.right[aria-expanded="false"] { right: 0; }
 .handle.left[aria-expanded="false"] { left: 0; }
 .handle.right[aria-expanded="false"] .chevron, .handle.left[aria-expanded="true"] .chevron { transform: rotate(180deg); }
 .handle .name { writing-mode: vertical-rl; font: 650 var(--t-12)/1 var(--serif); letter-spacing: 0.02em; }
 .handle.left .name { transform: rotate(180deg); }
 /* Pinned to the top left corner: the overhang goes toward the document, never toward the window's edge, where a folded handle would have it cut. The ring lifts it off the text behind. */
-.handle .badge { position: absolute; top: calc(var(--s-2) * -1); left: calc(var(--s-3) * -1); min-width: 0; padding: 0 var(--s-1); box-shadow: 0 0 0 2px var(--sheet); }
+.handle.right .badge { position: absolute; top: calc(var(--s-2) * -1); left: calc(var(--s-3) * -1); min-width: 0; padding: 0 var(--s-1); box-shadow: 0 0 0 2px var(--sheet); }
 .handle .chevron { width: var(--s-3); height: var(--s-3); flex: none; }
 
 @media (max-width: 900px) {

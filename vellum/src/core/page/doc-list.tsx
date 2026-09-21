@@ -16,8 +16,9 @@ function inGroup(list: readonly GroupedDoc[], group: DocGroup): readonly Grouped
 }
 
 /**
- * The fold control, on the rail's edge, which it follows. It carries no badge: folded, the rail
- * hides nothing, since `.doc-head` prints the document's path and `CommentsHandle` the total.
+ * The fold control, on the rail's edge, which it follows. Folded, the rail hides each document's
+ * count and any document Claude writes meanwhile; the handle carries no badge all the same, since
+ * the rail opens at every load and only the reviewer folds it.
  */
 export function RailHandle(): preact.JSX.Element {
   return (

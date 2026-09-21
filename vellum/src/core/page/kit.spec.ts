@@ -24,6 +24,7 @@ describe("the kit owns its classes", () => {
     const comments = Handle({ ...folded, side: "right", name: "Comments", label: "Comments (3)" });
 
     expect(rail.props.class).toBe("handle left");
+    expect(comments.props.class).toBe("handle right");
     expect(rail.props["aria-expanded"]).toBe(false);
     expect(rail.props["aria-label"]).toBe("Documents");
     expect(comments.props["aria-label"]).toBe("Comments (3)");

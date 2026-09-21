@@ -35,10 +35,7 @@ export const split = signal(false);
  */
 export const commentsOpen = signal(true);
 
-/**
- * Whether the document rail takes its width: open at every load, whatever the window's width.
- * `readWindow` leaves it alone: under 900px the rail keeps its place beside the document.
- */
+/** Whether the document rail takes its width: open at every load, whatever the window's width. */
 export const railOpen = signal(true);
 
 /** Whether the page draws its dark theme: what resolves tokens outside CSS redraws at each change. */
