@@ -370,6 +370,11 @@ describe("extractDescriptionFromReadme", () => {
     expect(extractDescriptionFromReadme(content, "plugin-a")).toBeNull();
   });
 
+  test("reads an indented row with padded cells", () => {
+    const content = "  | [plugin-a](a/)  |  1.0.0  |   Desc A   |";
+    expect(extractDescriptionFromReadme(content, "plugin-a")).toBe("Desc A");
+  });
+
   test("handles plugin names with special regex characters", () => {
     const content = "| [my-plugin.js](my-plugin/) | 1.0.0 | Desc |";
     expect(extractDescriptionFromReadme(content, "my-plugin.js")).toBe("Desc");
