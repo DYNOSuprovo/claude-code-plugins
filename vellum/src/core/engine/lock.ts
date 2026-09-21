@@ -23,11 +23,19 @@ const WINDOWS = /^[A-Za-z]:[\\/]/u;
 
 /**
  * Windows spells one file several ways: `\` or `/`, any case, since NTFS folds it, and rooted
- * on the session's drive without naming it. Each becomes one POSIX spelling with the drive as
- * its first segment, so the prefixes compare.
+ * on the session's drive without naming it, or long (`\\?\C:\…`). Each becomes one POSIX
+ * spelling with the drive as its first segment, so the prefixes compare. The long prefix is
+ * dropped before a drive only: `\\?\UNC\…` is a share, never under the project.
+ *
+ * A pure function cannot see every alias: a short 8.3 name (`PROJEC~1`) or an administrative
+ * share (`\\localhost\C$\…`) reaches a file under the project and is read as outside it, and
+ * `toLowerCase` only approximates the NTFS case table outside ASCII.
  */
 function windowsSpelling(path: string, drive: string): string {
-  const spelled = path.replaceAll("\\", "/").toLowerCase();
+  const spelled = path
+    .replaceAll("\\", "/")
+    .toLowerCase()
+    .replace(/^\/\/\?\/(?=[a-z]:\/)/u, "");
 
   if (WINDOWS.test(spelled)) return `/${spelled}`;
 

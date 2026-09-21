@@ -94,12 +94,15 @@ describe("lockVerdict on a Windows project", () => {
     expect(win("\\work\\proj\\src\\cli.ts")).toEqual(DENIED);
   });
 
+  test("a long path, `\\\\?\\` before the drive, names the same file", () => {
+    expect(win("\\\\?\\C:\\work\\proj\\src\\cli.ts")).toEqual(DENIED);
+    expect(win(`\\\\?\\${INSIDE}plan.md`)).toEqual({ kind: "allow" });
+  });
+
   test("a file outside the project, on its drive, another or a share, is the session's to decide", () => {
-    for (const path of [
-      "C:\\Temp\\x.md",
-      "D:\\proj\\x.md",
-      "\\\\host\\share\\x.md",
-    ]) {
+    const share = ["\\\\host\\share\\x.md", "\\\\?\\UNC\\host\\share\\x.md"];
+
+    for (const path of ["C:\\Temp\\x.md", "D:\\proj\\x.md", ...share]) {
       expect(win(path), path).toEqual({ kind: "check" });
     }
   });
