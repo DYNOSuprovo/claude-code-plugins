@@ -41,11 +41,10 @@ export const railOpen = signal(true);
 /** Whether the page draws its dark theme: what resolves tokens outside CSS redraws at each change. */
 export const dark = signal(false);
 
-export type InputMethod = "select" | "pinpoint";
+/** The reviewer's switch: off at every load. */
+export const commentSwitch = signal(false);
 
-export const inputMethod = signal<InputMethod>("select");
-
-/** Ctrl or Meta held down: a pinpoint click adds to the set instead of replacing it. */
+/** Ctrl or Meta held down: a drag or a click adds to the set instead of replacing it. */
 export const holding = signal(false);
 
 /** The reviewer's own text of the plan, not sent yet: the next decision records it as the next version. */
@@ -116,10 +115,14 @@ export const locked = computed(() => {
   return workspace === undefined || !takesComments(workspace);
 });
 
-/** The input method in force: none on a locked page, where a renderer starts no comment. */
-export const activeMethod = computed<InputMethod | null>(() =>
-  locked.value ? null : inputMethod.value,
-);
+/** Whether a renderer starts a comment now: the switch is on and the page takes comments. */
+export const commenting = computed(() => commentSwitch.value && !locked.value);
+
+/** The switch clicked or `C` pressed; a locked page keeps its switch as it is. */
+export function flipCommentSwitch(): void {
+  if (locked.value) return;
+  commentSwitch.value = !commentSwitch.value;
+}
 
 /** Why an open editor cannot hand its text over: said as soon as it is known, and again at Done. */
 function staleEditor(editingVersion: Version, live: Version): string {

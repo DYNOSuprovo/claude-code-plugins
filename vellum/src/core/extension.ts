@@ -22,7 +22,7 @@ export type RendererProps = {
 
 export type Renderer = {
   readonly accepts: (doc: DocRef) => boolean;
-  /** `false` for a document the reviewer answers in place: no input method, no comments panel. */
+  /** `false` for a document the reviewer answers in place: no switch, no comments panel. */
   readonly comments?: false;
   readonly component: ComponentType<RendererProps>;
 };

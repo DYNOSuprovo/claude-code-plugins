@@ -4,21 +4,13 @@ import { h } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import type { RendererProps, PageExtension } from "../../core/extension.ts";
-import { passageFromRange, passageFromSelection, rangeFor } from "../../core/page/anchoring.ts";
+import { passageFromRange, rangeFor } from "../../core/page/anchoring.ts";
 import { docUrl, fileUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { paint } from "../../core/page/highlights.ts";
 import { srgb } from "../../core/page/kit.tsx";
-import {
-  activeMethod,
-  dark,
-  docs,
-  error,
-  holding,
-  locked,
-  review,
-  select,
-} from "../../core/page/state.ts";
+import { toggled } from "../../core/page/selection.ts";
+import { commenting, dark, docs, error, holding, review, select } from "../../core/page/state.ts";
 import type { DocRef, Passage } from "../../core/protocol.ts";
 import { parseProjectPath } from "../../core/server/domain/paths.ts";
 import type { Changes, RemovedRun } from "./changes.ts";
@@ -26,7 +18,7 @@ import { changesOf, removedLabel } from "./changes.ts";
 import { linkedDoc } from "./links.ts";
 import { markedIndices } from "./marked.ts";
 import type { Target } from "./pinpoint.ts";
-import { boxOf, diagramPassage, rangeOf, targetAt, toggled } from "./pinpoint.ts";
+import { boxOf, diagramPassage, rangeOf, targetAt, targetRange } from "./pinpoint.ts";
 import { waitingText } from "./sheet.ts";
 import { toTree } from "./tree.ts";
 
@@ -141,7 +133,7 @@ function toVNode(node: RootContent, key: number, changes: Changes | null): Compo
   );
 }
 
-type Chosen = { readonly element: HTMLElement; readonly passage: Passage };
+type Chosen = { readonly range: Range; readonly passage: Passage };
 
 type Draft = {
   readonly chosen: readonly [Chosen, ...Chosen[]];
@@ -253,9 +245,12 @@ function passageOf(root: HTMLElement, target: Target): Passage | null {
   return range === null ? null : passageFromRange(root, range);
 }
 
-/** A link to a document the page holds switches the view; any other link opens in a new tab. */
+/**
+ * Off, a link to a document the page holds switches the view, and any other link opens in a new
+ * tab. On, a click on a link picks it.
+ */
 function onClick(event: MouseEvent): void {
-  if (activeMethod.value === "pinpoint") return;
+  if (commenting.value) return;
   const link = event.target instanceof Element ? event.target.closest("a") : null;
   const wanted = link?.dataset.path;
 
@@ -285,10 +280,14 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const [text, setText] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [drafted, setDraft] = useState<Draft | null>(null);
-  // A page that locks under an open composer closes it: its comment could not be added.
-  const draft = locked.value ? null : drafted;
+  const on = commenting.value;
+  // A switch turned off, or a page that locks, under an open composer closes it: its comment
+  // could not be added.
+  const draft = on ? drafted : null;
   const [wash, setWash] = useState<Wash | null>(null);
   const container = useRef<HTMLElement>(null);
+  // The click that ends a drag: the drag chose its place already.
+  const swallow = useRef(false);
 
   const shown = props.source ?? text;
 
@@ -387,9 +386,9 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       setDraft((current) => {
         const last = current?.chosen.at(-1);
 
-        return current === null || last === undefined || !last.element.isConnected
+        return current === null || last === undefined || !last.range.startContainer.isConnected
           ? current
-          : draftUnder(root, current.chosen, last.element.getBoundingClientRect());
+          : draftUnder(root, current.chosen, last.range.getBoundingClientRect());
       });
     });
 
@@ -398,27 +397,59 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     return () => observer.disconnect();
   }, [content === null]);
 
-  const onMouseUp = (): void => {
-    const root = container.current;
+  // Cleared, not only hidden: a switch turned back on would reopen the old composer.
+  useEffect(() => {
+    if (on) return;
+    setDraft(null);
+    setWash(null);
+  }, [on]);
 
-    if (root === null || activeMethod.value !== "select") return;
-    // `getRangeAt(0)` throws with no range: `passageFromSelection` is the guard, so it runs first.
-    const passage = passageFromSelection(root);
+  /** Both gestures end here: alone, a place starts a new set; under Ctrl, it joins the open one. */
+  const choose = (root: HTMLElement, one: Chosen, event: MouseEvent): void => {
+    const adding = (event.ctrlKey || event.metaKey) && draft !== null;
+    const [first, ...rest] = adding && draft !== null ? toggled(draft.chosen, one) : [one];
+    const last = rest.at(-1) ?? first;
+
+    setDraft(
+      first === undefined || last === undefined
+        ? null
+        : draftUnder(root, [first, ...rest], last.range.getBoundingClientRect()),
+    );
+  };
+
+  const onPointerDown = (): void => {
+    swallow.current = false;
+  };
+
+  const onMouseUp = (event: MouseEvent): void => {
+    const root = container.current;
+    const selection = document.getSelection();
+
+    // `getRangeAt` throws on a selection with no range: the guard comes first.
+    if (
+      root === null ||
+      !commenting.value ||
+      selection === null ||
+      selection.rangeCount === 0 ||
+      selection.isCollapsed
+    ) {
+      return;
+    }
+
+    const range = selection.getRangeAt(selection.rangeCount - 1).cloneRange();
+    const passage = passageFromRange(root, range);
 
     if (passage === null) return;
-    const range = document.getSelection()?.getRangeAt(0);
-
-    if (range === undefined) return;
-    const node = range.commonAncestorContainer;
-    const element = node instanceof HTMLElement ? node : (node.parentElement ?? root);
-    setDraft(draftUnder(root, [{ element, passage }], range.getBoundingClientRect()));
+    selection.removeAllRanges();
+    swallow.current = true;
+    choose(root, { range, passage }, event);
   };
 
   const onPointerMove = (event: PointerEvent): void => {
     const root = container.current;
 
     const target =
-      root !== null && activeMethod.value === "pinpoint" && event.target instanceof Element
+      root !== null && commenting.value && event.buttons === 0 && event.target instanceof Element
         ? targetAt(root, event.target, event.clientX, event.clientY)
         : null;
 
@@ -436,31 +467,31 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const onClickCapture = (event: MouseEvent): void => {
     const root = container.current;
 
-    if (root === null || activeMethod.value !== "pinpoint") return;
+    if (root === null || !commenting.value) return;
 
     // A removed block's summary keeps its click: `preventDefault` would hold it folded.
     if (event.target instanceof Element && event.target.closest("details.removed") !== null) return;
     event.preventDefault();
 
-    if (!(event.target instanceof Element) || document.getSelection()?.isCollapsed === false) {
+    if (swallow.current) {
+      swallow.current = false;
+
       return;
     }
 
+    if (!(event.target instanceof Element)) return;
     const target = targetAt(root, event.target, event.clientX, event.clientY);
+    const range = target === null ? null : targetRange(target);
     const passage = target === null ? null : passageOf(root, target);
 
-    if (target === null || passage === null) return;
-    const one = { element: target.element, passage };
-    const adding = (event.ctrlKey || event.metaKey) && draft !== null;
-    const [first, ...rest] = adding && draft !== null ? toggled(draft.chosen, one) : [one];
-
-    setDraft(first === undefined ? null : draftUnder(root, [first, ...rest], boxOf(target)));
+    if (range === null || passage === null) return;
+    choose(root, { range, passage }, event);
   };
 
   const waiting = waitingText(content !== null, failed);
 
   if (waiting !== null) return <div class="waiting">{waiting}</div>;
-  const adding = holding.value && draft !== null && activeMethod.value === "pinpoint";
+  const adding = holding.value && draft !== null;
 
   return (
     <>
@@ -470,6 +501,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
         onMouseUp={onMouseUp}
         onClick={onClick}
         onClickCapture={onClickCapture}
+        onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerLeave={() => setWash(null)}
       >
@@ -491,7 +523,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       {draft !== null && (
         <Composer
           picks={draft.chosen.map(({ passage }) => ({
-            key: `${passage.lines[0]}-${passage.quote}`,
+            key: `${passage.lines[0]}-${passage.prefix}-${passage.quote}`,
             text: passage.quote,
             where: `lines ${passage.lines[0]}–${passage.lines[1]}`,
           }))}
@@ -504,7 +536,6 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
             const passages = [first.passage, ...rest.map((one) => one.passage)] as const;
             props.annotate({ doc: props.doc.path, anchor: { kind: "text", passages }, mark });
             setDraft(null);
-            document.getSelection()?.removeAllRanges();
           }}
         />
       )}

@@ -4,7 +4,7 @@ import type { RendererProps, PageExtension } from "../../core/extension.ts";
 import { docUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { srgb } from "../../core/page/kit.tsx";
-import { activeMethod, dark, holding, locked } from "../../core/page/state.ts";
+import { commenting, dark, holding } from "../../core/page/state.ts";
 import type { ElementRef } from "../../core/protocol.ts";
 import type { FrameTheme, PageToFrame, PickBox } from "./messages.ts";
 import { parseFrameToPage } from "./parse.ts";
@@ -39,8 +39,7 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
   const frame = useRef<HTMLIFrameElement>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [frameHolding, setFrameHolding] = useState(false);
-  // On a locked page the frame is told `select`, where it picks nothing and outlines nothing.
-  const method = activeMethod.value ?? "select";
+  const on = commenting.value;
   const held = holding.value;
   const night = dark.value;
 
@@ -54,10 +53,10 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
     frame.current?.contentWindow?.postMessage(message, "*");
 
   useEffect(() => {
-    post({ type: "vellum:method", method });
+    post({ type: "vellum:commenting", on });
 
-    if (method === "select") setDraft(null);
-  }, [method]);
+    if (!on) setDraft(null);
+  }, [on]);
 
   useEffect(() => post({ type: "vellum:holding", holding: held }), [held]);
 
@@ -79,7 +78,7 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
 
       if (message.type === "vellum:holding") setFrameHolding(message.holding);
 
-      if (message.type === "vellum:pick" && !locked.value) {
+      if (message.type === "vellum:pick" && commenting.value) {
         const [first, ...rest] = message.elements;
 
         setDraft(first === undefined ? null : { elements: [first, ...rest], box: message.box });
@@ -108,7 +107,7 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
         src={docUrl(props.doc)}
         onLoad={() => {
           post({ type: "vellum:theme", theme: themeOf() });
-          post({ type: "vellum:method", method });
+          post({ type: "vellum:commenting", on });
           post({ type: "vellum:comments", selectors });
         }}
       />

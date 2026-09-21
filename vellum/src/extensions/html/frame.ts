@@ -22,7 +22,7 @@ const STYLE = `
   font: 600 11px/1 ui-monospace, Menlo, monospace; background: var(--redline); color: var(--sheet); white-space: nowrap; }
 `;
 
-let method: "select" | "pinpoint" = "select";
+let commenting = false;
 
 let chosen: readonly Element[] = [];
 
@@ -184,7 +184,7 @@ function onKey(event: KeyboardEvent): void {
 }
 
 function onMove(event: PointerEvent): void {
-  const target = method === "pinpoint" ? targetFrom(event.target) : null;
+  const target = commenting ? targetFrom(event.target) : null;
 
   if (target === hovered) return;
   hovered = target;
@@ -192,7 +192,7 @@ function onMove(event: PointerEvent): void {
 }
 
 function onClick(event: MouseEvent): void {
-  if (method !== "pinpoint") return;
+  if (!commenting) return;
   event.preventDefault();
   event.stopPropagation();
   const target = targetFrom(event.target);
@@ -209,10 +209,10 @@ function onMessage(event: MessageEvent): void {
   // SAFETY: the page's own `PageToFrame`, posted across the sandbox; an unknown type does nothing.
   const message = event.data as PageToFrame;
 
-  if (message.type === "vellum:method") {
-    method = message.method;
+  if (message.type === "vellum:commenting") {
+    commenting = message.on;
 
-    if (method === "select") {
+    if (!commenting) {
       chosen = [];
       hovered = null;
     }

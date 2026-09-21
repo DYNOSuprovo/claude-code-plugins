@@ -27,9 +27,9 @@ no build step, so what the page imports costs nothing at `cli start`.
   `--serif` (Literata), code and literals (a path, a version, the diff count, a key) are
   `--mono` (JetBrains Mono), and the chrome reads as prose. The fonts ship in `fonts/`, each
   under the bundler's inlining threshold, so they arrive inside the CSS chunk.
-- A button, badge, chip, tag, banner, popover, chevron or handle is drawn through `kit.tsx`, never
-  through one of its classes spelled at the call; `kit.tsx` is in `PAGE_SURFACE`, so an extension
-  draws with the same eight. A `Chip` is a button; what shows a label and takes no click is a `Tag`.
+- A button, badge, chip, tag, banner, popover, chevron, handle or switch is drawn through `kit.tsx`,
+  never through one of its classes spelled at the call; `kit.tsx` is in `PAGE_SURFACE`, so an
+  extension draws with the same nine. A `Chip` is a button; what shows a label and takes no click is a `Tag`.
   The types hold part of it, locked in `kit.spec.ts`: `ChipProps` takes no `class`, and neither
   takes `className`. `ButtonProps` takes a `class`, joined to the kit's own, for a state the kit
   has no prop for (`lit` in `grill/page.tsx`): there a kit class spelled at the call compiles,
@@ -55,7 +55,7 @@ no build step, so what the page imports costs nothing at `cli start`.
   extensions' `actions` to the decision bar, which draws them before its own buttons. An action
   that follows the workspace reads `review` and loads its own state again at every change.
 - A renderer that declares `comments: false` draws a document the reviewer answers in place, as
-  a grill's transcript: `app.tsx` then draws no input method and no comments panel, unless the
+  a grill's transcript: `app.tsx` then draws no switch and no comments panel, unless the
   plan shows beside it. The unsent comments stay in the signals, and the bar keeps their count.
 - Both side panels fold, each on a signal of `state.ts`: the comments panel on `commentsOpen`,
   the document rail on `railOpen`. `comments.tsx` and `doc-list.tsx` put `folded` on their panel
@@ -90,9 +90,9 @@ no build step, so what the page imports costs nothing at `cli start`.
   the new tab its anchor carries. Comments are taken while `inReview` and while `drafting`, so
   `locked` names two states, not one, and Approve is drawn only where a version exists. `locked`
   reads `takesComments`, the domain's predicate the server holds a draft to as well. A renderer
-  never reads `inputMethod`: it reads `activeMethod`, which is `null` on a locked page, so no
-  composer opens there, and `addAnnotation` returns when locked, as `select` does while the
-  editor is open. A comment nobody can send is a silent loss.
+  never reads `commentSwitch`: it reads `commenting`, false on a locked page, so no composer
+  opens there, and `addAnnotation` returns when locked, as `select` does while the editor is
+  open. A comment nobody can send is a silent loss.
 - `review.held` is what holds the review, or `null`. Held, Send feedback is disabled with the
   reason as its title, and every way to an approval goes through the warning popover, which
   says the approval ends what holds it. The bar prints the reason and never reads which
@@ -159,14 +159,14 @@ no build step, so what the page imports costs nothing at `cli start`.
   does not own, and `data-source` is both what a comment on it quotes and what a late render
   checks before it writes. Its comment boxes the figure, since the SVG holds no text to highlight.
 - A removed run is drawn as a `details.removed` that holds no text node: its label and its old
-  source are attributes, drawn by CSS `content: attr()`. So it takes no selection, no pinpoint,
-  and never enters the quote search of `anchoring.ts`. `markdown/changes.ts` chooses, purely,
+  source are attributes, drawn by CSS `content: attr()`. So it takes no pick, and never enters
+  the quote search of `anchoring.ts`. `markdown/changes.ts` chooses, purely,
   which block carries a mark and where a removed run goes: inside the `li` that follows it,
   before the whole table for a `tr`, never directly under `ul`, `ol`, `tbody` or `tr`.
 - An HTML file is served with a sandboxed CSP, so the page cannot reach into it: `html/frame.ts`
-  runs inside the mockup and owns the selection there, the page only sends it the method, the
-  Ctrl state, the selectors already commented and the theme, four tokens resolved to sRGB since
-  its shadow root reads none of the page's properties. `html/messages.ts` is the contract both
+  runs inside the mockup and owns the selection there, the page only sends it whether the page
+  comments, the Ctrl state, the selectors already commented and the theme, four tokens resolved
+  to sRGB since its shadow root reads none of the page's properties. `html/messages.ts` is the contract both
   sides import; every message crosses with the target `"*"` and each side checks `event.source`.
   That check proves the window, not the sender: `frameTag` in `http/routes.ts` adds `frame.js` to
   every HTML file served, so the mockup's own scripts, the model's, post from the same window.

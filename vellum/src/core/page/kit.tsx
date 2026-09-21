@@ -2,8 +2,8 @@ import type { ComponentChildren, JSX } from "preact";
 
 /**
  * The page's components, each one a class of `style.css` spelled in one place: what every
- * button, badge, chip, tag, banner, popover, chevron and handle of the core and of the extensions
- * is drawn with.
+ * button, badge, chip, tag, banner, popover, chevron, handle and switch of the core and of the
+ * extensions is drawn with.
  */
 
 export type ButtonProps = Omit<
@@ -141,6 +141,26 @@ export function Chevron(): JSX.Element {
         stroke-linejoin="round"
       />
     </svg>
+  );
+}
+
+/** A state, on or off, where a `Button` is an action: its label names what it turns on. */
+export function Switch(props: {
+  readonly checked: boolean;
+  readonly onChange: () => void;
+  readonly children: ComponentChildren;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={props.checked}
+      class="switch"
+      onClick={props.onChange}
+    >
+      <span class="track" />
+      {props.children}
+    </button>
   );
 }
 

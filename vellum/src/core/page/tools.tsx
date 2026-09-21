@@ -1,14 +1,34 @@
-import { Button } from "./kit.tsx";
-import type { InputMethod } from "./state.ts";
-import { currentDoc, inputMethod, locked, planDoc, review, showChanges, split } from "./state.ts";
+import { Button, Switch } from "./kit.tsx";
+import {
+  commentSwitch,
+  currentDoc,
+  editing,
+  flipCommentSwitch,
+  locked,
+  planDoc,
+  review,
+  showChanges,
+  split,
+} from "./state.ts";
 
-const METHODS: readonly (readonly [InputMethod, string])[] = [
-  ["select", "Select"],
-  ["pinpoint", "Pinpoint"],
-];
+/** Where the switch is drawn, and false while the editor is open; `app.tsx` reads it before `C` flips the switch. */
+export function switchShown(comments: boolean): boolean {
+  const plan = planDoc.value;
+  const doc = currentDoc.value;
+  const beside = plan !== null && doc !== null && doc.path !== plan.path;
+
+  return (
+    comments &&
+    editing.value === null &&
+    !locked.value &&
+    (doc?.mediaType === "text/markdown" ||
+      doc?.mediaType === "text/html" ||
+      (beside && split.value))
+  );
+}
 
 /**
- * The controls over the document: Select|Pinpoint while a pane takes comments, Beside the plan
+ * The controls over the document: the Comment switch while a pane takes comments, Beside the plan
  * while an artifact shows, Edit while the plan under review shows, Changes since while the plan
  * is drawn and has a version before it.
  */
@@ -25,34 +45,19 @@ export function Tools(props: ToolsProps): preact.JSX.Element {
   const editable = plan !== null && !beside && review.value?.workspace.kind === "inReview";
   const planDrawn = plan !== null && (!beside || split.value);
   const since = planDrawn ? (review.value?.plan?.previous?.version ?? null) : null;
-
-  const commentable =
-    props.comments &&
-    (doc?.mediaType === "text/markdown" ||
-      doc?.mediaType === "text/html" ||
-      (beside && split.value));
-
-  const pinpointable = commentable && !locked.value;
+  const shown = switchShown(props.comments);
 
   return (
     <div class="tools">
-      {pinpointable && (
-        <span class="seg" role="group" aria-label="Input method">
-          {METHODS.map(([method, name]) => (
-            <button
-              key={method}
-              type="button"
-              aria-pressed={inputMethod.value === method}
-              onClick={() => {
-                inputMethod.value = method;
-              }}
-            >
-              {name}
-            </button>
-          ))}
-        </span>
+      {shown && (
+        <>
+          <Switch checked={commentSwitch.value} onChange={flipCommentSwitch}>
+            Comment
+          </Switch>
+          <kbd>C</kbd>
+        </>
       )}
-      {pinpointable && beside && <span class="sep" />}
+      {shown && beside && <span class="sep" />}
       {beside && (
         <label class="toggle">
           <input

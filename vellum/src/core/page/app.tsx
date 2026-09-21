@@ -9,12 +9,14 @@ import { Comments, CommentsHandle } from "./comments.tsx";
 import { DecisionBar } from "./decision-bar.tsx";
 import { DocList, RailHandle } from "./doc-list.tsx";
 import { Editor } from "./editor.tsx";
+import { isSwitchKey, keyPressOf } from "./selection.ts";
 import {
   addAnnotation,
   annotations,
   currentDoc,
   edited,
   editing,
+  flipCommentSwitch,
   holding,
   openEditor,
   planChanges,
@@ -24,7 +26,7 @@ import {
   split,
   start,
 } from "./state.ts";
-import { Tools } from "./tools.tsx";
+import { switchShown, Tools } from "./tools.tsx";
 
 function rendererOf(doc: DocRef): Renderer | undefined {
   return pageExtensions
@@ -117,16 +119,22 @@ function App(): preact.JSX.Element {
       holding.value = event.ctrlKey || event.metaKey;
     };
 
+    const flip = (event: KeyboardEvent): void => {
+      if (isSwitchKey(keyPressOf(event)) && switchShown(takesComments())) flipCommentSwitch();
+    };
+
     const release = (): void => {
       holding.value = false;
     };
 
     document.addEventListener("keydown", held);
+    document.addEventListener("keydown", flip);
     document.addEventListener("keyup", held);
     window.addEventListener("blur", release);
 
     return () => {
       document.removeEventListener("keydown", held);
+      document.removeEventListener("keydown", flip);
       document.removeEventListener("keyup", held);
       window.removeEventListener("blur", release);
     };
