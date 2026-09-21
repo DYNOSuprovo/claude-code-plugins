@@ -64,7 +64,7 @@ function short(path: string): string {
   return path.slice(ROOT.length + 1);
 }
 
-/** The two scripts a browser runs for what they do at module scope: the page's and the mockup frame's. */
+/** The two scripts a browser runs for what they do at module scope, the page's and the mockup frame's: one more is a decision to take. */
 const BROWSER_ENTRIES = ["src/core/page/app.tsx", "src/extensions/html/frame.ts"];
 
 /** Imports each file in a process with no `window`, and says which ones threw, and where. */

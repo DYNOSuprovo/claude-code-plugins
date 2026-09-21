@@ -1,22 +1,22 @@
 /* oxlint-disable anti-slop/require-safety-comment-for-type-assertion -- fixtures are branded values (ProjectPath, Version, WipDir) written as literals, and fakes stand where a browser global does: the brand is the parser's to grant, the global's type the browser's, and nothing here parses or runs in one. */
 import { afterEach, describe, expect, test } from "bun:test";
 
-import type { Annotation, DocGroup, Draft, Edit, GroupedDoc, ReviewView } from "../protocol.ts";
+import type {
+  Annotation,
+  Decision,
+  DocGroup,
+  Draft,
+  Edit,
+  GroupedDoc,
+  ReviewView,
+} from "../protocol.ts";
 import { lineDiff } from "../protocol.ts";
 
 type Store = typeof import("./state.ts");
 
-let stores = 0;
-
-/**
- * A store of its own for each test. The signals are module singletons, and `bun test` keeps one
- * module registry for every suite of a run: the same file under another query is evaluated
- * again, so nothing a test sets, and no saving effect `start` leaves behind, reaches the next
- * test or another suite.
- */
+/** A store of its own for each test: `state.ts` under a query no import used before, which Bun evaluates again. */
 async function freshStore(): Promise<Store> {
-  stores += 1;
-  const specifier = `./state.ts?state.spec=${stores}`;
+  const specifier = `./state.ts?state.spec=${crypto.randomUUID()}`;
 
   return (await import(specifier)) as Store;
 }
@@ -89,7 +89,7 @@ const restores: (() => void)[] = [];
 type MediaList = {
   readonly matches: boolean;
   readonly addEventListener: (
-    type: "change",
+    type: string,
     listener: (event: { readonly matches: boolean }) => void,
   ) => void;
 };
@@ -123,6 +123,8 @@ type Served = {
   readonly draft: Draft | null | "unreadable";
   readonly review: ReviewView | "unreadable";
   readonly decision?: number;
+  /** What `GET /api/review` waits on before its answer. */
+  readonly load?: () => Promise<void>;
   /** What a `PUT /api/draft` waits on before its answer, and how it fails when this rejects. */
   readonly put?: () => Promise<void>;
   readonly putStatus?: number;
@@ -132,6 +134,7 @@ type Server = {
   /** Every request and every stream, in the order the page opened them. */
   readonly calls: string[];
   readonly puts: Draft[];
+  readonly decisions: Decision[];
   readonly tokens: Set<string | undefined>;
   /** What the server pushes on the event stream: `message`, or the stream's own `error` and `open`. */
   readonly push: (event: "message" | "error" | "open") => void;
@@ -149,6 +152,7 @@ function serve(answer: Served): Server {
   const server: Server = {
     calls: [],
     puts: [],
+    decisions: [],
     tokens: new Set(),
     push: (event) => {
       for (const entry of listeners) if (entry.event === event) entry.listener();
@@ -163,9 +167,21 @@ function serve(answer: Served): Server {
     server.calls.push(`${method} ${url}`);
     server.tokens.add(new Headers(init.headers).get("x-vellum-token") ?? undefined);
 
-    if (url === "/api/review") return answerOf(server.answer.review);
+    if (url === "/api/review") {
+      await server.answer.load?.();
 
-    if (url === "/api/decision") return new Response("", { status: server.answer.decision ?? 200 });
+      return answerOf(server.answer.review);
+    }
+
+    if (url === "/api/decision") {
+      if (init.body === undefined || init.body === null) {
+        return new Response("", { status: 400 });
+      }
+
+      server.decisions.push(JSON.parse(String(init.body)) as Decision);
+
+      return new Response("", { status: server.answer.decision ?? 200 });
+    }
 
     if (method === "GET") {
       return server.answer.draft === null
@@ -350,17 +366,27 @@ describe("locked", () => {
     expect(annotations.value).toEqual([]);
   });
 
-  test("an open page has the chosen input method, and gives a comment an id of its own", async () => {
-    const { activeMethod, addAnnotation, annotations, inputMethod, review } = await freshStore();
+  test("an open page has the chosen input method", async () => {
+    const { activeMethod, inputMethod, review } = await freshStore();
     review.value = versioned({ version: 1 });
     inputMethod.value = "pinpoint";
-    addAnnotation(comment("the caller's", `${WIP}.review/v1.md`));
 
     expect(activeMethod.value).toBe("pinpoint");
-    expect(annotations.value.map((annotation) => annotation.doc)).toEqual([
-      `${WIP}.review/v1.md` as never,
+  });
+});
+
+describe("the comments", () => {
+  test("a comment joins the others under an id of its own", async () => {
+    const { addAnnotation, annotations, review } = await freshStore();
+    review.value = versioned({ version: 1 });
+    annotations.value = [comment("first", `${WIP}.review/v1.md`)];
+    addAnnotation(comment("the caller's", `${WIP}.review/v1.md`));
+
+    expect(annotations.value.map((annotation) => annotation.mark)).toEqual([
+      { kind: "comment", body: "first" },
+      { kind: "comment", body: "the caller's" },
     ]);
-    expect(annotations.value[0]?.id).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(annotations.value[1]?.id).toMatch(/^[0-9a-f-]{36}$/u);
   });
 
   test("a removed comment leaves the others", async () => {
@@ -497,17 +523,43 @@ describe("the editor", () => {
 });
 
 describe("start", () => {
-  test("restores the saved draft before anything is written: the first PUT carries it, after both reads", async () => {
+  test("restores the saved draft before anything is written: the first PUT carries it, after both reads and the stream", async () => {
     const store = await freshStore();
     const saved: Draft = { annotations: [comment("c1", `${WIP}.review/v1.md`)], edit: null };
     const server = serve({ draft: saved, review: versioned({ version: 1 }) });
     await store.start();
     await settled();
 
-    const requests = server.calls.filter((call) => !call.startsWith("EventSource"));
-    expect(requests).toEqual(["GET /api/draft", "GET /api/review", "PUT /api/draft"]);
+    expect(server.calls).toEqual([
+      "GET /api/draft",
+      "GET /api/review",
+      "EventSource /t/tok/events",
+      "PUT /api/draft",
+    ]);
     expect(server.puts).toEqual([saved]);
     expect(store.annotations.value).toEqual(saved.annotations);
+  });
+
+  test("nothing is written while the first load is still out", async () => {
+    const store = await freshStore();
+    const loaded = Promise.withResolvers<void>();
+    const saved: Draft = { annotations: [comment("c1", `${WIP}.review/v1.md`)], edit: null };
+
+    const server = serve({
+      draft: saved,
+      review: versioned({ version: 1 }),
+      load: () => loaded.promise,
+    });
+
+    const started = store.start();
+    await settled();
+    const whileLoading = [...server.calls];
+    loaded.resolve();
+    await started;
+    await settled();
+
+    expect(whileLoading).toEqual(["GET /api/draft", "GET /api/review"]);
+    expect(server.puts).toEqual([saved]);
   });
 
   test("with no saved draft the first write is the empty one, still after both reads", async () => {
@@ -605,6 +657,46 @@ describe("start", () => {
     ]);
   });
 
+  test("an edit that lands is one write: the edit cleared and its comments moved, together", async () => {
+    const store = await freshStore();
+    const draft = { annotations: [comment("c1", `${WIP}.review/v1.md`)], edit: edit(1, "mine\n") };
+    const server = serve({ draft, review: versioned({ version: 1 }) });
+    await store.start();
+    server.answer = { ...server.answer, review: versioned({ version: 2, text: "mine\n" }) };
+    server.push("message");
+    await settled();
+
+    expect(server.puts).toEqual([
+      draft,
+      { annotations: [comment("c1", `${WIP}.review/v2.md`)], edit: null },
+    ]);
+  });
+
+  test("Done is one write: the shifted comments and the edit, together", async () => {
+    const store = await freshStore();
+    const draft = { annotations: [onLine("c1", `${WIP}.review/v1.md`, 1)], edit: null };
+    const server = serve({ draft, review: versioned({ version: 1, text: "a\n" }) });
+    await store.start();
+    store.finishEdit({ version: 1, base: "a\n", line: 1 } as never, "new\na\n");
+    await settled();
+
+    expect(server.puts).toEqual([
+      draft,
+      { annotations: [onLine("c1", `${WIP}.review/v1.md`, 2)], edit: edit(1, "new\na\n") },
+    ]);
+  });
+
+  test("a decision the server took is one write: no comment and no edit, together", async () => {
+    const store = await freshStore();
+    const draft = { annotations: [comment("c1", `${WIP}.review/v1.md`)], edit: edit(1, "mine\n") };
+    const server = serve({ draft, review: versioned({ version: 1 }) });
+    await store.start();
+    await store.decide({ kind: "approve", edit: edit(1, "mine\n"), notes: "" });
+    await settled();
+
+    expect(server.puts).toEqual([draft, { annotations: [], edit: null }]);
+  });
+
   test("a write that never reaches the server says so, and the next change is still written", async () => {
     const store = await freshStore();
     const server = serve({ draft: null, review: versioned({ version: 1 }) });
@@ -696,7 +788,7 @@ describe("decide", () => {
     const server = serve({ draft: null, review: versioned({ version: 1 }), decision: 200 });
     store.annotations.value = unsent;
     store.edited.value = edit(1, "mine\n");
-    await store.decide({ kind: "approve" } as never);
+    await store.decide({ kind: "approve", edit: null, notes: "" });
 
     expect([store.annotations.value, store.edited.value, store.error.value]).toEqual([
       [],
@@ -706,11 +798,30 @@ describe("decide", () => {
     expect(server.calls).toEqual(["POST /api/decision", "GET /api/review"]);
   });
 
+  test("the decision reaches the server as it was taken", async () => {
+    const store = await freshStore();
+    const server = serve({ draft: null, review: versioned({ version: 1 }) });
+    const feedback: Decision = { kind: "feedback", edit: edit(1, "mine\n"), annotations: unsent };
+    await store.decide(feedback);
+
+    expect(server.decisions).toEqual([feedback]);
+  });
+
+  test("a redirect is a refusal as well: the comments stay, and the status is named", async () => {
+    const store = await freshStore();
+    serve({ draft: null, review: versioned({ version: 1 }), decision: 300 });
+    store.annotations.value = unsent;
+    await store.decide({ kind: "approve", edit: null, notes: "" });
+
+    expect(store.annotations.value).toEqual(unsent);
+    expect(store.error.value).toBe("POST /api/decision failed: 300");
+  });
+
   test("a version already decided keeps the comments and says so", async () => {
     const store = await freshStore();
     serve({ draft: null, review: versioned({ version: 1 }), decision: 409 });
     store.annotations.value = unsent;
-    await store.decide({ kind: "approve" } as never);
+    await store.decide({ kind: "approve", edit: null, notes: "" });
 
     expect(store.annotations.value).toEqual(unsent);
     expect(store.error.value).toBe("This version was already decided.");
@@ -720,7 +831,7 @@ describe("decide", () => {
     const store = await freshStore();
     serve({ draft: null, review: versioned({ version: 1 }), decision: 500 });
     store.annotations.value = unsent;
-    await store.decide({ kind: "approve" } as never);
+    await store.decide({ kind: "approve", edit: null, notes: "" });
 
     expect(store.annotations.value).toEqual(unsent);
     expect(store.error.value).toBe("POST /api/decision failed: 500");
@@ -730,19 +841,24 @@ describe("decide", () => {
 describe("readWindow", () => {
   type Listener = (event: { readonly matches: boolean }) => void;
 
-  /** A window whose media queries answer by their text: a query the store misspells matches nothing here. */
+  /**
+   * A window whose media queries answer by their text, and whose lists call the listeners of the
+   * event they fire: a query or an event name the store misspells reaches nothing here.
+   */
   function windowOf(matching: readonly string[]) {
     const listeners = new Map<string, Listener>();
 
     port("window", {
       matchMedia: (query: string) => ({
         matches: matching.includes(query),
-        addEventListener: (_: "change", listener: Listener) => listeners.set(query, listener),
+        addEventListener: (type: string, listener: Listener) =>
+          listeners.set(`${type} of ${query}`, listener),
       }),
     });
 
     return {
-      fire: (query: string, matches: boolean): void => listeners.get(query)?.({ matches }),
+      change: (query: string, matches: boolean): void =>
+        listeners.get(`change of ${query}`)?.({ matches }),
     };
   }
 
@@ -772,10 +888,10 @@ describe("readWindow", () => {
     const { commentsOpen, dark, readWindow } = await freshStore();
     const media = windowOf([]);
     readWindow();
-    media.fire("(prefers-color-scheme: dark)", true);
-    media.fire("(max-width: 900px)", true);
+    media.change("(prefers-color-scheme: dark)", true);
+    media.change("(max-width: 900px)", true);
     const night = dark.value;
-    media.fire("(prefers-color-scheme: dark)", false);
+    media.change("(prefers-color-scheme: dark)", false);
 
     expect([night, dark.value, commentsOpen.value]).toEqual([true, false, true]);
   });

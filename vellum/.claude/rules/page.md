@@ -88,20 +88,24 @@ no build step, so what the page imports costs nothing at `cli start`.
   says the approval ends what holds it. The bar prints the reason and never reads which
   extension gave it.
 - A module of the page reads the browser inside a function, never at its own scope, so a
-  `bun:test` suite imports the store and every component: `api.ts` reads the token off `location`
-  at each call, and `readWindow` of `state.ts` reads the window's width once and follows its colour
-  scheme. Two scripts are exempt, since a browser runs them for what they do at that scope:
+  `bun:test` suite imports the store, the renderers and every component but the three `app.tsx`
+  keeps to itself (`App`, `Panes`, `Doc`): `api.ts` reads the token off `location` at each call,
+  and `readWindow` of `state.ts` reads the window's width once and follows its colour scheme. Two
+  scripts are exempt, since a browser runs them for what they do at that scope:
   `app.tsx` and `html/frame.ts`. `app.tsx` calls `readWindow` before the first render, never from
   `start`: `Comments` draws `commentsOpen` at that render and `start` runs in an effect after it,
-  so under 900px the panel would paint open, then fold through its width transition. Held by
+  so under 900px the panel would paint open, then fold through its width transition. No suite
+  runs `app.tsx`, so only a live page holds that call. The rest is held by
   `src/boundaries.spec.ts`, which imports every other module in a process with no `window` and
   names the file that throws.
 - `start` is the page's one way in, and its order is the rule: the saved draft into the signals,
   then the first load, then the saving effect, then the event stream. Nothing may `PUT` a draft
   before the restore, or every reload replaces the file with the page's empty state. After it,
   each change of the comments or of the edit is one write, sent in order; signals that change
-  together change in one `batch`. `state.spec.ts` holds the order through the page's ports, a fake
-  `fetch` and a fake `EventSource` that log what reaches them.
+  together change in one `batch`. `state.spec.ts` holds this at the page's ports, a fake `fetch`
+  and a fake `EventSource` that log what reaches them: the restore before the first load, no
+  write while that load is out, the stream after it, and one write for each `batch` a saving page
+  runs. The saving effect against the stream is one synchronous step, which no port tells apart.
 - An unsent edit is an `Edit`: a text with the version it edits. The stamp is taken when the
   editor opens, and `Editor` keeps that version and its base text for its whole session: a
   version that lands under an open editor must not restamp it. They travel as one `EditSession`,
