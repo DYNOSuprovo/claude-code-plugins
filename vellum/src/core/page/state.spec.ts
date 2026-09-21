@@ -868,12 +868,12 @@ describe("readWindow", () => {
     expect([commentsOpen.value, dark.value]).toEqual([true, false]);
   });
 
-  test("a window of 900px or less folds the comments panel", async () => {
-    const { commentsOpen, dark, readWindow } = await freshStore();
+  test("a window of 900px or less folds the comments panel and leaves the rail open", async () => {
+    const { commentsOpen, dark, railOpen, readWindow } = await freshStore();
     windowOf(["(max-width: 900px)"]);
     readWindow();
 
-    expect([commentsOpen.value, dark.value]).toEqual([false, false]);
+    expect([commentsOpen.value, railOpen.value, dark.value]).toEqual([false, true, false]);
   });
 
   test("a wide window on a dark scheme opens the panel and draws dark", async () => {

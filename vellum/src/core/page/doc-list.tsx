@@ -1,7 +1,7 @@
 import type { DocGroup, DocRef, GroupedDoc } from "../protocol.ts";
-import { Badge } from "./kit.tsx";
+import { Badge, Handle } from "./kit.tsx";
 import { dirOf, planLabel } from "./rail.ts";
-import { annotations, currentDoc, docs, editing, review, select } from "./state.ts";
+import { annotations, currentDoc, docs, editing, railOpen, review, select } from "./state.ts";
 
 function nameOf(doc: DocRef): string {
   return doc.path.split("/").at(-1) ?? doc.path;
@@ -13,6 +13,24 @@ function count(path: string): number {
 
 function inGroup(list: readonly GroupedDoc[], group: DocGroup): readonly GroupedDoc[] {
   return list.filter((doc) => doc.group === group);
+}
+
+/**
+ * The fold control, on the rail's edge, which it follows. It carries no badge: folded, the rail
+ * hides nothing, since `.doc-head` prints the document's path and `CommentsHandle` the total.
+ */
+export function RailHandle(): preact.JSX.Element {
+  return (
+    <Handle
+      side="left"
+      open={railOpen.value}
+      controls="rail"
+      name="Documents"
+      onToggle={() => {
+        railOpen.value = !railOpen.value;
+      }}
+    />
+  );
 }
 
 export function DocList(): preact.JSX.Element {
@@ -40,7 +58,12 @@ export function DocList(): preact.JSX.Element {
   };
 
   return (
-    <nav class="rail" aria-label="Documents" inert={editing.value !== null}>
+    <nav
+      id="rail"
+      class={railOpen.value ? "rail" : "rail folded"}
+      aria-label="Documents"
+      inert={editing.value !== null || !railOpen.value}
+    >
       {plan !== undefined && workspace !== undefined && (
         <button
           type="button"

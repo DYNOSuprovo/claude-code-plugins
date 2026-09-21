@@ -42,6 +42,7 @@
   --mono-optical: 0.92em;
   --measure: 68ch;
   --comments-width: 310px;
+  --rail-width: 220px;
 
   --s-1: 4px;
   --s-2: 8px;
@@ -115,7 +116,8 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--redline)
 .banner code { font-family: var(--mono); font-size: var(--mono-optical); }
 
 .body { flex: 1; min-height: 0; display: flex; position: relative; }
-.rail { width: 220px; flex: none; border-right: 1px solid var(--rule); padding: var(--s-3) var(--s-2); overflow: auto; display: flex; flex-direction: column; gap: 2px; background: var(--tint); }
+.rail { width: var(--rail-width); flex: none; border-right: 1px solid var(--rule); padding: var(--s-3) var(--s-2); overflow: auto; display: flex; flex-direction: column; gap: 2px; background: var(--tint); transition: margin-left var(--transition); }
+.rail.folded { margin-left: calc(var(--rail-width) * -1); }
 .rail button { font: 500 var(--t-13)/1.4 var(--serif); background: transparent; border: 0; color: var(--ink); cursor: pointer; text-align: left; padding: var(--s-1) var(--s-2); border-radius: var(--r-sm); display: flex; align-items: center; gap: var(--s-2); transition: background var(--transition); }
 .rail button:hover:not([aria-selected="true"]) { background: var(--sheet); }
 .rail button .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--mono-optical); }
@@ -162,7 +164,7 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .editor { flex: 1; display: flex; }
 .editor textarea { flex: 1; border: 0; border-radius: 0; resize: none; padding: var(--s-4) var(--s-6); font: var(--t-14)/var(--lh-code) var(--mono); background: var(--field); }
 .editor textarea:focus-visible { outline-offset: -2px; }
-.rail[inert], .comments[inert]:not(.folded) { opacity: 0.45; }
+.rail[inert]:not(.folded), .comments[inert]:not(.folded) { opacity: 0.45; }
 
 .plan { padding: var(--s-6) var(--s-6) var(--s-10); font: var(--t-16)/var(--lh-prose) var(--serif); }
 .plan h1 { font: 650 var(--t-31)/var(--lh-title) var(--serif); letter-spacing: -0.015em; margin: 0 0 var(--s-3); }
@@ -278,17 +280,20 @@ textarea { width: 100%; font: var(--t-14)/1.45 var(--serif); border: 1px solid v
 .global { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: var(--s-2) var(--s-3); }
 .global label { display: block; font-size: var(--t-12); color: var(--graphite); margin-bottom: var(--s-1); }
 
-.handle { position: absolute; z-index: 3; top: 50%; width: var(--s-6); min-height: calc(var(--s-8) + var(--s-10)); transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-2); padding: var(--s-3) 0; cursor: pointer; border: 1px solid var(--rule); background: var(--sheet); color: var(--graphite); transition: right var(--transition), color var(--transition); }
+.handle { position: absolute; z-index: 3; top: 50%; width: var(--s-6); min-height: calc(var(--s-8) + var(--s-10)); transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-2); padding: var(--s-3) 0; cursor: pointer; border: 1px solid var(--rule); background: var(--sheet); color: var(--graphite); transition: left var(--transition), right var(--transition), color var(--transition); }
 .handle:hover { color: var(--ink); }
 .handle.right { right: var(--comments-width); border-right: 0; border-radius: var(--r-md) 0 0 var(--r-md); }
+.handle.left { left: var(--rail-width); border-left: 0; border-radius: 0 var(--r-md) var(--r-md) 0; }
 .handle.right[aria-expanded="false"] { right: 0; }
-.handle.right[aria-expanded="false"] .chevron { transform: rotate(180deg); }
+.handle.left[aria-expanded="false"] { left: 0; }
+.handle.right[aria-expanded="false"] .chevron, .handle.left[aria-expanded="true"] .chevron { transform: rotate(180deg); }
 .handle .name { writing-mode: vertical-rl; font: 650 var(--t-12)/1 var(--serif); letter-spacing: 0.02em; }
+.handle.left .name { transform: rotate(180deg); }
 /* Pinned to the top left corner: the overhang goes toward the document, never toward the window's edge, where a folded handle would have it cut. The ring lifts it off the text behind. */
 .handle .badge { position: absolute; top: calc(var(--s-2) * -1); left: calc(var(--s-3) * -1); min-width: 0; padding: 0 var(--s-1); box-shadow: 0 0 0 2px var(--sheet); }
 .handle .chevron { width: var(--s-3); height: var(--s-3); flex: none; }
 
 @media (max-width: 900px) {
   .comments { position: absolute; top: 0; right: 0; bottom: 0; z-index: 2; box-shadow: var(--shadow); }
-  .rail { width: 160px; }
+  :root { --rail-width: 160px; }
 }

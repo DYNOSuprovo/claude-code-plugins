@@ -57,14 +57,21 @@ no build step, so what the page imports costs nothing at `cli start`.
 - A renderer that declares `comments: false` draws a document the reviewer answers in place, as
   a grill's transcript: `app.tsx` then draws no input method and no comments panel, unless the
   plan shows beside it. The unsent comments stay in the signals, and the bar keeps their count.
-- The comments panel folds, on `commentsOpen` of `state.ts`: `comments.tsx` puts `folded` on the
-  panel, whose CSS takes its width to zero, and draws `CommentsHandle`, the control `app.tsx`
-  places on the panel's edge inside `.body`. A fold never unmounts the panel, since the general
-  composer holds its half-typed text in a `useState`; a renderer with `comments: false` still
-  does, as above. Folded, the panel is `inert`: zero width hides pixels, not focus. The handle's
-  badge is the unfiltered total, the one count a folded panel still shows. `readWindow` of
-  `state.ts` sets the signal from `(max-width: 900px)`, once a load, the threshold `style.css`
-  repeats in the media query where an open panel lays over the document.
+- Both side panels fold, each on a signal of `state.ts`: the comments panel on `commentsOpen`,
+  the document rail on `railOpen`. `comments.tsx` and `doc-list.tsx` put `folded` on their panel
+  and draw its control, `CommentsHandle` and `RailHandle`, both through the kit's `Handle`, which
+  `app.tsx` places on the panel's edge inside `.body`. The comments panel's CSS takes its width
+  to zero; the rail slides out by the left, a negative `margin-left` that `.app` clips, so its
+  lines never reflow while it moves. A fold never unmounts a panel, since the general composer
+  holds its half-typed text in a `useState`; a renderer with `comments: false` still unmounts the
+  comments panel, as above. Folded, a panel is `inert`: what leaves the screen hides pixels, not
+  focus. The comments handle's badge is the unfiltered total, the one count a folded panel still
+  shows; the rail's carries none, since `.doc-head` prints the document's path. `readWindow` of
+  `state.ts` sets `commentsOpen` from `(max-width: 900px)`, once a load, the threshold `style.css`
+  repeats in the media query where an open comments panel lays over the document. It leaves
+  `railOpen` open at every width: the rail is how a document is chosen, so folded it costs a
+  click at each change, and under 900px it keeps its place beside the document, where a rail laid
+  over it would have to fold again after each choice.
 - The page draws in every state, `drafting` included. `review.docs` is a list of `GroupedDoc`:
   the server, the one place that knows where a file came from, labels each `"plan"`,
   `"artifact"` (a renderable file of the working directory) or `"cited"` (a file the plan links

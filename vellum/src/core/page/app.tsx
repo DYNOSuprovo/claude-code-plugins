@@ -7,7 +7,7 @@ import type { DocRef } from "../protocol.ts";
 import { lineAtTop } from "./caret.ts";
 import { Comments, CommentsHandle } from "./comments.tsx";
 import { DecisionBar } from "./decision-bar.tsx";
-import { DocList } from "./doc-list.tsx";
+import { DocList, RailHandle } from "./doc-list.tsx";
 import { Editor } from "./editor.tsx";
 import {
   addAnnotation,
@@ -137,6 +137,7 @@ function App(): preact.JSX.Element {
       <DecisionBar actions={actions} />
       <div class="body">
         <DocList />
+        <RailHandle />
         <Panes />
         {takesComments() && (
           <>
