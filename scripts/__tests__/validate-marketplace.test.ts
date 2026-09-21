@@ -100,6 +100,19 @@ describe("validate-marketplace CLI", () => {
     expect(result.stdout).toContain("2.0.0");
   });
 
+  test("exits 1 when a description drifts from plugin.json", async () => {
+    const tempDir = await setupTestRepo("description-drift");
+    tempDirs.push(tempDir);
+
+    const result = await runValidation(tempDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain("Description mismatch");
+    expect(result.stdout).toContain("An older blurb");
+    expect(result.stdout).toContain("The blurb plugin.json carries");
+    expect(result.stdout).toContain("README description mismatch");
+  });
+
   test("exits 2 when not in a git repo", async () => {
     const tempDir = await mkdtemp(join(tmpdir(), "validate-marketplace-test-"));
     tempDirs.push(tempDir);

@@ -12,11 +12,14 @@ import { $ } from "bun";
 import {
   validateNameMatch,
   validateVersionSync,
+  validateDescriptionSync,
   validateRequiredFields,
   validatePluginDirContents,
   findHardcodedPaths,
   extractVersionFromReadme,
   validateReadmeVersion,
+  extractDescriptionFromReadme,
+  validateReadmeDescription,
   type PluginEntry,
   type PluginJson,
   type ValidationResult,
@@ -148,13 +151,16 @@ for (const mp of marketplace.plugins) {
   // Check 4: Version synced
   report(validateVersionSync(mp.version, pluginJson.version));
 
-  // Check 5: Required fields present
+  // Check 5: Description synced
+  report(validateDescriptionSync(mp.description, pluginJson.description));
+
+  // Check 6: Required fields present
   report(validateRequiredFields(mp, pluginJson));
 
-  // Check 6: .claude-plugin/ holds nothing but plugin.json
+  // Check 7: .claude-plugin/ holds nothing but plugin.json
   report(validatePluginDirContents(readdirSync(join(pluginDir, ".claude-plugin"))));
 
-  // Check 7: no machine-specific home paths in shipped code
+  // Check 8: no machine-specific home paths in shipped code
   const prefix = `${mp.source.replace(/^\.\//u, "")}/`;
   let hardcoded = 0;
 
@@ -175,30 +181,48 @@ for (const mp of marketplace.plugins) {
   console.log();
 }
 
-// Check README.md versions match marketplace.json
+// Check README.md versions and descriptions match marketplace.json
 if (existsSync(readmeFile)) {
   console.log(`${BOLD}README.md${RESET}`);
 
   const readmeContent = await Bun.file(readmeFile).text();
-  let readmeErrors = 0;
+  let versionErrors = 0;
+  let descriptionErrors = 0;
 
   for (const mp of marketplace.plugins) {
-    if (!mp.version) continue;
+    if (mp.version) {
+      const readmeVersion = extractVersionFromReadme(readmeContent, mp.name);
 
-    const readmeVersion = extractVersionFromReadme(readmeContent, mp.name);
+      if (readmeVersion) {
+        const result = validateReadmeVersion(readmeVersion, mp.version, mp.name);
 
-    if (readmeVersion) {
-      const result = validateReadmeVersion(readmeVersion, mp.version, mp.name);
-
-      if (!result.passed) {
-        fail(result.message);
-        readmeErrors++;
+        if (!result.passed) {
+          fail(result.message);
+          versionErrors++;
+        }
       }
+    }
+
+    if (!mp.description) continue;
+
+    const readmeDescription = extractDescriptionFromReadme(readmeContent, mp.name);
+
+    if (readmeDescription === null) continue;
+
+    const result = validateReadmeDescription(readmeDescription, mp.description, mp.name);
+
+    if (!result.passed) {
+      fail(result.message);
+      descriptionErrors++;
     }
   }
 
-  if (readmeErrors === 0) {
+  if (versionErrors === 0) {
     pass("Versions match marketplace.json");
+  }
+
+  if (descriptionErrors === 0) {
+    pass("Descriptions match marketplace.json");
   }
 
   console.log();

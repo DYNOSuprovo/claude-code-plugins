@@ -63,6 +63,31 @@ export function validateVersionSync(
 }
 
 /**
+ * Validate that descriptions are present and synchronized.
+ */
+export function validateDescriptionSync(
+  mpDescription: string | undefined,
+  pluginDescription: string | undefined,
+): ValidationResult {
+  if (!mpDescription) {
+    return { passed: false, message: "Description missing in marketplace.json" };
+  }
+
+  if (!pluginDescription) {
+    return { passed: false, message: "Description missing in plugin.json" };
+  }
+
+  if (mpDescription === pluginDescription) {
+    return { passed: true, message: "Description synced" };
+  }
+
+  return {
+    passed: false,
+    message: `Description mismatch: marketplace=${mpDescription}\n    plugin=${pluginDescription}`,
+  };
+}
+
+/**
  * Validate that all required fields are present in both marketplace entry and plugin.json.
  */
 export function validateRequiredFields(mp: PluginEntry, pluginJson: PluginJson): ValidationResult {
@@ -131,14 +156,19 @@ export function findHardcodedPaths(content: string): ReadonlyArray<HardcodedPath
   return found;
 }
 
+const escapeForRegex = (name: string) => name.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+
 /**
  * Extract version number from README markdown table for a given plugin.
  * Returns null if plugin not found in README.
  */
 export function extractVersionFromReadme(content: string, pluginName: string): string | null {
   // Match pattern: [plugin-name]... | X.Y.Z
-  const escapedName = pluginName.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const pattern = new RegExp(`\\[${escapedName}\\][^|]+\\|\\s*([0-9]+\\.[0-9]+\\.[0-9]+)`, "u");
+  const pattern = new RegExp(
+    `\\[${escapeForRegex(pluginName)}\\][^|]+\\|\\s*([0-9]+\\.[0-9]+\\.[0-9]+)`,
+    "u",
+  );
+
   const match = content.match(pattern);
 
   return match?.[1] ?? null;
@@ -151,10 +181,82 @@ export function extractVersionFromReadme(content: string, pluginName: string): s
  * unchanged if the plugin has no matching row.
  */
 export function setVersionInReadme(content: string, pluginName: string, version: string): string {
-  const escapedName = pluginName.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const pattern = new RegExp(`(\\[${escapedName}\\][^|]+\\|\\s*)[0-9]+\\.[0-9]+\\.[0-9]+`, "u");
+  const pattern = new RegExp(
+    `(\\[${escapeForRegex(pluginName)}\\][^|]+\\|\\s*)[0-9]+\\.[0-9]+\\.[0-9]+`,
+    "u",
+  );
 
   return content.replace(pattern, `$1${version}`);
+}
+
+/**
+ * The description is the third cell of the row: [plugin-name](src/) | X.Y.Z | text.
+ * The capture stops at the next column separator and at a line break, so a row
+ * whose description cell is empty reads as an empty string, not as the rest of
+ * the table.
+ */
+const readmeDescriptionPattern = (pluginName: string) =>
+  new RegExp(`(\\[${escapeForRegex(pluginName)}\\][^|]+\\|[^|\\n]*\\|)([^|\\n]*)`, "u");
+
+/**
+ * Extract the description from the README markdown table for a given plugin.
+ * Returns null if plugin not found in README.
+ */
+export function extractDescriptionFromReadme(content: string, pluginName: string): string | null {
+  const match = content.match(readmeDescriptionPattern(pluginName));
+
+  return match?.[2]?.trim() ?? null;
+}
+
+/**
+ * Rewrite the description in the README markdown table row for a given plugin.
+ * Returns the content unchanged if the plugin has no matching row. A function
+ * replacement, so a `$&` or a `$1` inside the description stays literal.
+ */
+export function setDescriptionInReadme(
+  content: string,
+  pluginName: string,
+  description: string,
+): string {
+  return content.replace(
+    readmeDescriptionPattern(pluginName),
+    (_match, prefix: string) => `${prefix} ${description} `,
+  );
+}
+
+/**
+ * A README row is a Markdown table cell, so a `|` inside a description would
+ * close the cell early and shift every column after it. Such a description is
+ * refused rather than escaped: the author rewords it in plugin.json, where the
+ * text is read by consumers as well.
+ */
+export function validateDescriptionCell(pluginName: string, description: string): ValidationResult {
+  if (!description.includes("|")) {
+    return { passed: true, message: "Description fits a README cell" };
+  }
+
+  return {
+    passed: false,
+    message: `Description of ${pluginName} holds a "|", which no README table cell can carry`,
+  };
+}
+
+/**
+ * Validate that README description matches expected description.
+ */
+export function validateReadmeDescription(
+  readmeDescription: string,
+  expectedDescription: string,
+  pluginName: string,
+): ValidationResult {
+  if (readmeDescription === expectedDescription) {
+    return { passed: true, message: "Descriptions match marketplace.json" };
+  }
+
+  return {
+    passed: false,
+    message: `README description mismatch: ${pluginName}`,
+  };
 }
 
 /**

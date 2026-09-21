@@ -2,8 +2,8 @@
 /**
  * Version sync script (pre-commit auto-fix)
  *
- * plugin.json is the single source of truth for a plugin's version. This script
- * propagates each plugin's version into the two derived locations:
+ * plugin.json is the single source of truth for a plugin's version and for its
+ * description. This script propagates both into the two derived locations:
  *   (a) the matching entry in .claude-plugin/marketplace.json
  *   (b) the matching row in README.md
  *
@@ -18,9 +18,13 @@ import { join } from "node:path";
 import { $ } from "bun";
 
 import {
+  extractDescriptionFromReadme,
   extractVersionFromReadme,
+  setDescriptionInReadme,
   setVersionInReadme,
+  validateDescriptionCell,
   type PluginEntry,
+  type PluginJson,
 } from "./lib/marketplace-validation";
 
 const repoRootResult = await $`git rev-parse --show-toplevel`.nothrow().quiet();
@@ -62,6 +66,8 @@ let marketplaceChanged = false;
 
 const changes: string[] = [];
 
+const refusals: string[] = [];
+
 for (const mp of marketplace.plugins) {
   // plugin.json is the source of truth. If it's missing or invalid, leave the
   // derived files alone and let validate-marketplace report the real problem.
@@ -69,28 +75,60 @@ for (const mp of marketplace.plugins) {
 
   if (!existsSync(pluginJsonPath)) continue;
 
-  let pluginVersion: string | undefined;
+  let pluginJson: PluginJson;
 
   try {
-    pluginVersion = (await Bun.file(pluginJsonPath).json()).version;
+    pluginJson = await Bun.file(pluginJsonPath).json();
   } catch {
     continue;
   }
 
-  if (!pluginVersion) continue;
+  const { version: pluginVersion, description: pluginDescription } = pluginJson;
 
-  if (mp.version !== pluginVersion) {
-    changes.push(`${mp.name}: marketplace.json ${mp.version} -> ${pluginVersion}`);
-    mp.version = pluginVersion;
+  if (pluginVersion) {
+    if (mp.version !== pluginVersion) {
+      changes.push(`${mp.name}: marketplace.json ${mp.version} -> ${pluginVersion}`);
+      mp.version = pluginVersion;
+      marketplaceChanged = true;
+    }
+
+    const readmeVersion = extractVersionFromReadme(newReadme, mp.name);
+
+    if (readmeVersion && readmeVersion !== pluginVersion) {
+      changes.push(`${mp.name}: README.md ${readmeVersion} -> ${pluginVersion}`);
+      newReadme = setVersionInReadme(newReadme, mp.name, pluginVersion);
+    }
+  }
+
+  if (!pluginDescription) continue;
+
+  const cell = validateDescriptionCell(mp.name, pluginDescription);
+
+  if (!cell.passed) {
+    refusals.push(cell.message);
+    continue;
+  }
+
+  if (mp.description !== pluginDescription) {
+    changes.push(`${mp.name}: marketplace.json description`);
+    mp.description = pluginDescription;
     marketplaceChanged = true;
   }
 
-  const readmeVersion = extractVersionFromReadme(newReadme, mp.name);
+  const readmeDescription = extractDescriptionFromReadme(newReadme, mp.name);
 
-  if (readmeVersion && readmeVersion !== pluginVersion) {
-    changes.push(`${mp.name}: README.md ${readmeVersion} -> ${pluginVersion}`);
-    newReadme = setVersionInReadme(newReadme, mp.name, pluginVersion);
+  if (readmeDescription !== null && readmeDescription !== pluginDescription) {
+    changes.push(`${mp.name}: README.md description`);
+    newReadme = setDescriptionInReadme(newReadme, mp.name, pluginDescription);
   }
+}
+
+if (refusals.length > 0) {
+  console.error("Refusing to sync: a description no README table cell can carry.");
+
+  for (const refusal of refusals) console.error(`  ${refusal}`);
+
+  process.exit(1);
 }
 
 async function atomicWrite(path: string, content: string): Promise<void> {
@@ -113,9 +151,9 @@ if (newReadme !== readmeContent) {
 
 if (toStage.length > 0) {
   await $`git add ${toStage}`.quiet();
-  console.log("Synced versions from plugin.json:");
+  console.log("Synced from plugin.json:");
 
   for (const c of changes) console.log(`  ${c}`);
 } else {
-  console.log("Versions already in sync.");
+  console.log("Versions and descriptions already in sync.");
 }

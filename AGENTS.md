@@ -12,7 +12,7 @@ Do not reinvent plugin patterns. Delegate:
 - Live doc search: the `claude-code-docs` MCP server (user scope, https://code.claude.com/docs/mcp)
 - Official docs, the fallback when those are not installed: https://code.claude.com/docs/en/plugins
 
-New plugin: add its `marketplace.json` entry and its `README.md` table row by hand; no check catches their absence. Version bumps: edit `plugin.json` only; pre-commit propagates to the existing entry and row.
+New plugin: add its `marketplace.json` entry and its `README.md` table row by hand; no check catches their absence. Version bumps and description changes: edit `plugin.json` only; pre-commit propagates both to the existing entry and row, and `validate-marketplace` fails on a mismatch either way round. A description holding a `|` is refused, not escaped: no README table cell carries one.
 
 Testing a plugin from source (launch flags, permission modes, transcript checks) and the install/update lifecycle (what a version bump reaches, what it does not): `docs/plugin-testing.md`. What a skill's example commands may contain so they run without a prompt: `.claude/rules/skill-commands.md`, loaded when a `SKILL.md` is edited. The vellum plugin carries its own `AGENTS.md`, loaded when a file under `vellum/` is read, and its own `.claude/rules/`, whose `paths:` are relative to `vellum/` (measured from a session at the repository root).
 
