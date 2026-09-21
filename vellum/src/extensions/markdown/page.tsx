@@ -386,7 +386,8 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       setDraft((current) => {
         const last = current?.chosen.at(-1);
 
-        return current === null || last === undefined || !last.range.startContainer.isConnected
+        // A place is never chosen collapsed: a collapsed one lost its text to a reload of the file.
+        return current === null || last === undefined || last.range.collapsed
           ? current
           : draftUnder(root, current.chosen, last.range.getBoundingClientRect());
       });
