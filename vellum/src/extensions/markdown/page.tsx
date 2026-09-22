@@ -237,6 +237,9 @@ async function drawDiagrams(root: HTMLElement, night: boolean): Promise<void> {
       clusterBkg: sheet,
       clusterBorder: srgb("--rule"),
       edgeLabelBackground: sheet,
+      noteBkgColor: tint,
+      noteTextColor: ink,
+      noteBorderColor: srgb("--rule"),
       titleColor: ink,
       // The base theme's shadow is a grey literal: a halo on the dark sheet.
       dropShadow: "none",

@@ -134,7 +134,7 @@ test.describe("the handles have a gutter", () => {
     vellum,
   }) => {
     await reviewV1(page, vellum);
-    await page.locator(".tools [role=switch]").click();
+    await page.locator(".tools [role=switch]", { hasText: "Comment" }).click();
     const heading = page.locator("article.plan > h2", { hasText: "Slices" });
     const item = page.locator("article.plan > ol > li").nth(1);
 

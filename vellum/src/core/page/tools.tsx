@@ -59,16 +59,14 @@ export function Tools(props: ToolsProps): preact.JSX.Element {
       )}
       {shown && beside && <span class="sep" />}
       {beside && (
-        <label class="toggle">
-          <input
-            type="checkbox"
-            checked={split.value}
-            onChange={(event) => {
-              split.value = event.currentTarget.checked;
-            }}
-          />{" "}
+        <Switch
+          checked={split.value}
+          onChange={() => {
+            split.value = !split.value;
+          }}
+        >
           Beside the plan
-        </label>
+        </Switch>
       )}
       {editable && (
         <>
@@ -81,16 +79,14 @@ export function Tools(props: ToolsProps): preact.JSX.Element {
       {since !== null && (
         <>
           <span class="sep" />
-          <label class="toggle">
-            <input
-              type="checkbox"
-              checked={showChanges.value}
-              onChange={(event) => {
-                showChanges.value = event.currentTarget.checked;
-              }}
-            />{" "}
+          <Switch
+            checked={showChanges.value}
+            onChange={() => {
+              showChanges.value = !showChanges.value;
+            }}
+          >
             Changes since v{since}
-          </label>
+          </Switch>
         </>
       )}
     </div>

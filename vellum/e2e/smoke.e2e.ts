@@ -42,7 +42,7 @@ test("v2 with its changes draws the marks", async ({ page, vellum }) => {
   vellum.writePlan(readFixture("rich-v2", "plan.md"));
   await vellum.gate();
   await openVellum(page, vellum);
-  await page.locator(".tools label", { hasText: "Changes since" }).locator("input").check();
+  await page.locator(".tools [role=switch]", { hasText: "Changes since" }).click();
 
   await expect(page.locator(".bar .version")).toHaveText("v2");
   await expect(page.locator(".plan .added").first()).toBeVisible();

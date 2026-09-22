@@ -23,8 +23,11 @@ async function reviewV1(page: Page, vellum: Vellum): Promise<void> {
 }
 
 async function commentOn(page: Page): Promise<void> {
-  await page.locator(".tools [role=switch]").click();
-  await expect(page.locator(".tools [role=switch]")).toHaveAttribute("aria-checked", "true");
+  await page.locator(".tools [role=switch]", { hasText: "Comment" }).click();
+  await expect(page.locator(".tools [role=switch]", { hasText: "Comment" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
 }
 
 async function boxOf(locator: Locator): Promise<Box> {

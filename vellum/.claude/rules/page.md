@@ -165,7 +165,7 @@ no build step, so what the page imports costs nothing at `cli start`.
   before the whole table for a `tr`, never directly under `ul`, `ol`, `tbody` or `tr`.
 - An HTML file is served with a sandboxed CSP, so the page cannot reach into it: `html/frame.ts`
   runs inside the mockup and owns the selection there, the page only sends it whether the page
-  comments, the Ctrl state, the selectors already commented and the theme, four tokens resolved
+  comments, the Ctrl state, the selectors already commented and the theme, five tokens resolved
   to sRGB since its shadow root reads none of the page's properties. `html/messages.ts` is the contract both
   sides import; every message crosses with the target `"*"` and each side checks `event.source`.
   That check proves the window, not the sender: `frameTag` in `http/routes.ts` adds `frame.js` to

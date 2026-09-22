@@ -45,6 +45,7 @@ function themeOf(): FrameTheme {
     marker: srgb("--marker"),
     sheet: srgb("--sheet"),
     ink: srgb("--ink"),
+    outline: srgb("--outline"),
   };
 }
 

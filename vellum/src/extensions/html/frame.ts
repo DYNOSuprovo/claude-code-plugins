@@ -16,13 +16,13 @@ import { labelOf, selectorOf, targetIndex } from "./pick.ts";
  */
 const TEXT_LIMIT = 120;
 
-/** The colours are the page's tokens, posted resolved with `vellum:theme` and set on the layer. */
+/** The colours are the page's tokens, posted resolved with `vellum:theme` and set on the layer; a commented mark is two-toned, the marker inside an outline, so it holds on a surface of any theme. */
 const STYLE = `
 .box { position: absolute; box-sizing: border-box; }
 .wash { background: color-mix(in srgb, var(--redline) 10%, transparent); }
 .adding { border: 2px dashed var(--redline); }
 .chosen { border: 2px solid var(--redline); background: color-mix(in srgb, var(--redline) 6%, transparent); }
-.comment { border: 2px solid color-mix(in srgb, var(--marker) 70%, var(--ink)); background: color-mix(in srgb, var(--marker) 25%, transparent); }
+.comment { border: 2px solid var(--marker); box-shadow: 0 0 0 1px var(--outline); background: color-mix(in srgb, var(--marker) 25%, transparent); }
 .label { position: absolute; left: -2px; top: -20px; padding: 3px 6px; border-radius: 3px;
   font: 600 11px/1 ui-monospace, Menlo, monospace; background: var(--redline); color: var(--sheet); white-space: nowrap; }
 `;

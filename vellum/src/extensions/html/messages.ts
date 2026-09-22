@@ -29,6 +29,7 @@ export type FrameTheme = {
   readonly marker: string;
   readonly sheet: string;
   readonly ink: string;
+  readonly outline: string;
 };
 
 export type PageToFrame =
