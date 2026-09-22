@@ -37,24 +37,30 @@ const UNMEASURED = { width: 300, height: 0 };
  * same document, and a send or a Cancel is what clears it.
  */
 export function Composer(props: ComposerProps): preact.JSX.Element {
-  const kept = typed.value.composer;
-  const body = kept !== null && kept.doc === props.doc ? kept.body : "";
+  const body = typed.value.composer[props.doc] ?? "";
   const [size, setSize] = useState(UNMEASURED);
   const box = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const places = props.picks.map((pick) => pick.key).join("|");
   const text = body.trim();
 
-  const setBody = (value: string): void =>
-    setTyped({ composer: value === "" ? null : { doc: props.doc, body: value } });
+  const forget = (): void => {
+    const { [props.doc]: _gone, ...rest } = typed.value.composer;
+    setTyped({ composer: rest });
+  };
+
+  const setBody = (value: string): void => {
+    if (value === "") forget();
+    else setTyped({ composer: { ...typed.value.composer, [props.doc]: value } });
+  };
 
   const submit = (mark: Mark): void => {
-    setTyped({ composer: null });
+    forget();
     props.onSubmit(mark);
   };
 
   const cancel = (): void => {
-    setTyped({ composer: null });
+    forget();
     props.onCancel();
   };
 

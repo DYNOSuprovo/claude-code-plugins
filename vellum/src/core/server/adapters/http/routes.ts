@@ -207,28 +207,15 @@ function parseGrillTyped(value: unknown): Typed["grill"] | null {
   return grill;
 }
 
-/** `null` is no composer, so a refusal is no `null`: the parsed composer comes wrapped, as an edit does. */
-function parseComposerTyped(value: unknown): { readonly value: Typed["composer"] } | null {
-  if (value === null) return { value: null };
-
-  if (!isRecord(value) || typeof value.doc !== "string" || typeof value.body !== "string") {
-    return null;
-  }
-
-  const doc = parseProjectPath(value.doc);
-
-  return doc.ok ? { value: { doc: doc.value, body: value.body } } : null;
-}
-
 function parseTyped(value: unknown): Typed | null {
   if (!isRecord(value) || typeof value.general !== "string") return null;
-  const composer = parseComposerTyped(value.composer);
+  const composer = parseStrings(value.composer);
   const grill = parseGrillTyped(value.grill);
   const editor = parseEdit(value.editor);
 
   return composer === null || grill === null || editor === null
     ? null
-    : { general: value.general, composer: composer.value, grill, editor: editor.value };
+    : { general: value.general, composer, grill, editor: editor.value };
 }
 
 /**

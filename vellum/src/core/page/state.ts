@@ -49,8 +49,8 @@ export const unsentTyped = computed<readonly { readonly where: string; readonly 
 
     if (general.trim() !== "") found.push({ where: "the general box", text: general });
 
-    if (composer !== null && composer.body.trim() !== "") {
-      found.push({ where: `a comment on ${nameOf(composer.doc)}`, text: composer.body });
+    for (const [path, body] of Object.entries(composer)) {
+      if (body.trim() !== "") found.push({ where: `a comment on ${nameOf(path)}`, text: body });
     }
 
     for (const [path, entry] of Object.entries(grill)) {

@@ -31,7 +31,7 @@ const CARD = {
 
 const ON_MOCKUP = { id: "a", doc: `${WIP}mockup.html`, anchor: CARD, mark: BIGGER };
 
-const TYPED = { general: "", composer: null, grill: {}, editor: null };
+const TYPED = { general: "", composer: {}, grill: {}, editor: null };
 
 const DRAFT = { annotations: [ON_MOCKUP], edit: { version: 1, text: "# Q\n" }, typed: TYPED };
 
@@ -370,10 +370,9 @@ describe("routes", () => {
       (await putDraft({ ...EMPTY_DRAFT, typed: { ...TYPED, composer: { "mockup.html": 1 } } }))
         .status,
     ).toBe(400);
-    expect(
-      (await putDraft({ ...EMPTY_DRAFT, typed: { ...TYPED, composer: { doc: "x", body: "x" } } }))
-        .status,
-    ).toBe(400);
+    expect((await putDraft({ ...EMPTY_DRAFT, typed: { ...TYPED, composer: null } })).status).toBe(
+      400,
+    );
     expect(
       (
         await putDraft({

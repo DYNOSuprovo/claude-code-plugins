@@ -28,8 +28,8 @@ export type Edit = { readonly version: Version; readonly text: string };
 /** What the reviewer typed and has not submitted: visible on screen, so never thrown in silence. */
 export type Typed = {
   readonly general: string;
-  /** The composer open on `doc`: its text, given back to the next composer on the same document. */
-  readonly composer: { readonly doc: ProjectPath; readonly body: string } | null;
+  /** By document path: the composer's text, given back to the next composer on that document. */
+  readonly composer: Readonly<Record<string, string>>;
   /** By transcript path: the answers by question id, and the note. */
   readonly grill: Readonly<
     Record<string, { readonly answers: Readonly<Record<string, string>>; readonly note: string }>
@@ -38,7 +38,7 @@ export type Typed = {
   readonly editor: { readonly version: Version; readonly text: string } | null;
 };
 
-export const EMPTY_TYPED: Typed = { general: "", composer: null, grill: {}, editor: null };
+export const EMPTY_TYPED: Typed = { general: "", composer: {}, grill: {}, editor: null };
 
 /**
  * The page's unsent work: the comments, the reviewer's edit with the version it edits, and what
@@ -53,7 +53,7 @@ export type Draft = {
 function typedIsEmpty(typed: Typed): boolean {
   return (
     typed.general === "" &&
-    typed.composer === null &&
+    Object.values(typed.composer).every((text) => text === "") &&
     typed.editor === null &&
     Object.values(typed.grill).every(
       (entry) => entry.note === "" && Object.values(entry.answers).every((text) => text === ""),

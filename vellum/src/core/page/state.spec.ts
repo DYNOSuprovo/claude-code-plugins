@@ -446,7 +446,7 @@ describe("what is typed", () => {
     const { setTyped, unsentTyped } = await freshStore();
     setTyped({
       general: "  ",
-      composer: { doc: `${WIP}mockup.html` as never, body: "Bigger" },
+      composer: { [`${WIP}mockup.html`]: "Bigger", [`${WIP}plan.md`]: "" },
       grill: {
         [`${WIP}grill-1.md`]: { answers: { Q1: "", Q2: "The inspector." }, note: "" },
         [`${WIP}grill-2.md`]: { answers: {}, note: " " },
