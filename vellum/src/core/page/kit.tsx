@@ -171,7 +171,8 @@ export function Handle(props: {
   readonly name: string;
   /** The accessible name, when it says more than `name`: the comments' count. */
   readonly label?: string;
-  readonly onToggle: () => void;
+  /** The click, so a caller can read where the handle was before it moves with the panel. */
+  readonly onToggle: (event: JSX.TargetedMouseEvent<HTMLButtonElement>) => void;
   /** What a folded panel still shows: the comments' badge. */
   readonly children?: ComponentChildren;
 }): JSX.Element {

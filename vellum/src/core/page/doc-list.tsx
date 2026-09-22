@@ -17,16 +17,31 @@ function inGroup(list: readonly GroupedDoc[], group: DocGroup): readonly Grouped
 }
 
 /**
- * When the rail last unfolded. The handle rides the rail's edge, so the second click of a double
- * click on it lands on whatever line slid under the pointer: a line ignores a click that arrives
- * within a double click's delay of the unfolding.
+ * The rail's last unfolding: when, and where the handle was. The handle rides the rail's edge, so
+ * the second click of a double click on it lands on whatever line slid under the pointer, with a
+ * click count of 1 since the target changed: a line ignores a click that arrives within a double
+ * click's delay of the unfolding, at the spot the handle left.
  */
-let unfoldedAt = 0;
+type Unfold = { readonly at: number; readonly from: DOMRect };
+
+let unfold: Unfold | null = null;
 
 const DOUBLE_CLICK_MS = 300;
 
-function chooseDoc(path: ProjectPath): void {
-  if (performance.now() - unfoldedAt < DOUBLE_CLICK_MS) return;
+function isSecondClickOnHandle(event: MouseEvent): boolean {
+  if (unfold === null || performance.now() - unfold.at >= DOUBLE_CLICK_MS) return false;
+  const { from } = unfold;
+
+  return (
+    event.clientX >= from.left &&
+    event.clientX <= from.right &&
+    event.clientY >= from.top &&
+    event.clientY <= from.bottom
+  );
+}
+
+function chooseDoc(path: ProjectPath, event: MouseEvent): void {
+  if (isSecondClickOnHandle(event)) return;
   select(path);
 }
 
@@ -42,10 +57,12 @@ export function RailHandle(): preact.JSX.Element {
       open={railOpen.value}
       controls="rail"
       name="Documents"
-      onToggle={() => {
+      onToggle={(event) => {
         railOpen.value = !railOpen.value;
 
-        if (railOpen.value) unfoldedAt = performance.now();
+        if (railOpen.value) {
+          unfold = { at: performance.now(), from: event.currentTarget.getBoundingClientRect() };
+        }
       }}
     />
   );
@@ -66,7 +83,7 @@ export function DocList(): preact.JSX.Element {
         key={doc.path}
         title={doc.path}
         aria-current={currentDoc.value?.path === doc.path ? "page" : undefined}
-        onClick={() => chooseDoc(doc.path)}
+        onClick={(event) => chooseDoc(doc.path, event)}
       >
         <span class="name">{nameOf(doc)}</span>
         {dir !== "" && <span class="dir">{dir}</span>}
@@ -87,7 +104,7 @@ export function DocList(): preact.JSX.Element {
           type="button"
           class="plate"
           aria-current={currentDoc.value?.path === plan.path ? "page" : undefined}
-          onClick={() => chooseDoc(plan.path)}
+          onClick={(event) => chooseDoc(plan.path, event)}
         >
           <span class="lead">Plan</span>
           <span class="ver">{planLabel(workspace)}</span>

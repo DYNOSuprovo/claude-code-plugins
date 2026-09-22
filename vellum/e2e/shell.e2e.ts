@@ -303,6 +303,22 @@ test.describe("the rail's handle", () => {
     await page.waitForTimeout(500);
     await expect(head).toHaveText(shown ?? "");
   });
+
+  test("a line clicked 50 ms after the unfolding, away from the handle, is chosen", async ({
+    page,
+    vellum,
+  }) => {
+    await reviewV1(page, vellum);
+    const handle = page.locator(".handle.left");
+    await handle.click();
+    await expect(page.locator("#rail")).toHaveCSS("margin-left", "-220px");
+    await handle.click();
+    await page.waitForTimeout(50);
+    const line = await boxOf(page.locator("#rail button", { hasText: "research-notes.md" }));
+    await page.mouse.click(line.x + line.width / 2, line.y + line.height / 2);
+
+    await expect(page.locator(".doc-head .path")).toContainText("research-notes.md");
+  });
 });
 
 test.describe("the sheet", () => {
