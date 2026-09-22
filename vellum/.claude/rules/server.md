@@ -65,8 +65,10 @@ write under the project root, `http/routes.ts` bodies, paths and status codes,
   writes nothing and keeps a notes file already there: a retry after a failed rename carries no
   note. Whether the approval's prompt names a notes file is read from the final directory's
   listing, never from the decision.
-- The draft is the page's, stored and never read back: `PUT /api/draft` parses it as it parses a
-  decision's annotations and edit, `GET` returns the bytes. `saveDraft` writes one with content
+- The draft is the page's, stored and read back through the one parser: `PUT /api/draft` parses
+  it as it parses a decision's annotations and edit, plus what is typed, and `GET` runs the file
+  through the same parser, so a draft of an older shape is refused whole, with `UNREADABLE_DRAFT`
+  as the reason, never handed over half-read. `saveDraft` writes one with content
   only where `takesComments` holds and answers 409 elsewhere, since a write would recreate a
   directory the approval has just renamed; an empty one removes the file in any state. A draft
   write raises no workspace event: `watchFiles` leaves `.review/` to the server.

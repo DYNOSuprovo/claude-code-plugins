@@ -25,11 +25,46 @@ import {
  */
 export type Edit = { readonly version: Version; readonly text: string };
 
+/** What the reviewer typed and has not submitted: visible on screen, so never thrown in silence. */
+export type Typed = {
+  readonly general: string;
+  /** The composer open on `doc`: its text, given back to the next composer on the same document. */
+  readonly composer: { readonly doc: ProjectPath; readonly body: string } | null;
+  /** By transcript path: the answers by question id, and the note. */
+  readonly grill: Readonly<
+    Record<string, { readonly answers: Readonly<Record<string, string>>; readonly note: string }>
+  >;
+  /** The open editor's typing, with the version edited; given back to the next Edit on that version. */
+  readonly editor: { readonly version: Version; readonly text: string } | null;
+};
+
+export const EMPTY_TYPED: Typed = { general: "", composer: null, grill: {}, editor: null };
+
 /**
- * The page's unsent work: the comments, and the reviewer's edit with the version it edits.
- * Neither the approval note nor a text being typed is part of it.
+ * The page's unsent work: the comments, the reviewer's edit with the version it edits, and what
+ * is typed. The approval note alone stays out of it: its popover closes on success only.
  */
-export type Draft = { readonly annotations: readonly Annotation[]; readonly edit: Edit | null };
+export type Draft = {
+  readonly annotations: readonly Annotation[];
+  readonly edit: Edit | null;
+  readonly typed: Typed;
+};
+
+function typedIsEmpty(typed: Typed): boolean {
+  return (
+    typed.general === "" &&
+    typed.composer === null &&
+    typed.editor === null &&
+    Object.values(typed.grill).every(
+      (entry) => entry.note === "" && Object.values(entry.answers).every((text) => text === ""),
+    )
+  );
+}
+
+/** A draft with nothing in it is no draft: the server removes the file instead of writing it. */
+export function draftIsEmpty(draft: Draft): boolean {
+  return draft.annotations.length === 0 && draft.edit === null && typedIsEmpty(draft.typed);
+}
 
 /** `edit` is `null` when the reviewer changed nothing, `notes` empty when they left none. */
 export type Decision =

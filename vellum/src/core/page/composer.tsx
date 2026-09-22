@@ -2,14 +2,18 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 import type { Mark, QuickLabel } from "../protocol.ts";
 import { QUICK_LABELS } from "../protocol.ts";
+import type { ProjectPath } from "../server/domain/paths.ts";
 import { Button, Chip, Popover } from "./kit.tsx";
 import type { Rect } from "./place.ts";
 import { placeNear } from "./place.ts";
+import { setTyped, typed } from "./state.ts";
 
 /** One chosen place, as the popover shows it: what it says, and where it is. */
 export type Pick = { readonly key: string; readonly text: string; readonly where: string };
 
 export type ComposerProps = {
+  /** The document commented: the text typed is kept for the next composer on it. */
+  readonly doc: ProjectPath;
   readonly picks: readonly Pick[];
   /** While a target is being added, the popover fades and lets the pointer through. */
   readonly through: boolean;
@@ -29,14 +33,30 @@ const UNMEASURED = { width: 300, height: 0 };
  * The popover near a selection: every chosen place, the labels and "Delete this", a textarea,
  * Cancel and Add comment. It does one thing: a label or "Delete this" is a comment by itself,
  * sent at the click, and typed text goes by Add comment, so the labels grey as soon as a text is typed.
+ * The text lives in the draft: a composer unmounted under it gives it to the next one on the
+ * same document, and a send or a Cancel is what clears it.
  */
 export function Composer(props: ComposerProps): preact.JSX.Element {
-  const [body, setBody] = useState("");
+  const kept = typed.value.composer;
+  const body = kept !== null && kept.doc === props.doc ? kept.body : "";
   const [size, setSize] = useState(UNMEASURED);
   const box = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const places = props.picks.map((pick) => pick.key).join("|");
   const text = body.trim();
+
+  const setBody = (value: string): void =>
+    setTyped({ composer: value === "" ? null : { doc: props.doc, body: value } });
+
+  const submit = (mark: Mark): void => {
+    setTyped({ composer: null });
+    props.onSubmit(mark);
+  };
+
+  const cancel = (): void => {
+    setTyped({ composer: null });
+    props.onCancel();
+  };
 
   // The popover is not remounted when its place changes, and a pick inside a mockup leaves the
   // focus in its frame: the textarea takes it back at every change of place.
@@ -58,7 +78,7 @@ export function Composer(props: ComposerProps): preact.JSX.Element {
   const at = placeNear(props.target, props.pane, size);
 
   const send = (): void => {
-    if (text !== "") props.onSubmit({ kind: "comment", body: text });
+    if (text !== "") submit({ kind: "comment", body: text });
   };
 
   return (
@@ -68,7 +88,7 @@ export function Composer(props: ComposerProps): preact.JSX.Element {
       top={at.top}
       left={at.left}
       box={box}
-      onClose={props.onCancel}
+      onClose={cancel}
       onSubmit={send}
     >
       {props.picks.map((pick) => (
@@ -78,16 +98,12 @@ export function Composer(props: ComposerProps): preact.JSX.Element {
       ))}
       <div class="labels">
         {LABELS.map((label) => (
-          <Chip
-            key={label}
-            disabled={text !== ""}
-            onClick={() => props.onSubmit({ kind: "label", label })}
-          >
+          <Chip key={label} disabled={text !== ""} onClick={() => submit({ kind: "label", label })}>
             {QUICK_LABELS[label].name}
           </Chip>
         ))}
         <span class="spacer" />
-        <Chip tone="del" disabled={text !== ""} onClick={() => props.onSubmit({ kind: "delete" })}>
+        <Chip tone="del" disabled={text !== ""} onClick={() => submit({ kind: "delete" })}>
           Delete this
         </Chip>
       </div>
@@ -101,7 +117,7 @@ export function Composer(props: ComposerProps): preact.JSX.Element {
         onInput={(event) => setBody(event.currentTarget.value)}
       />
       <div class="row">
-        <Button size="sm" onClick={props.onCancel}>
+        <Button size="sm" onClick={cancel}>
           Cancel
         </Button>
         <Button size="sm" variant="send" disabled={text === ""} onClick={send}>

@@ -15,6 +15,7 @@ import {
   planChanges,
   planText,
   review,
+  unsentTyped,
 } from "./state.ts";
 
 type Status = { readonly label: string; readonly tone: "" | "sent" | "ok" | "err" };
@@ -71,27 +72,31 @@ function titleOf(plan: string | null): string {
   return /^#\s+(.+?)\s*$/mu.exec(plan ?? "")?.[1] ?? "Plan";
 }
 
+type Unsent = readonly { readonly where: string; readonly text: string }[];
+
 /**
- * The notes popover: the note typed so far, and the unsent comments as they were when the
- * reviewer agreed to lose them, or when the popover opened on none. Comments that changed since
- * bring the warning back.
+ * The notes popover: the note typed so far, and the unsent comments and typed texts as they were
+ * when the reviewer agreed to lose them, or when the popover opened on none. What changed since
+ * brings the warning back.
  */
 type Notes = {
   readonly kind: "notes";
   readonly text: string;
   readonly agreed: readonly Annotation[];
+  readonly typedAgreed: Unsent;
   /** The hold the reviewer was warned of on the way here; another one brings the warning back. */
   readonly warned: string | null;
 };
 
 /**
- * What "Approve anyway" goes on to: the approval at once, the notes popover, or the approval the
- * notes popover asked for, where Cancel returns with the note intact.
+ * What "anyway" goes on to: the approval at once, the notes popover, the approval the notes
+ * popover asked for, where Cancel returns with the note intact, or the feedback.
  */
 type Next =
   | { readonly kind: "approve" }
   | { readonly kind: "notes" }
-  | { readonly kind: "noted"; readonly notes: Notes };
+  | { readonly kind: "noted"; readonly notes: Notes }
+  | { readonly kind: "feedback" };
 
 /** The one popover under the bar: the notes, or the warning that stands before `next`. */
 type BarPopover =
@@ -137,33 +142,50 @@ function ApprovalNotes(props: NotesProps): preact.JSX.Element {
 }
 
 type WarningProps = {
+  /** The decision the warning stands before: what it discards is said in its words. */
+  readonly action: "approve" | "send";
   readonly count: number;
   /** What holds the review, which the approval ends; `null` when nothing does. */
   readonly hold: string | null;
-  readonly onApprove: () => void;
+  /** The texts typed and not added, which the decision throws away. */
+  readonly typed: Unsent;
+  readonly onProceed: () => void;
   readonly onCancel: () => void;
 };
 
-function ApprovalWarning(props: WarningProps): preact.JSX.Element {
+function Warning(props: WarningProps): preact.JSX.Element {
   const one = props.count === 1;
+  const verb = props.action === "approve" ? "Approving" : "Sending";
 
   return (
-    <Popover label="Before approving" class="pop-bar" onClose={props.onCancel}>
+    <Popover
+      label={props.action === "approve" ? "Before approving" : "Before sending"}
+      class="pop-bar"
+      onClose={props.onCancel}
+    >
       {props.count > 0 && (
         <>
           <div class="warn-text">
             {one ? "1 comment is not sent." : `${props.count} comments are not sent.`}
           </div>
-          <div>Approving discards {one ? "it" : "them"}.</div>
+          <div>
+            {verb} discards {one ? "it" : "them"}.
+          </div>
         </>
       )}
+      {props.typed.map((entry) => (
+        <div class="warn-text" key={entry.where}>
+          What you typed in {entry.where} is not added.
+        </div>
+      ))}
+      {props.typed.length > 0 && <div>{verb} discards it.</div>}
       {props.hold !== null && <div class="warn-text">{props.hold}; approving ends it.</div>}
       <div class="row">
         <Button size="sm" onClick={props.onCancel}>
           Cancel
         </Button>
-        <Button size="sm" variant="send" onClick={props.onApprove}>
-          Approve anyway
+        <Button size="sm" variant="send" onClick={props.onProceed}>
+          {props.action === "approve" ? "Approve anyway" : "Send anyway"}
         </Button>
       </div>
     </Popover>
@@ -224,21 +246,34 @@ export function DecisionBar(props: BarProps): preact.JSX.Element {
   };
 
   const proceed = (next: Next): void => {
-    if (next.kind === "notes")
-      setPopover({ kind: "notes", text: "", agreed: annotations.value, warned: hold });
-    else approve(next.kind === "noted" ? next.notes.text : "");
+    if (next.kind === "feedback") {
+      close();
+      void decide({ kind: "feedback", edit: edited.value, annotations: annotations.value });
+    } else if (next.kind === "notes") {
+      setPopover({
+        kind: "notes",
+        text: "",
+        agreed: annotations.value,
+        typedAgreed: unsentTyped.value,
+        warned: hold,
+      });
+    } else approve(next.kind === "noted" ? next.notes.text : "");
   };
 
   /**
-   * Every way to an approval: unsent comments the reviewer has not agreed to lose, or a hold the
-   * approval would end, put the warning first.
+   * Every way to a decision: unsent comments an approval would lose, a hold it would end, or a
+   * typed text either decision would throw, none of which the reviewer agreed to, put the warning first.
    */
   const ask = (next: Next): void => {
     const unsent = annotations.value;
-    const agreed = next.kind === "noted" && next.notes.agreed === unsent;
-    const warned = hold === null || (next.kind === "noted" && next.notes.warned === hold);
+    const stray = unsentTyped.value;
+    const notes = next.kind === "noted" ? next.notes : null;
+    const approving = next.kind !== "feedback";
+    const agreed = !approving || unsent.length === 0 || notes?.agreed === unsent;
+    const warned = !approving || hold === null || notes?.warned === hold;
+    const typedAgreed = stray.length === 0 || notes?.typedAgreed === stray;
 
-    if ((agreed || unsent.length === 0) && warned) proceed(next);
+    if (agreed && warned && typedAgreed) proceed(next);
     else setPopover({ kind: "warn", next });
   };
 
@@ -276,9 +311,7 @@ export function DecisionBar(props: BarProps): preact.JSX.Element {
           variant="send"
           disabled={frozen || hold !== null || (count === 0 && edited.value === null)}
           title={hold === null ? undefined : `${hold}; end it first`}
-          onClick={() =>
-            void decide({ kind: "feedback", edit: edited.value, annotations: annotations.value })
-          }
+          onClick={() => ask({ kind: "feedback" })}
         >
           Send feedback {count > 0 && <Badge>{count}</Badge>}
         </Button>
@@ -291,10 +324,12 @@ export function DecisionBar(props: BarProps): preact.JSX.Element {
           />
         )}
         {popover.kind === "warn" && !frozen && (
-          <ApprovalWarning
-            count={count}
-            hold={hold}
-            onApprove={() => proceed(popover.next)}
+          <Warning
+            action={popover.next.kind === "feedback" ? "send" : "approve"}
+            count={popover.next.kind === "feedback" ? 0 : count}
+            hold={popover.next.kind === "feedback" ? null : hold}
+            typed={unsentTyped.value}
+            onProceed={() => proceed(popover.next)}
             onCancel={() => setPopover(popover.next.kind === "noted" ? popover.next.notes : CLOSED)}
           />
         )}

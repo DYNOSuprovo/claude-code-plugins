@@ -537,6 +537,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       )}
       {draft !== null && pane !== null && (
         <Composer
+          doc={props.doc.path}
           picks={draft.chosen.map(({ passage }) => ({
             key: `${passage.lines[0]}-${passage.prefix}-${passage.quote}`,
             text: passage.quote,

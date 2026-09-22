@@ -22,9 +22,14 @@ export type {
 
 export { DELETE_SENTENCE, QUICK_LABELS } from "./server/domain/feedback.ts";
 
-export type { Decision, Draft, Edit } from "./server/domain/review.ts";
+export type { Decision, Draft, Edit, Typed } from "./server/domain/review.ts";
 
-export { editOnLoad, landedAnnotations } from "./server/domain/review.ts";
+export {
+  draftIsEmpty,
+  editOnLoad,
+  EMPTY_TYPED,
+  landedAnnotations,
+} from "./server/domain/review.ts";
 
 export type { Pending, PlanWorkspace } from "./server/domain/workspace.ts";
 

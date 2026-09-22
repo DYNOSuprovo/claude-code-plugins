@@ -12,6 +12,9 @@ import {
   locked,
   removeAnnotation,
   review,
+  setTyped,
+  typed,
+  updateAnnotation,
 } from "./state.ts";
 import { switchShown } from "./tools.tsx";
 
@@ -63,6 +66,55 @@ function MarkWords(props: { readonly mark: Mark }): preact.JSX.Element {
   );
 }
 
+/**
+ * A comment's words, reopened in place: every keystroke goes to the annotation itself, so the
+ * text is never held anywhere but in the store; `open` is the one thing the card keeps.
+ */
+function CardWords(props: { readonly annotation: Annotation }): preact.JSX.Element {
+  const { annotation } = props;
+  const [open, setOpen] = useState(false);
+  const { mark } = annotation;
+
+  if (!open || mark.kind !== "comment") {
+    return (
+      <>
+        <MarkWords mark={mark} />
+        {!locked.value && (
+          <div class="actions">
+            {mark.kind === "comment" && (
+              <button type="button" onClick={() => setOpen(true)}>
+                Edit
+              </button>
+            )}
+            <button type="button" onClick={() => removeAnnotation(annotation.id)}>
+              Delete
+            </button>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <textarea
+        rows={3}
+        aria-label="Comment"
+        autofocus
+        value={mark.body}
+        onInput={(event) =>
+          updateAnnotation(annotation.id, { kind: "comment", body: event.currentTarget.value })
+        }
+      />
+      <div class="actions">
+        <button type="button" disabled={mark.body.trim() === ""} onClick={() => setOpen(false)}>
+          Done
+        </button>
+      </div>
+    </>
+  );
+}
+
 function Card(props: { readonly annotation: Annotation }): preact.JSX.Element {
   const { annotation } = props;
   const dir = review.value?.workspace.dir ?? "";
@@ -78,14 +130,7 @@ function Card(props: { readonly annotation: Annotation }): preact.JSX.Element {
           “{quote.text}”
         </div>
       ))}
-      <MarkWords mark={annotation.mark} />
-      {!locked.value && (
-        <div class="actions">
-          <button type="button" onClick={() => removeAnnotation(annotation.id)}>
-            Delete
-          </button>
-        </div>
-      )}
+      <CardWords annotation={annotation} />
     </div>
   );
 }
@@ -114,7 +159,7 @@ export function CommentsHandle(): preact.JSX.Element {
 }
 
 export function Comments(): preact.JSX.Element {
-  const [draft, setDraft] = useState("");
+  const draft = typed.value.general;
   const doc = currentDoc.value;
   const list = annotations.value;
   const name = doc === null ? "" : (doc.path.split("/").at(-1) ?? doc.path);
@@ -126,7 +171,7 @@ export function Comments(): preact.JSX.Element {
       anchor: { kind: "global" },
       mark: { kind: "comment", body: draft.trim() },
     });
-    setDraft("");
+    setTyped({ general: "" });
   };
 
   return (
@@ -153,7 +198,7 @@ export function Comments(): preact.JSX.Element {
           placeholder="General feedback on this document"
           disabled={locked.value || doc === null}
           value={draft}
-          onInput={(event) => setDraft(event.currentTarget.value)}
+          onInput={(event) => setTyped({ general: event.currentTarget.value })}
         />
         <div class="row">
           <Button

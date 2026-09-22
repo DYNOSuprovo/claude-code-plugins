@@ -14,7 +14,7 @@ import { serverExtensions } from "../../../../extensions/server.ts";
 import { Review } from "../../app/review.ts";
 import type { WipDir } from "../../domain/paths.ts";
 import { parseWipDir } from "../../domain/paths.ts";
-import { createHandler, TOKEN_HEADER } from "./routes.ts";
+import { createHandler, TOKEN_HEADER, UNREADABLE_DRAFT } from "./routes.ts";
 import { startServer } from "./serve.ts";
 import type { Started } from "./serve.ts";
 
@@ -31,7 +31,11 @@ const CARD = {
 
 const ON_MOCKUP = { id: "a", doc: `${WIP}mockup.html`, anchor: CARD, mark: BIGGER };
 
-const DRAFT = { annotations: [ON_MOCKUP], edit: { version: 1, text: "# Q\n" } };
+const TYPED = { general: "", composer: null, grill: {}, editor: null };
+
+const DRAFT = { annotations: [ON_MOCKUP], edit: { version: 1, text: "# Q\n" }, typed: TYPED };
+
+const EMPTY_DRAFT = { annotations: [], edit: null, typed: TYPED };
 
 const DRAFT_PATH = `${WIP}.review/draft.json`;
 
@@ -82,6 +86,7 @@ type Drafting = {
   readonly putDraft: (draft: {
     readonly annotations?: unknown;
     readonly edit?: unknown;
+    readonly typed?: unknown;
   }) => Promise<Response>;
   readonly getDraft: () => Promise<Response>;
 };
@@ -348,18 +353,65 @@ describe("routes", () => {
     const { getDraft, putDraft } = drafting();
     await putDraft(DRAFT);
     const onNothing = { ...ON_MOCKUP, anchor: { kind: "global" }, mark: { kind: "delete" } };
-    expect((await putDraft({ annotations: [ON_MOCKUP] })).status).toBe(400);
-    expect((await putDraft({ annotations: "none", edit: null })).status).toBe(400);
-    expect((await putDraft({ annotations: [{ id: 1 }], edit: null })).status).toBe(400);
-    expect((await putDraft({ annotations: [onNothing], edit: null })).status).toBe(400);
-    expect((await putDraft({ annotations: [], edit: { version: 0, text: "" } })).status).toBe(400);
+    expect((await putDraft({ annotations: [ON_MOCKUP], typed: TYPED })).status).toBe(400);
+    expect((await putDraft({ ...EMPTY_DRAFT, annotations: "none" })).status).toBe(400);
+    expect((await putDraft({ ...EMPTY_DRAFT, annotations: [{ id: 1 }] })).status).toBe(400);
+    expect((await putDraft({ ...EMPTY_DRAFT, annotations: [onNothing] })).status).toBe(400);
+    expect((await putDraft({ ...EMPTY_DRAFT, edit: { version: 0, text: "" } })).status).toBe(400);
     expect(await (await getDraft()).json()).toEqual(DRAFT);
+  });
+
+  test("a draft without what is typed, or with it malformed, is refused: the 0.11 shape included", async () => {
+    const { putDraft } = drafting();
+    expect((await putDraft({ annotations: [], edit: null })).status).toBe(400);
+    expect((await putDraft({ ...EMPTY_DRAFT, typed: { general: "" } })).status).toBe(400);
+    expect((await putDraft({ ...EMPTY_DRAFT, typed: { ...TYPED, general: 1 } })).status).toBe(400);
+    expect(
+      (await putDraft({ ...EMPTY_DRAFT, typed: { ...TYPED, composer: { body: "x" } } })).status,
+    ).toBe(400);
+    expect(
+      (
+        await putDraft({
+          ...EMPTY_DRAFT,
+          typed: { ...TYPED, grill: { "g.md": { answers: { Q1: 1 }, note: "" } } },
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (await putDraft({ ...EMPTY_DRAFT, typed: { ...TYPED, editor: { version: 0, text: "" } } }))
+        .status,
+    ).toBe(400);
+  });
+
+  test("what is typed round-trips, and alone keeps the file", async () => {
+    const { dir, putDraft, getDraft } = drafting();
+
+    const typed = {
+      general: "Overall: no.",
+      composer: { doc: `${WIP}mockup.html`, body: "Bigger" },
+      grill: { [`${WIP}grill-1.md`]: { answers: { Q1: "IndexedDB." }, note: "Why?" } },
+      editor: { version: 1, text: "# Mine\n" },
+    };
+
+    expect((await putDraft({ ...EMPTY_DRAFT, typed })).status).toBe(204);
+    expect(await Bun.file(join(dir, DRAFT_PATH)).exists()).toBe(true);
+    expect(await (await getDraft()).json()).toEqual({ ...EMPTY_DRAFT, typed });
+  });
+
+  test("a saved draft of an older shape is refused on read, with the reason, never read half-way", async () => {
+    const { dir, getDraft } = drafting();
+    writeFileSync(join(dir, DRAFT_PATH), JSON.stringify({ annotations: [ON_MOCKUP], edit: null }));
+    const read = await getDraft();
+    expect(read.status).toBe(409);
+    expect(await read.json()).toEqual({ error: UNREADABLE_DRAFT });
+    writeFileSync(join(dir, DRAFT_PATH), "not json");
+    expect((await getDraft()).status).toBe(409);
   });
 
   test("an empty draft deletes the file", async () => {
     const { dir, putDraft, getDraft } = drafting();
     await putDraft(DRAFT);
-    expect((await putDraft({ annotations: [], edit: null })).status).toBe(204);
+    expect((await putDraft(EMPTY_DRAFT)).status).toBe(204);
     expect(await Bun.file(join(dir, DRAFT_PATH)).exists()).toBe(false);
     expect((await getDraft()).status).toBe(204);
   });
@@ -375,7 +427,7 @@ describe("routes", () => {
     expect((await decide(APPROVE)).status).toBe(200);
     expect((await putDraft(DRAFT)).status).toBe(409);
     expect(existsSync(join(dir, WIP))).toBe(false);
-    expect((await putDraft({ annotations: [], edit: null })).status).toBe(204);
+    expect((await putDraft(EMPTY_DRAFT)).status).toBe(204);
     expect(existsSync(join(dir, WIP))).toBe(false);
   });
 

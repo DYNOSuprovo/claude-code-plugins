@@ -16,7 +16,7 @@ import { formatFeedback } from "../domain/feedback.ts";
 import type { FinalDir, ProjectPath, Version, WipDir } from "../domain/paths.ts";
 import { parseVersion } from "../domain/paths.ts";
 import type { Decision, Draft } from "../domain/review.ts";
-import { decideOn, gateVersion, slugFor } from "../domain/review.ts";
+import { decideOn, draftIsEmpty, gateVersion, slugFor } from "../domain/review.ts";
 import type { Memory, Pending, PlanWorkspace } from "../domain/workspace.ts";
 import {
   DRAFT_FILE,
@@ -143,7 +143,7 @@ export class Review {
   public async saveDraft(draft: Draft): Promise<boolean> {
     const { project } = this.options;
 
-    if (draft.annotations.length === 0 && draft.edit === null) {
+    if (draftIsEmpty(draft)) {
       await removeFile(project, this.draftDoc());
 
       return true;

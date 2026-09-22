@@ -4,7 +4,8 @@ import { useEffect, useState } from "preact/hooks";
 import type { PageExtension, RendererProps } from "../../core/extension.ts";
 import { extensionRequest } from "../../core/page/api.ts";
 import { Button } from "../../core/page/kit.tsx";
-import { error, review, select } from "../../core/page/state.ts";
+import { error, review, select, setTyped, typed } from "../../core/page/state.ts";
+import type { Typed } from "../../core/protocol.ts";
 import { grillNumber } from "./parse.ts";
 import type { Block, GrillPosts, GrillState, Opened } from "./protocol.ts";
 
@@ -68,8 +69,12 @@ async function openGrill(subject: string): Promise<void> {
   select(file);
 }
 
-function closeGrill(): void {
-  void post("close", { reason: "page" });
+/** `true` once the server took it: the typing it carried can go. */
+async function reply(
+  answers: readonly { id: string; text: string }[],
+  note: string,
+): Promise<boolean> {
+  return (await post("reply", { answers, note })).ok;
 }
 
 /** What the reviewer did with the banner: `auto` shows it while Claude suggests a grill. */
@@ -79,9 +84,9 @@ function GrillAction(): preact.JSX.Element {
   const view = review.value;
   const state = grill.value;
   const [banner, setBanner] = useState<Banner>("auto");
-  const [typed, setTyped] = useState<string | null>(null);
+  const [subjectTyped, setSubjectTyped] = useState<string | null>(null);
   const suggestion = state?.kind === "none" ? state.suggestion : null;
-  const subject = typed ?? suggestion?.subject ?? "";
+  const subject = subjectTyped ?? suggestion?.subject ?? "";
 
   const shown =
     state?.kind === "none" && (banner === "open" || (banner === "auto" && suggestion !== null));
@@ -92,7 +97,7 @@ function GrillAction(): preact.JSX.Element {
 
   const start = (): void => {
     setBanner("auto");
-    setTyped(null);
+    setSubjectTyped(null);
     void openGrill(subject.trim());
   };
 
@@ -122,7 +127,7 @@ function GrillAction(): preact.JSX.Element {
             aria-label="Subject of the grill"
             placeholder="What should Claude grill you on?"
             value={subject}
-            onInput={(event) => setTyped(event.currentTarget.value)}
+            onInput={(event) => setSubjectTyped(event.currentTarget.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && subject.trim() !== "") start();
             }}
@@ -185,32 +190,52 @@ function QuestionCard(props: CardProps): preact.JSX.Element {
   );
 }
 
+const NOTHING_TYPED: Typed["grill"][string] = { answers: {}, note: "" };
+
 function GrillDoc(props: RendererProps): preact.JSX.Element {
   const { path, modified } = props.doc;
   const [blocks, setBlocks] = useState<readonly Block[]>([]);
-  /** The reviewer's typing, by question id; `""` keys what goes beside the questions. */
-  const [answers, setAnswers] = useState<ReadonlyMap<string, string>>(new Map());
+  /** The reviewer's typing on this transcript, in the draft: it survives the pane and a reload. */
+  const own = typed.value.grill[path] ?? NOTHING_TYPED;
   const state = grill.value;
   const current = state?.kind === "open" && state.file === path ? state : null;
 
   const answer = (id: string, text: string): void =>
-    setAnswers((kept) => new Map(kept).set(id, text));
+    setTyped({
+      grill: { ...typed.value.grill, [path]: { ...own, answers: { ...own.answers, [id]: text } } },
+    });
 
-  const typed = (id: string): string => answers.get(id)?.trim() ?? "";
+  const note = (text: string): void =>
+    setTyped({ grill: { ...typed.value.grill, [path]: { ...own, note: text } } });
+
+  const forget = (): void => {
+    const { [path]: _gone, ...rest } = typed.value.grill;
+    setTyped({ grill: rest });
+  };
+
+  const answered = (id: string): string => own.answers[id]?.trim() ?? "";
 
   const open = blocks.flatMap((block) =>
     block.kind === "question" && block.answer === null ? [block.id] : [],
   );
 
-  const sendable = current !== null && (open.length > 0 || typed("") !== "");
+  const sendable = current !== null && (open.length > 0 || own.note.trim() !== "");
 
-  const send = async (): Promise<void> => {
-    const response = await post("reply", {
-      answers: open.map((id) => ({ id, text: typed(id) })),
-      note: typed(""),
-    });
+  const send = async (): Promise<boolean> => {
+    const taken = await reply(
+      open.map((id) => ({ id, text: answered(id) })),
+      own.note.trim(),
+    );
 
-    if (response.ok) setAnswers(new Map());
+    if (taken) forget();
+
+    return taken;
+  };
+
+  /** What is typed goes first, as a reply; an empty field takes the recommendation, as a send does. */
+  const end = async (): Promise<void> => {
+    if (sendable && !(await send())) return;
+    await post("close", { reason: "page" });
   };
 
   useEffect(() => {
@@ -231,7 +256,7 @@ function GrillDoc(props: RendererProps): preact.JSX.Element {
             <QuestionCard
               key={block.id}
               block={block}
-              answer={answers.get(block.id) ?? ""}
+              answer={own.answers[block.id] ?? ""}
               onAnswer={
                 current !== null && block.answer === null ? (text) => answer(block.id, text) : null
               }
@@ -244,8 +269,8 @@ function GrillDoc(props: RendererProps): preact.JSX.Element {
           <textarea
             aria-label="Anything else for Claude"
             placeholder="Anything else. Ctrl+Enter sends."
-            value={answers.get("") ?? ""}
-            onInput={(event) => answer("", event.currentTarget.value)}
+            value={own.note}
+            onInput={(event) => note(event.currentTarget.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && sendable) {
                 void send();
@@ -258,7 +283,7 @@ function GrillDoc(props: RendererProps): preact.JSX.Element {
                 ? "An empty field takes the recommendation. Answers go to Claude once its turn ends."
                 : "No question is open. A note goes to Claude once its turn ends."}
             </span>
-            <Button onClick={closeGrill}>End grill</Button>
+            <Button onClick={() => void end()}>End grill</Button>
             <Button variant="send" disabled={!sendable} onClick={() => void send()}>
               Send answers
             </Button>

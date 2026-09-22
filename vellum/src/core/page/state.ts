@@ -7,10 +7,13 @@ import type {
   Edit,
   GroupedDoc,
   LineDiff,
+  Mark,
   ReviewView,
+  Typed,
 } from "../protocol.ts";
 import {
   editOnLoad,
+  EMPTY_TYPED,
   landedAnnotations,
   lineDiff,
   shiftAnnotations,
@@ -23,6 +26,43 @@ export const review = signal<ReviewView | null>(null);
 
 /** The comments not sent yet: a send clears them, and nothing Claude does may. */
 export const annotations = signal<readonly Annotation[]>([]);
+
+/** What is typed and not submitted, saved with the draft; `setTyped` is its one writer. */
+export const typed = signal<Typed>(EMPTY_TYPED);
+
+export function setTyped(patch: Partial<Typed>): void {
+  typed.value = { ...typed.value, ...patch };
+}
+
+function nameOf(path: string): string {
+  return path.split("/").at(-1) ?? path;
+}
+
+/** What an action would throw: every typed text, named by where it is on screen. */
+export const unsentTyped = computed<readonly { readonly where: string; readonly text: string }[]>(
+  () => {
+    const { general, composer, grill, editor } = typed.value;
+    const found: { readonly where: string; readonly text: string }[] = [];
+
+    if (general.trim() !== "") found.push({ where: "the general box", text: general });
+
+    if (composer !== null && composer.body.trim() !== "") {
+      found.push({ where: `a comment on ${nameOf(composer.doc)}`, text: composer.body });
+    }
+
+    for (const [path, entry] of Object.entries(grill)) {
+      const texts = [...Object.values(entry.answers), entry.note].filter((t) => t.trim() !== "");
+
+      if (texts.length > 0) {
+        found.push({ where: `the answers in ${nameOf(path)}`, text: texts.join("\n") });
+      }
+    }
+
+    if (editor !== null) found.push({ where: "the editor", text: editor.text });
+
+    return found;
+  },
+);
 
 /** The document shown; `null` is the plan. */
 export const current = signal<ProjectPath | null>(null);
@@ -188,6 +228,7 @@ export async function decide(decision: Decision): Promise<void> {
     batch(() => {
       annotations.value = [];
       edited.value = null;
+      typed.value = EMPTY_TYPED;
     });
   }
 
@@ -240,6 +281,13 @@ export function removeAnnotation(id: string): void {
   annotations.value = annotations.value.filter((annotation) => annotation.id !== id);
 }
 
+/** A card's Edit: the mark changes, the place stays. */
+export function updateAnnotation(id: string, mark: Mark): void {
+  annotations.value = annotations.value.map((annotation) =>
+    annotation.id === id ? { ...annotation, mark } : annotation,
+  );
+}
+
 export function select(path: ProjectPath): void {
   if (editing.value !== null) return;
   current.value = path;
@@ -276,12 +324,15 @@ export function readWindow(): void {
   });
 }
 
+/** How long a typing pauses before the draft is written: a continuous typing is one write. */
+const TYPED_WRITE_MS = 300;
+
 /**
  * The first load. The saved draft goes in before the review loads, so its edit meets the fate of
  * any unsent edit at a load: kept, landed or dropped. Saving starts only after that, at every
- * change of the comments or of the edit, each one a single write: earlier, a reload would
- * replace the draft with the page's empty state. A draft that cannot be read starts no saving,
- * for the same reason.
+ * change of the comments or of the edit, each one a single write, and once a typing pauses:
+ * earlier, a reload would replace the draft with the page's empty state. A draft that cannot be
+ * read starts no saving, for the same reason.
  */
 export async function start(): Promise<void> {
   const saved = await fetchDraft();
@@ -292,6 +343,7 @@ export async function start(): Promise<void> {
     batch(() => {
       annotations.value = draft.annotations;
       edited.value = draft.edit;
+      typed.value = draft.typed;
     });
   }
 
@@ -299,14 +351,36 @@ export async function start(): Promise<void> {
 
   if (saved.ok) {
     let saving = Promise.resolve();
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    let written = typed.peek();
 
     // In order: two changes close together must not reach the file reversed.
-    effect(() => {
-      const unsent: Draft = { annotations: annotations.value, edit: edited.value };
+    const write = (unsent: Draft): void => {
+      if (pending !== null) clearTimeout(pending);
+      pending = null;
+      written = unsent.typed;
       saving = saving.then(() => saveDraft(unsent));
+    };
+
+    effect(() => {
+      write({ annotations: annotations.value, edit: edited.value, typed: typed.peek() });
+    });
+
+    // A typing is written once it pauses; a comment or an edit written meanwhile carries it.
+    effect(() => {
+      if (typed.value === written) return;
+
+      if (pending !== null) clearTimeout(pending);
+
+      pending = setTimeout(
+        () => write({ annotations: annotations.peek(), edit: edited.peek(), typed: typed.peek() }),
+        TYPED_WRITE_MS,
+      );
     });
   } else {
-    error.value = `GET /api/draft failed: ${saved.status}. Nothing is saved until a reload succeeds.`;
+    error.value =
+      saved.reason ??
+      `GET /api/draft failed: ${saved.status}. Nothing is saved until a reload succeeds.`;
   }
 
   subscribe(

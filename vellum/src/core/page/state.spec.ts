@@ -10,7 +10,7 @@ import type {
   GroupedDoc,
   ReviewView,
 } from "../protocol.ts";
-import { lineDiff } from "../protocol.ts";
+import { EMPTY_TYPED, lineDiff } from "../protocol.ts";
 
 type Store = typeof import("./state.ts");
 
@@ -120,7 +120,8 @@ afterEach(() => {
 });
 
 type Served = {
-  readonly draft: Draft | null | "unreadable";
+  /** `refused` is what the server answers a draft it cannot read with: a 409 and its reason. */
+  readonly draft: Draft | null | "unreadable" | { readonly refused: string };
   readonly review: ReviewView | "unreadable";
   readonly decision?: number;
   /** What `GET /api/review` waits on before its answer. */
@@ -184,9 +185,13 @@ function serve(answer: Served): Server {
     }
 
     if (method === "GET") {
-      return server.answer.draft === null
-        ? new Response(null, { status: 204 })
-        : answerOf(server.answer.draft);
+      const { draft } = server.answer;
+
+      if (draft === null) return new Response(null, { status: 204 });
+
+      return draft !== "unreadable" && "refused" in draft
+        ? Response.json({ error: draft.refused }, { status: 409 })
+        : answerOf(draft);
     }
 
     server.puts.push(JSON.parse(String(init.body)) as Draft);
@@ -423,6 +428,50 @@ describe("the comments", () => {
   });
 });
 
+describe("what is typed", () => {
+  test("setTyped is a patch: the rest stays", async () => {
+    const { setTyped, typed } = await freshStore();
+    setTyped({ general: "Overall" });
+    setTyped({ editor: { version: 1, text: "mine\n" } as never });
+
+    expect(typed.value).toEqual({
+      ...EMPTY_TYPED,
+      general: "Overall",
+      editor: edit(1, "mine\n"),
+    });
+  });
+
+  test("unsentTyped names each place holding a text, and skips the blank ones", async () => {
+    const { setTyped, unsentTyped } = await freshStore();
+    setTyped({
+      general: "  ",
+      composer: { doc: `${WIP}mockup.html` as never, body: "Bigger" },
+      grill: {
+        [`${WIP}grill-1.md`]: { answers: { Q1: "", Q2: "The inspector." }, note: "" },
+        [`${WIP}grill-2.md`]: { answers: {}, note: " " },
+      },
+      editor: { version: 1, text: "mine\n" } as never,
+    });
+
+    expect(unsentTyped.value).toEqual([
+      { where: "a comment on mockup.html", text: "Bigger" },
+      { where: "the answers in grill-1.md", text: "The inspector." },
+      { where: "the editor", text: "mine\n" },
+    ]);
+  });
+
+  test("a card's edit changes the mark and keeps the place", async () => {
+    const { annotations, updateAnnotation } = await freshStore();
+    annotations.value = [onLine("c1", `${WIP}plan.md`, 3), comment("c2", `${WIP}plan.md`)];
+    updateAnnotation("c1", { kind: "comment", body: "fixed" });
+
+    expect(annotations.value).toEqual([
+      { ...onLine("c1", `${WIP}plan.md`, 3), mark: { kind: "comment", body: "fixed" } },
+      comment("c2", `${WIP}plan.md`),
+    ]);
+  });
+});
+
 describe("planChanges", () => {
   test("at v1 there is nothing to compare with", async () => {
     const { planChanges, review } = await freshStore();
@@ -550,7 +599,13 @@ describe("the editor", () => {
 describe("start", () => {
   test("restores the saved draft before anything is written: the first PUT carries it, after both reads and the stream", async () => {
     const store = await freshStore();
-    const saved: Draft = { annotations: [comment("c1", `${WIP}.review/v1.md`)], edit: null };
+
+    const saved: Draft = {
+      annotations: [comment("c1", `${WIP}.review/v1.md`)],
+      edit: null,
+      typed: EMPTY_TYPED,
+    };
+
     const server = serve({ draft: saved, review: versioned({ version: 1 }) });
     await store.start();
     await settled();
@@ -568,7 +623,12 @@ describe("start", () => {
   test("nothing is written while the first load is still out", async () => {
     const store = await freshStore();
     const loaded = Promise.withResolvers<void>();
-    const saved: Draft = { annotations: [comment("c1", `${WIP}.review/v1.md`)], edit: null };
+
+    const saved: Draft = {
+      annotations: [comment("c1", `${WIP}.review/v1.md`)],
+      edit: null,
+      typed: EMPTY_TYPED,
+    };
 
     const server = serve({
       draft: saved,
@@ -596,14 +656,14 @@ describe("start", () => {
     expect(server.calls.indexOf("PUT /api/draft")).toBeGreaterThan(
       server.calls.indexOf("GET /api/review"),
     );
-    expect(server.puts).toEqual([{ annotations: [], edit: null }]);
+    expect(server.puts).toEqual([{ annotations: [], edit: null, typed: EMPTY_TYPED }]);
   });
 
   test("a restored edit meets the first load: another version arrived, so it is dropped with a banner and the comments stay", async () => {
     const store = await freshStore();
     const kept = [comment("c1", `${WIP}.review/v1.md`)];
     serve({
-      draft: { annotations: kept, edit: edit(1, "mine\n") } as never,
+      draft: { annotations: kept, edit: edit(1, "mine\n"), typed: EMPTY_TYPED } as never,
       review: versioned({ version: 3 }),
     });
     await store.start();
@@ -618,7 +678,7 @@ describe("start", () => {
   test("a restored edit of the version loaded stays pending", async () => {
     const store = await freshStore();
     serve({
-      draft: { annotations: [], edit: edit(1, "mine\n") } as never,
+      draft: { annotations: [], edit: edit(1, "mine\n"), typed: EMPTY_TYPED } as never,
       review: versioned({ version: 1 }),
     });
     await store.start();
@@ -633,6 +693,7 @@ describe("start", () => {
     const draft = {
       annotations: [comment("c1", `${WIP}.review/v1.md`)],
       edit: edit(1, "mine\n"),
+      typed: EMPTY_TYPED,
     };
 
     serve({ draft: draft as never, review: versioned({ version: 2, text: "mine\n" }) });
@@ -684,7 +745,13 @@ describe("start", () => {
 
   test("an edit that lands is one write: the edit cleared and its comments moved, together", async () => {
     const store = await freshStore();
-    const draft = { annotations: [comment("c1", `${WIP}.review/v1.md`)], edit: edit(1, "mine\n") };
+
+    const draft = {
+      annotations: [comment("c1", `${WIP}.review/v1.md`)],
+      edit: edit(1, "mine\n"),
+      typed: EMPTY_TYPED,
+    };
+
     const server = serve({ draft, review: versioned({ version: 1 }) });
     await store.start();
     server.answer = { ...server.answer, review: versioned({ version: 2, text: "mine\n" }) };
@@ -693,13 +760,19 @@ describe("start", () => {
 
     expect(server.puts).toEqual([
       draft,
-      { annotations: [comment("c1", `${WIP}.review/v2.md`)], edit: null },
+      { annotations: [comment("c1", `${WIP}.review/v2.md`)], edit: null, typed: EMPTY_TYPED },
     ]);
   });
 
   test("Done is one write: the shifted comments and the edit, together", async () => {
     const store = await freshStore();
-    const draft = { annotations: [onLine("c1", `${WIP}.review/v1.md`, 1)], edit: null };
+
+    const draft = {
+      annotations: [onLine("c1", `${WIP}.review/v1.md`, 1)],
+      edit: null,
+      typed: EMPTY_TYPED,
+    };
+
     const server = serve({ draft, review: versioned({ version: 1, text: "a\n" }) });
     await store.start();
     store.finishEdit({ version: 1, base: "a\n", line: 1 } as never, "new\na\n");
@@ -707,19 +780,104 @@ describe("start", () => {
 
     expect(server.puts).toEqual([
       draft,
-      { annotations: [onLine("c1", `${WIP}.review/v1.md`, 2)], edit: edit(1, "new\na\n") },
+      {
+        annotations: [onLine("c1", `${WIP}.review/v1.md`, 2)],
+        edit: edit(1, "new\na\n"),
+        typed: EMPTY_TYPED,
+      },
     ]);
   });
 
   test("a decision the server took is one write: no comment and no edit, together", async () => {
     const store = await freshStore();
-    const draft = { annotations: [comment("c1", `${WIP}.review/v1.md`)], edit: edit(1, "mine\n") };
+
+    const draft = {
+      annotations: [comment("c1", `${WIP}.review/v1.md`)],
+      edit: edit(1, "mine\n"),
+      typed: EMPTY_TYPED,
+    };
+
     const server = serve({ draft, review: versioned({ version: 1 }) });
     await store.start();
     await store.decide({ kind: "approve", edit: edit(1, "mine\n"), notes: "" });
     await settled();
 
-    expect(server.puts).toEqual([draft, { annotations: [], edit: null }]);
+    expect(server.puts).toEqual([draft, { annotations: [], edit: null, typed: EMPTY_TYPED }]);
+  });
+
+  test("a draft the server refuses to read says the server's reason, and starts no saving", async () => {
+    const store = await freshStore();
+    const refused = "draft.json was saved by an older version of vellum and cannot be read.";
+    const server = serve({ draft: { refused }, review: versioned({ version: 1 }) });
+    await store.start();
+    store.addAnnotation(comment("", `${WIP}.review/v1.md`));
+    await settled();
+
+    expect(server.puts).toEqual([]);
+    expect(store.error.value).toBe(refused);
+  });
+
+  test("what is typed is restored before the first load, with the comments", async () => {
+    const store = await freshStore();
+    const typed = { ...EMPTY_TYPED, general: "Overall: no." };
+
+    const server = serve({
+      draft: { annotations: [], edit: null, typed },
+      review: versioned({ version: 1 }),
+    });
+
+    await store.start();
+    await settled();
+
+    expect(store.typed.value).toEqual(typed);
+    expect(server.puts).toEqual([{ annotations: [], edit: null, typed }]);
+  });
+
+  test("a continuous typing is one write, once it pauses", async () => {
+    const store = await freshStore();
+    const server = serve({ draft: null, review: versioned({ version: 1 }) });
+    await store.start();
+    store.setTyped({ general: "O" });
+    store.setTyped({ general: "Ov" });
+    store.setTyped({ general: "Ove" });
+    await settled();
+    const whileTyping = server.puts.length;
+    await Bun.sleep(400);
+
+    expect(whileTyping).toBe(1);
+    expect(server.puts.map((put) => put.typed.general)).toEqual(["", "Ove"]);
+  });
+
+  test("a comment added while a typing pauses carries the typing, in one write", async () => {
+    const store = await freshStore();
+    const server = serve({ draft: null, review: versioned({ version: 1 }) });
+    await store.start();
+    store.setTyped({ general: "Overall" });
+    store.addAnnotation(comment("", `${WIP}.review/v1.md`));
+    await settled();
+    await Bun.sleep(400);
+
+    expect(server.puts.map((put) => [put.annotations.length, put.typed.general])).toEqual([
+      [0, ""],
+      [1, "Overall"],
+    ]);
+  });
+
+  test("a decision the server took clears what is typed, in the same write", async () => {
+    const store = await freshStore();
+    const typed = { ...EMPTY_TYPED, general: "Overall: no." };
+
+    const server = serve({
+      draft: { annotations: [], edit: null, typed },
+      review: versioned({ version: 1 }),
+    });
+
+    await store.start();
+    await store.decide({ kind: "approve", edit: null, notes: "" });
+    await settled();
+
+    expect(store.typed.value).toEqual(EMPTY_TYPED);
+    expect(server.puts.at(-1)).toEqual({ annotations: [], edit: null, typed: EMPTY_TYPED });
   });
 
   test("a write that never reaches the server says so, and the next change is still written", async () => {

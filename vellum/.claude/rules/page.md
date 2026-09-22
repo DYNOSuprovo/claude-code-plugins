@@ -62,9 +62,8 @@ no build step, so what the page imports costs nothing at `cli start`.
   and draw its control, `CommentsHandle` and `RailHandle`, both through the kit's `Handle`, which
   `app.tsx` places on the panel's edge inside `.body`. The comments panel's CSS takes its width
   to zero; the rail slides out by the left, a negative `margin-left` that `.app` clips, so its
-  lines never reflow while it moves. A fold never unmounts a panel, since the general composer
-  holds its half-typed text in a `useState`; a renderer with `comments: false` still unmounts the
-  comments panel, as above. Folded, a panel is `inert`: what leaves the screen hides pixels, not
+  lines never reflow while it moves. A fold never unmounts a panel; a renderer with
+  `comments: false` still unmounts the comments panel, as above. Folded, a panel is `inert`: what leaves the screen hides pixels, not
   focus. The comments handle's badge is the unfiltered total, the one count a folded panel still
   shows. The rail's carries none, though folded the rail hides each document's count and any
   document Claude writes meanwhile: it opens at every load, and only the reviewer folds it.
@@ -109,13 +108,23 @@ no build step, so what the page imports costs nothing at `cli start`.
   `src/boundaries.spec.ts`, which imports every other module in a process with no `window` and
   names the file that throws.
 - `start` is the page's one way in, and its order is the rule: the saved draft into the signals,
-  then the first load, then the saving effect, then the event stream. Nothing may `PUT` a draft
+  then the first load, then the saving effects, then the event stream. Nothing may `PUT` a draft
   before the restore, or every reload replaces the file with the page's empty state. After it,
   each change of the comments or of the edit is one write, sent in order; signals that change
-  together change in one `batch`. `state.spec.ts` holds this at the page's ports, a fake `fetch`
-  and a fake `EventSource` that log what reaches them: the restore before the first load, no
-  write while that load is out, the stream after it, and one write for each `batch` a saving page
-  runs. The saving effect against the stream is one synchronous step, which no port tells apart.
+  together change in one `batch`; a change of `typed` is written once the typing pauses
+  (`TYPED_WRITE_MS`), and a write of the comments or of the edit meanwhile carries it.
+  `state.spec.ts` holds this at the page's ports, a fake `fetch` and a fake `EventSource` that
+  log what reaches them: the restore before the first load, no write while that load is out, the
+  stream after it, one write for each `batch` a saving page runs, and one write for a continuous
+  typing. The saving effect against the stream is one synchronous step, which no port tells apart.
+- What is typed and not submitted is `typed` of `state.ts`, one `Typed` of the draft, and
+  `setTyped` its one writer: the general box, the composer's text by document, a grill's answers
+  and note by transcript, the editor's typing by version. No component keeps a text in a
+  `useState`: what is typed survives the pane that unmounts and the reload, and a composer or an
+  editor opened again on the same document or version starts with it, though neither reopens by
+  itself. `unsentTyped` names what a decision would throw; Send feedback and Approve put the
+  warning first when it is not empty, and a decision that lands clears it. Cancel of the editor
+  over a changed text asks first; End grill sends what is typed as a reply before it closes.
 - An unsent edit is an `Edit`: a text with the version it edits. The stamp is taken when the
   editor opens, and `Editor` keeps that version and its base text for its whole session: a
   version that lands under an open editor must not restamp it. They travel as one `EditSession`,

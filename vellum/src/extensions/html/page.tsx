@@ -127,6 +127,7 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
       />
       {draft !== null && at !== null && (
         <Composer
+          doc={props.doc.path}
           picks={draft.elements.map((element) => ({
             key: `${element.selector}-${element.text}`,
             text: element.text,

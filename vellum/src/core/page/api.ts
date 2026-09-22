@@ -34,26 +34,34 @@ export function extensionRequest(id: string, path: string, init?: RequestInit): 
 
 export type Fetched<T> =
   | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly status: number };
+  /** `reason` is the server's own sentence when it gave one; `null` leaves the status to speak. */
+  | { readonly ok: false; readonly status: number; readonly reason: string | null };
 
 export async function fetchReview(): Promise<Fetched<ReviewView>> {
   const response = await request("review");
 
-  if (!response.ok) return { ok: false, status: response.status };
+  if (!response.ok) return { ok: false, status: response.status, reason: null };
 
   // SAFETY: the server's own `ReviewView`, serialized by `Response.json` in routes.ts.
   return { ok: true, value: (await response.json()) as ReviewView };
 }
 
-/** The unsent work the server keeps for a reload, `null` when it keeps none. */
+/** The unsent work the server keeps for a reload, `null` when it keeps none; refused with its reason when it cannot be read. */
 export async function fetchDraft(): Promise<Fetched<Draft | null>> {
   const response = await request("draft");
 
-  if (!response.ok) return { ok: false, status: response.status };
+  if (response.status === 409) {
+    // SAFETY: the server's own `{ error }`, serialized by `Response.json` in routes.ts.
+    const { error } = (await response.json()) as { readonly error: string };
+
+    return { ok: false, status: response.status, reason: error };
+  }
+
+  if (!response.ok) return { ok: false, status: response.status, reason: null };
 
   if (response.status === 204) return { ok: true, value: null };
 
-  // SAFETY: a `Draft` this page sent, which the route's parser checked before the server kept it.
+  // SAFETY: a `Draft` the route's parser read back from the file this page wrote.
   return { ok: true, value: (await response.json()) as Draft };
 }
 

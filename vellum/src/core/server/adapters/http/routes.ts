@@ -13,10 +13,12 @@ import type {
   Mark,
   Passage,
   PlanWorkspace,
+  Typed,
 } from "../../../protocol.ts";
 import type { GateOptions, Review } from "../../app/review.ts";
 import { isQuickLabel } from "../../domain/feedback.ts";
 import { parseProjectPath, parseVersion } from "../../domain/paths.ts";
+import { DRAFT_FILE } from "../../domain/workspace.ts";
 
 export const TOKEN_HEADER = "x-vellum-token";
 
@@ -177,15 +179,78 @@ async function parseDecision(request: Request): Promise<Decision | null> {
   return annotations === null ? null : { kind: "feedback", edit: edit.value, annotations };
 }
 
-/** The same annotations and the same edit a decision carries, so a restored draft can be sent as it is. */
-async function parseDraft(request: Request): Promise<Draft | null> {
-  const body: unknown = await request.json().catch(() => null);
+function parseStrings(value: unknown): Readonly<Record<string, string>> | null {
+  if (!isRecord(value)) return null;
+  const strings: Record<string, string> = {};
 
+  for (const [key, text] of Object.entries(value)) {
+    if (typeof text !== "string") return null;
+    strings[key] = text;
+  }
+
+  return strings;
+}
+
+function parseGrillTyped(value: unknown): Typed["grill"] | null {
+  if (!isRecord(value)) return null;
+  const grill: Record<string, { answers: Readonly<Record<string, string>>; note: string }> = {};
+
+  for (const [path, entry] of Object.entries(value)) {
+    const answers = isRecord(entry) ? parseStrings(entry.answers) : null;
+
+    if (answers === null || !isRecord(entry) || typeof entry.note !== "string") return null;
+    grill[path] = { answers, note: entry.note };
+  }
+
+  return grill;
+}
+
+/** `null` is no composer, so a refusal is no `null`: the parsed composer comes wrapped, as an edit does. */
+function parseComposerTyped(value: unknown): { readonly value: Typed["composer"] } | null {
+  if (value === null) return { value: null };
+
+  if (!isRecord(value) || typeof value.doc !== "string" || typeof value.body !== "string") {
+    return null;
+  }
+
+  const doc = parseProjectPath(value.doc);
+
+  return doc.ok ? { value: { doc: doc.value, body: value.body } } : null;
+}
+
+function parseTyped(value: unknown): Typed | null {
+  if (!isRecord(value) || typeof value.general !== "string") return null;
+  const composer = parseComposerTyped(value.composer);
+  const grill = parseGrillTyped(value.grill);
+  const editor = parseEdit(value.editor);
+
+  return composer === null || grill === null || editor === null
+    ? null
+    : { general: value.general, composer: composer.value, grill, editor: editor.value };
+}
+
+/**
+ * The same annotations and the same edit a decision carries, so a restored draft can be sent as
+ * it is, plus what is typed. A draft of an older shape is refused whole, written or read back.
+ */
+function parseDraft(body: unknown): Draft | null {
   if (!isRecord(body)) return null;
   const annotations = parseAnnotations(body.annotations);
   const edit = parseEdit(body.edit);
+  const typed = parseTyped(body.typed);
 
-  return annotations === null || edit === null ? null : { annotations, edit: edit.value };
+  return annotations === null || edit === null || typed === null
+    ? null
+    : { annotations, edit: edit.value, typed };
+}
+
+/** The saved file, read back through the same parser a PUT goes through. */
+function readDraft(saved: string): Draft | null {
+  try {
+    return parseDraft(JSON.parse(saved));
+  } catch {
+    return null;
+  }
 }
 
 /* oxlint-enable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type */
@@ -193,6 +258,9 @@ async function parseDraft(request: Request): Promise<Draft | null> {
 function badRequest(): Response {
   return new Response("bad request", { status: 400 });
 }
+
+/** A saved draft the parser refuses was written by an older page: nothing of it is read half-way. */
+export const UNREADABLE_DRAFT = `${DRAFT_FILE} was saved by an older version of vellum and cannot be read: delete it, then reload.`;
 
 async function parseGateOptions(request: Request): Promise<GateOptions> {
   const body: unknown = await request.json().catch(() => null);
@@ -322,15 +390,18 @@ async function api(
   }
 
   if (route === "GET /api/draft") {
-    const draft = await review.draft();
+    const saved = await review.draft();
+
+    if (saved === null) return new Response(null, { status: 204 });
+    const draft = readDraft(saved);
 
     return draft === null
-      ? new Response(null, { status: 204 })
-      : new Response(draft, { headers: { "content-type": "application/json" } });
+      ? Response.json({ error: UNREADABLE_DRAFT }, { status: 409 })
+      : Response.json(draft);
   }
 
   if (route === "PUT /api/draft") {
-    const draft = await parseDraft(request);
+    const draft = parseDraft(await request.json().catch(() => null));
 
     if (draft === null) return badRequest();
 
