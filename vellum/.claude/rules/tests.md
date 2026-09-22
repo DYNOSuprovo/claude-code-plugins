@@ -22,7 +22,9 @@ paths:
   page in a state the fixture documents, never with a screenshot compared to a golden file: a
   pixel diff says that something moved, an assertion says what. Chromium is installed once per
   machine and per pinned version (`bun run --cwd vellum e2e:install`); CI runs the suite in its
-  own job, and no hook does, since it takes seconds per file.
+  own job, and no hook does, since it takes seconds per file. A red e2e test is reproduced on
+  its own file and project (`-- <file> --project=<name>`), never by rerunning the suite; the
+  whole suite runs once on `light-1440` before a push, and at the five windows in CI only.
 - One behaviour per test, under fifteen lines, data in view: helpers hide the plumbing; the
   version, the path, the text the case turns on stay in the test.
 - Before the code of a slice, its tests are listed one line each and agreed, written first,
