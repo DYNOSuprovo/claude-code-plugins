@@ -450,16 +450,20 @@ describe("routes", () => {
     expect(await Bun.file(join(dir, DRAFT_PATH)).json()).toEqual(DRAFT);
   });
 
-  test("a passage says whether the edit removed it, or is refused", async () => {
+  test("a passage says whether the edit removed it and what it quotes, or is refused", async () => {
     const { dir, send } = drafting();
     const passage = { quote: "the old gate", prefix: "", suffix: "", lines: [12, 14] };
-    const anchor = { kind: "text", passages: [{ ...passage, removed: true }] };
+    const anchor = { kind: "text", passages: [{ ...passage, removed: true, kind: "prose" }] };
     expect((await send({ anchor, mark: { kind: "delete" } })).status).toBe(200);
     expect(await Bun.file(join(dir, WIP, ".review/v0.feedback-1.md")).text()).toContain(
       "lines 12–14 (removed by the reviewer's edit)",
     );
-    const bare = { kind: "text", passages: [passage] };
+    const bare = { kind: "text", passages: [{ ...passage, kind: "prose" }] };
     expect((await send({ anchor: bare, mark: { kind: "delete" } })).status).toBe(400);
+    const unkinded = { kind: "text", passages: [{ ...passage, removed: false }] };
+    expect((await send({ anchor: unkinded, mark: { kind: "delete" } })).status).toBe(400);
+    const odd = { kind: "text", passages: [{ ...passage, removed: false, kind: "table" }] };
+    expect((await send({ anchor: odd, mark: { kind: "delete" } })).status).toBe(400);
   });
 
   test("a delete mark is taken on a text anchor", async () => {
@@ -471,6 +475,7 @@ describe("routes", () => {
       suffix: "",
       lines: [12, 14],
       removed: false,
+      kind: "prose",
     };
 
     const anchor = { kind: "text", passages: [passage] };

@@ -14,6 +14,7 @@ const PASSAGE = {
   suffix: "",
   lines: [14, 14],
   removed: false,
+  kind: "prose",
 } as const;
 
 test("formatFeedback numbers the comments, quotes text anchors, names general ones", () => {
@@ -74,8 +75,22 @@ test("formatFeedback lists the passages of a comment that points to several plac
     anchor: {
       kind: "text",
       passages: [
-        { quote: "First item", prefix: "", suffix: "", lines: [5, 5], removed: false },
-        { quote: "Nested two", prefix: "", suffix: "", lines: [7, 7], removed: false },
+        {
+          quote: "First item",
+          prefix: "",
+          suffix: "",
+          lines: [5, 5],
+          removed: false,
+          kind: "prose",
+        },
+        {
+          quote: "Nested two",
+          prefix: "",
+          suffix: "",
+          lines: [7, 7],
+          removed: false,
+          kind: "prose",
+        },
       ],
     },
     mark: { kind: "comment", body: "These two say the same thing." },
@@ -204,6 +219,7 @@ test("a mark on several places prints once, under the list of places", () => {
     suffix: "",
     lines: [20, 20],
     removed: false,
+    kind: "prose",
   } as const;
 
   expect(marked({ kind: "delete" }, [PASSAGE, second])).toEndWith(

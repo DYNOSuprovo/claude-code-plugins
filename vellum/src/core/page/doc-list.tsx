@@ -1,12 +1,8 @@
-import type { DocGroup, DocRef, GroupedDoc } from "../protocol.ts";
+import type { DocGroup, GroupedDoc } from "../protocol.ts";
 import type { ProjectPath } from "../server/domain/paths.ts";
 import { Badge, Handle } from "./kit.tsx";
-import { dirOf, planLabel } from "./rail.ts";
+import { docLabel, nameParts, planLabel } from "./labels.ts";
 import { annotations, currentDoc, docs, editing, railOpen, review, select } from "./state.ts";
-
-function nameOf(doc: DocRef): string {
-  return doc.path.split("/").at(-1) ?? doc.path;
-}
 
 function count(path: string): number {
   return annotations.value.filter((a) => a.doc === path).length;
@@ -74,8 +70,11 @@ export function DocList(): preact.JSX.Element {
   const artifacts = inGroup(docs.value, "artifact");
   const cited = inGroup(docs.value, "cited");
 
+  // The name's stem alone is cut when the room is short: the extension says what the line opens.
   const item = (doc: GroupedDoc): preact.JSX.Element => {
-    const dir = doc.group === "cited" ? dirOf(doc.path) : "";
+    const view = review.value;
+    const label = view === null ? null : docLabel(doc, view);
+    const { stem, ext } = nameParts(label?.name ?? doc.path);
 
     return (
       <button
@@ -85,8 +84,15 @@ export function DocList(): preact.JSX.Element {
         aria-current={currentDoc.value?.path === doc.path ? "page" : undefined}
         onClick={(event) => chooseDoc(doc.path, event)}
       >
-        <span class="name">{nameOf(doc)}</span>
-        {dir !== "" && <span class="dir">{dir}</span>}
+        <span class="name">
+          <span class="stem">{stem}</span>
+          {ext !== "" && <span class="ext">{ext}</span>}
+        </span>
+        {label?.dir !== null && label !== null && (
+          <span class="dir" title={label.dir}>
+            {label.dir}
+          </span>
+        )}
         {count(doc.path) > 0 && <Badge>{count(doc.path)}</Badge>}
       </button>
     );

@@ -13,6 +13,7 @@ import {
   dark,
   docs,
   fail,
+  focused,
   holding,
   planDoc,
   resume,
@@ -32,6 +33,37 @@ import { toTree } from "./tree.ts";
 import { removedBlock, toVNodes } from "./vnode.ts";
 
 type Chosen = { readonly range: Range; readonly passage: Passage };
+
+function rangesOf(root: HTMLElement, passages: readonly Passage[]): Range[] {
+  return passages.flatMap((passage) => {
+    const range = rangeFor(root, passage);
+
+    return range === null ? [] : [range];
+  });
+}
+
+/** A diagram is boxed where text is highlighted: its passage quotes source the SVG lacks. A code block is boxed as well when focused. */
+function box(root: HTMLElement, name: string, passages: readonly Passage[]): void {
+  const lines = new Set(passages.map((passage) => passage.lines.join("-")));
+
+  for (const block of root.querySelectorAll<HTMLElement>("figure.mermaid, pre")) {
+    block.classList.toggle(name, lines.has(block.dataset.lines ?? ""));
+  }
+}
+
+/** Where a passage is on screen: its text's block, or the figure that stands for it. */
+function blockOf(root: HTMLElement, passage: Passage): Element | null {
+  const start = rangeFor(root, passage)?.startContainer;
+  const from = start instanceof Element ? start : (start?.parentElement ?? null);
+
+  return (
+    from?.closest("[data-lines]") ??
+    [...root.querySelectorAll<HTMLElement>("[data-lines]")].find(
+      (block) => block.dataset.lines === passage.lines.join("-"),
+    ) ??
+    null
+  );
+}
 
 /** The chosen places, and the last one's box in the pane's scrolled content, where the composer is placed near. */
 type Draft = {
@@ -118,11 +150,15 @@ async function drawn(root: HTMLElement, night: boolean): Promise<void> {
   );
 }
 
-/** A diagram stands for its source block; every other target for the text it shows. */
+/** A diagram stands for its source block, a code block for its whole text; every other target for the text it shows. */
 function passageOf(root: HTMLElement, target: Target, range: Range): Passage | null {
-  return target.kind === "diagram"
-    ? diagramPassage(target.element.dataset.lines, target.element.dataset.source)
-    : passageFromRange(root, range);
+  if (target.kind === "diagram") {
+    return diagramPassage(target.element.dataset.lines, target.element.dataset.source);
+  }
+
+  const passage = passageFromRange(root, range);
+
+  return passage !== null && target.kind === "code" ? { ...passage, kind: "code" } : passage;
 }
 
 /**
@@ -206,22 +242,6 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
 
     if (root === null || content === null) return;
 
-    const rangesOf = (passages: readonly Passage[]): Range[] =>
-      passages.flatMap((passage) => {
-        const range = rangeFor(root, passage);
-
-        return range === null ? [] : [range];
-      });
-
-    /** A diagram is boxed where text is highlighted: its passage quotes source the SVG lacks. */
-    const box = (name: string, passages: readonly Passage[]): void => {
-      const lines = new Set(passages.map((passage) => passage.lines.join("-")));
-
-      for (const figure of root.querySelectorAll<HTMLElement>("figure.mermaid")) {
-        figure.classList.toggle(name, lines.has(figure.dataset.lines ?? ""));
-      }
-    };
-
     /** The block holding a commented passage carries a fillet in the sheet's margin. */
     const fillet = (passages: readonly Passage[]): void => {
       const blocks = [...root.querySelectorAll<HTMLElement>("[data-lines]")];
@@ -246,20 +266,54 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
 
     const picked = (draft?.chosen ?? []).map((one) => one.passage);
 
-    paint("vellum-comment", rangesOf(commented));
-    paint("vellum-draft", rangesOf(picked));
-    box("commented", commented);
-    box("picked", picked);
+    paint("vellum-comment", rangesOf(root, commented));
+    paint("vellum-draft", rangesOf(root, picked));
+    box(
+      root,
+      "commented",
+      commented.filter((passage) => passage.kind === "diagram"),
+    );
+    box(
+      root,
+      "picked",
+      picked.filter((passage) => passage.kind === "diagram"),
+    );
     fillet(commented);
 
     return () => {
       paint("vellum-comment", []);
       paint("vellum-draft", []);
-      box("commented", []);
-      box("picked", []);
+      box(root, "commented", []);
+      box(root, "picked", []);
       fillet([]);
     };
   }, [props.annotations, draft, content]);
+
+  // The card the reviewer is on: its passage stands out, and a click brings it into view.
+  const focus = focused.value;
+
+  useEffect(() => {
+    const root = container.current;
+    const target = focus === null ? null : props.annotations.find((one) => one.id === focus.id);
+
+    if (root === null || content === null || target === undefined || target === null) return;
+
+    const passages =
+      target.anchor.kind === "text" ? target.anchor.passages.filter((one) => !one.removed) : [];
+
+    paint("vellum-focus", rangesOf(root, passages));
+    box(root, "focused", passages);
+    const [first] = passages;
+
+    if (focus?.reveal === true && first !== undefined) {
+      blockOf(root, first)?.scrollIntoView({ block: "center" });
+    }
+
+    return () => {
+      paint("vellum-focus", []);
+      box(root, "focused", []);
+    };
+  }, [focus, props.annotations, content]);
 
   const night = dark.value;
 
@@ -514,8 +568,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
           doc={props.doc.path}
           picks={draft.chosen.map(({ passage }) => ({
             key: `${passage.lines[0]}-${passage.prefix}-${passage.quote}`,
-            text: passage.quote,
-            where: `lines ${passage.lines[0]}–${passage.lines[1]}`,
+            passage,
           }))}
           through={adding}
           target={draft.target}

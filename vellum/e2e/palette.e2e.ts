@@ -200,6 +200,7 @@ test("a commented passage keeps its ink under the wash", async ({ page, vellum }
   expect(highlight).toEqual([
     "::highlight(vellum-comment) var(--ink)",
     "::highlight(vellum-draft) var(--ink)",
+    "::highlight(vellum-focus) var(--ink)",
   ]);
 });
 

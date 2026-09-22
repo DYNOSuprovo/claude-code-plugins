@@ -131,8 +131,7 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
           doc={props.doc.path}
           picks={draft.elements.map((element) => ({
             key: `${element.selector}-${element.text}`,
-            text: element.text,
-            where: element.label,
+            element,
           }))}
           through={adding}
           target={at.target}

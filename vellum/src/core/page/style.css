@@ -46,7 +46,7 @@
   --measure: 39.375rem;
   --comments-width: 310px;
   --grill-foot: calc(var(--s-10) * 3 + var(--s-1));
-  --rail-width: 220px;
+  --rail-width: clamp(220px, 16vw, 300px);
 
   --s-1: 4px;
   --s-2: 8px;
@@ -133,7 +133,9 @@ main:focus, .plan:focus { outline: none; }
 .rail button { font: 500 var(--t-13)/1.4 var(--serif); background: transparent; border: 0; color: var(--ink); cursor: pointer; text-align: left; padding: var(--s-1) var(--s-2); border-radius: var(--r-sm); display: flex; align-items: center; gap: var(--s-2); transition: background var(--transition); }
 .rail button:hover:not([aria-current]) { background: color-mix(in oklab, var(--ink) 12%, var(--tint)); }
 .rail .away button:hover:not([aria-current]) { background: color-mix(in oklab, var(--ink) 12%, var(--desk)); }
-.rail button .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--mono-optical); }
+.rail button .name { flex: 1; min-width: 0; display: flex; white-space: nowrap; font-family: var(--mono); font-size: var(--mono-optical); }
+.rail .name .stem { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rail .name .ext { flex: none; }
 .rail button[aria-current] { background: var(--ink); color: var(--sheet); }
 .rail .empty { font-size: var(--t-13); color: var(--graphite); padding: var(--s-1) var(--s-2); }
 .rail h5 { font: 650 var(--t-12)/1 var(--serif); color: var(--graphite); margin: var(--s-4) var(--s-2) var(--s-1); display: flex; align-items: center; gap: var(--s-2); }
@@ -257,6 +259,9 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .plan details.removed div::before { content: attr(data-source); display: block; padding: var(--s-1) 0; white-space: pre-wrap; color: var(--ink); font-family: var(--mono); }
 ::highlight(vellum-comment) { background-color: var(--wash-marker); color: var(--ink); }
 ::highlight(vellum-draft) { background-color: var(--wash-marker); color: var(--ink); text-decoration: underline dashed var(--redline); }
+/* The passage of the card the reviewer is on: the marker whole, and a ring for a block that holds no text to paint. */
+::highlight(vellum-focus) { background-color: var(--marker); color: var(--ink); }
+.plan figure.mermaid.focused, .plan pre.focused { outline: 2px solid var(--marker); outline-offset: 2px; }
 .wash { position: absolute; pointer-events: none; background: var(--wash-redline); z-index: 1; }
 .wash-label { position: absolute; left: -2px; top: calc((var(--t-12) + var(--s-2)) * -1); font: 600 var(--t-12)/1 var(--mono); background: var(--redline); color: var(--sheet); padding: var(--s-1) var(--s-2); border-radius: var(--r-sm); white-space: nowrap; }
 
@@ -268,6 +273,7 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .grill-subject input { flex: 1; min-width: 0; font: inherit; padding: var(--s-1) var(--s-2); border: 1px solid var(--edge); border-radius: var(--r-sm); background: var(--field); color: var(--ink); }
 .grill-doc { min-height: 100%; display: flex; flex-direction: column; }
 .grill-working { color: var(--graphite); font-style: italic; max-width: var(--measure); }
+.grill-when { color: var(--graphite); font-size: var(--t-13); }
 .grill-doc .plan { flex: 1; }
 .grill-doc .plan h2 { font: 600 var(--t-16)/var(--lh-title) var(--serif); color: var(--graphite); border-top: 1px solid var(--rule); padding-top: var(--s-3); margin-top: var(--s-8); }
 .grill-doc .plan h3 { font: 650 var(--t-13)/1.4 var(--serif); color: var(--ask); margin: var(--s-3) 0 0; }
@@ -294,6 +300,9 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .grill-foot .note { flex: 1; color: var(--graphite); font-size: var(--t-13); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .popover { position: absolute; width: 300px; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r-md); box-shadow: var(--shadow); padding: var(--s-3); font: var(--t-13)/var(--lh-chrome) var(--serif); z-index: 2; }
 .popover .quote { color: var(--graphite); font-style: italic; margin-bottom: var(--s-2); }
+.popover .quote .where { white-space: nowrap; }
+/* A code block's quote is its first line, in mono; a card's quote stops at three lines. */
+.popover .quote.code, .card .quote.code { font-family: var(--mono); font-size: var(--mono-optical); font-style: normal; }
 textarea { width: 100%; font: var(--t-14)/1.45 var(--serif); border: 1px solid var(--edge); border-radius: var(--r-sm); padding: var(--s-2); resize: vertical; background: var(--field); color: var(--ink); }
 textarea::placeholder, input::placeholder { color: var(--graphite); }
 .row { display: flex; gap: var(--s-2); justify-content: flex-end; margin-top: var(--s-2); }
@@ -314,7 +323,8 @@ textarea::placeholder, input::placeholder { color: var(--graphite); }
 .comments .list { flex: 0 1 auto; overflow: auto; padding: var(--s-2); display: flex; flex-direction: column; gap: var(--s-2); }
 .card { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r-md); padding: var(--s-2); font-size: var(--t-13); line-height: 1.45; }
 .card .where { color: var(--graphite); font: var(--t-12)/1.4 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card .quote { font-style: italic; margin: var(--s-1) 0; }
+.card .quote { font-style: italic; margin: var(--s-1) 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.card:hover, .card:focus-within { border-color: var(--edge); }
 .card .quote.struck { text-decoration: line-through; text-decoration-color: var(--redline); }
 .card .chip { cursor: default; display: inline-block; margin: 2px 0; }
 .card .actions { display: flex; gap: var(--s-2); margin-top: var(--s-1); }

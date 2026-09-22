@@ -44,6 +44,7 @@ export function passageFromRange(container: Element, range: Range): Passage | nu
   const endLines = linesOf(range.endContainer);
 
   return {
+    kind: "prose",
     quote,
     prefix: text.slice(Math.max(0, start - CONTEXT_CHARS), start),
     suffix: text.slice(start + quote.length, start + quote.length + CONTEXT_CHARS),

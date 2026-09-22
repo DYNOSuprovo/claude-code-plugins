@@ -12,6 +12,7 @@ import type {
   GateAnswer,
   Mark,
   Passage,
+  PassageKind,
   PlanWorkspace,
   Typed,
 } from "../../../protocol.ts";
@@ -88,9 +89,16 @@ function parseElementRef(value: unknown): ElementRef | null {
   return { selector: value.selector, text: value.text, label: value.label };
 }
 
+function parsePassageKind(value: unknown): PassageKind | null {
+  return value === "prose" || value === "code" || value === "diagram" ? value : null;
+}
+
 function parsePassage(value: unknown): Passage | null {
+  const kind = isRecord(value) ? parsePassageKind(value.kind) : null;
+
   if (
     !isRecord(value) ||
+    kind === null ||
     typeof value.quote !== "string" ||
     typeof value.prefix !== "string" ||
     typeof value.suffix !== "string" ||
@@ -103,6 +111,7 @@ function parsePassage(value: unknown): Passage | null {
   }
 
   return {
+    kind,
     quote: value.quote,
     prefix: value.prefix,
     suffix: value.suffix,

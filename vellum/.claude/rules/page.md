@@ -9,8 +9,8 @@ paths:
 `src/core/page/` is the Preact page: `api.ts` the client (token, routes, SSE), `state.ts` the store of
 signals, `kit.tsx` the components every other `.tsx` draws with, `*.tsx` the rest of them,
 `style.css` and `fonts/` the design system, `anchoring.ts` and `highlights.ts` the text selection,
-`editor.tsx` and `caret.ts` the plan's source editor, `rail.ts` what a line of the rail prints,
-purely, so it is tested without the store. The renderers are the page halves of
+`editor.tsx` and `caret.ts` the plan's source editor, `labels.ts` what the page names, a
+document, a place, a quote, purely, so it is tested without the store. The renderers are the page halves of
 the extensions; what an extension is and how one is added is `extensions.md`, which loads
 with the same files. One bundle is a browser's: `Bun.serve` builds it from
 `src/core/page/index.html` at the first request for the page,
@@ -38,6 +38,13 @@ no build step, so what the page imports costs nothing at `cli start`.
   `srgb()`, which yields sRGB, and the consumer redraws on the `dark` signal of `state.ts`.
 - A commented block carries a fillet in the sheet's margin: `markdown/marked.ts` chooses,
   purely, the innermost block of each commented line, and `page.tsx` toggles `marked` on it.
+- The screen names nothing of the server's: `labels.ts` says `Plan v2` for the version's file,
+  `line 3` for a passage, an element's label for a selector, a code block by its first line, a
+  diagram by its kind (`Passage.kind` says which), and a rail line by its name and the folders
+  that tell it from its neighbours. The cards read in the document's order, then by line; a
+  card hovered or focused is `focused` of `state.ts`, and the plan's renderer paints its passage
+  (`::highlight(vellum-focus)`), scrolling to it on a click; a comment added scrolls the list
+  to its card. The general box comments the plan when the document beside it takes none.
 - Everything crossing `/api` is JSON and typed in `src/core/protocol.ts`; a new field lands there
   first. What crosses `/api/x/<id>/` is the extension's own, typed in its `protocol.ts`.
 - A chain of tests over a union of `src/core/protocol.ts` ends on a function whose parameter is

@@ -143,6 +143,12 @@ function clearUndo(): void {
   if (undo.peek() !== null) undo.value = null;
 }
 
+/**
+ * The card the reviewer is on, by its annotation's id: hovered or focused, the plan's renderer
+ * highlights its passage; clicked (`reveal`), it scrolls to it as well. `null` off any card.
+ */
+export const focused = signal<{ readonly id: string; readonly reveal: boolean } | null>(null);
+
 export const connection = signal<"up" | "down">("up");
 
 /** When the stream first failed, and how long ago as far as the notice cares: `0`, then past the hint's delay. */

@@ -256,6 +256,19 @@ test.describe("the landmarks", () => {
   });
 });
 
+/** The rail slid out by its whole width, whatever the window gave it. */
+async function railFolded(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.locator("#rail").evaluate((rail) => {
+        const slid = -Number.parseFloat(getComputedStyle(rail).marginLeft);
+
+        return Math.abs(slid - rail.getBoundingClientRect().width) < 1;
+      }),
+    )
+    .toBe(true);
+}
+
 test.describe("the rail's handle", () => {
   test("two clicks 150 ms apart on the folded handle open the rail and change no document", async ({
     page,
@@ -270,7 +283,7 @@ test.describe("the rail's handle", () => {
     const handle = page.locator(".handle.left");
     await handle.click();
     await expect(handle).toHaveAttribute("aria-expanded", "false");
-    await expect(page.locator("#rail")).toHaveCSS("margin-left", "-220px");
+    await railFolded(page);
     const chevron = await boxOf(handle.locator(".chevron"));
     const x = chevron.x + chevron.width / 2;
     const y = chevron.y + chevron.height / 2;
@@ -291,7 +304,7 @@ test.describe("the rail's handle", () => {
     await reviewV1(page, vellum);
     const handle = page.locator(".handle.left");
     await handle.click();
-    await expect(page.locator("#rail")).toHaveCSS("margin-left", "-220px");
+    await railFolded(page);
     await handle.click();
     await page.waitForTimeout(50);
     const line = await boxOf(page.locator("#rail button", { hasText: "research-notes.md" }));

@@ -1,14 +1,16 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
-import type { Anchor, Annotation, Mark } from "../protocol.ts";
+import type { Anchor, Annotation, GroupedDoc, Mark } from "../protocol.ts";
 import { DELETE_SENTENCE, QUICK_LABELS } from "../protocol.ts";
 import { Badge, Button, Handle, Tag } from "./kit.tsx";
+import { pathLabel, quoteOf, whereOf } from "./labels.ts";
 import {
   addAnnotation,
   annotations,
   commentsOpen,
-  currentDoc,
+  docs,
   editing,
+  focused,
   locked,
   removeAnnotation,
   review,
@@ -18,18 +20,12 @@ import {
 } from "./state.ts";
 import { switchShown } from "./tools.tsx";
 
-/** What the card says above the quotes: general, the lines of the passages, or the elements. */
-function whereOf(anchor: Anchor): string {
-  if (anchor.kind === "global") return "general";
-
-  if (anchor.kind === "text") {
-    return `lines ${anchor.passages.map((passage) => `${passage.lines[0]}–${passage.lines[1]}`).join(", ")}`;
-  }
-
-  return anchor.elements.map((element) => element.selector).join(", ");
-}
-
-type Quote = { readonly key: string; readonly text: string; readonly removed: boolean };
+type Quote = {
+  readonly key: string;
+  readonly text: string;
+  readonly mono: boolean;
+  readonly removed: boolean;
+};
 
 function quotesOf(anchor: Anchor): readonly Quote[] {
   if (anchor.kind === "global") return [];
@@ -37,7 +33,8 @@ function quotesOf(anchor: Anchor): readonly Quote[] {
   if (anchor.kind === "text") {
     return anchor.passages.map((passage) => ({
       key: `${passage.lines[0]}-${passage.quote}`,
-      text: passage.quote,
+      text: quoteOf(passage),
+      mono: passage.kind !== "prose",
       removed: passage.removed,
     }));
   }
@@ -45,8 +42,25 @@ function quotesOf(anchor: Anchor): readonly Quote[] {
   return anchor.elements.map((element) => ({
     key: element.selector,
     text: element.text,
+    mono: false,
     removed: false,
   }));
+}
+
+/** The first line a comment points at; a general one comes before every passage of its document. */
+function firstLine(anchor: Anchor): number {
+  return anchor.kind === "text" ? Math.min(...anchor.passages.map(({ lines }) => lines[0])) : 0;
+}
+
+/** The cards in the documents' order, then by line: what the reviewer reads top to bottom. */
+function sorted(list: readonly Annotation[], order: readonly GroupedDoc[]): readonly Annotation[] {
+  const rank = new Map(order.map((doc, index) => [doc.path, index]));
+
+  return list.toSorted(
+    (a, b) =>
+      (rank.get(a.doc) ?? order.length) - (rank.get(b.doc) ?? order.length) ||
+      firstLine(a.anchor) - firstLine(b.anchor),
+  );
 }
 
 /** The empty panel names the switch only where `Tools` draws it, and the box only where it takes text. */
@@ -135,18 +149,48 @@ function CardWords(props: { readonly annotation: Annotation }): preact.JSX.Eleme
   );
 }
 
+/** What a card calls its document: the listed document's label, or the file's name once it is listed no more. */
+function docLabelOf(path: string): string {
+  const view = review.value;
+  const doc = docs.value.find((one) => one.path === path);
+
+  return view === null || doc === undefined
+    ? (path.split("/").at(-1) ?? path)
+    : pathLabel(doc, view);
+}
+
+/** A card the pointer or the focus is on names itself to the renderer; a click asks it to scroll there too. */
 function Card(props: { readonly annotation: Annotation }): preact.JSX.Element {
   const { annotation } = props;
-  const dir = review.value?.workspace.dir ?? "";
-  const doc = annotation.doc.startsWith(dir) ? annotation.doc.slice(dir.length) : annotation.doc;
+
+  const on = (reveal: boolean): void => {
+    focused.value = { id: annotation.id, reveal };
+  };
+
+  const off = (): void => {
+    if (focused.peek()?.id === annotation.id) focused.value = null;
+  };
 
   return (
-    <div class="card">
+    <div
+      class="card"
+      id={`card-${annotation.id}`}
+      onMouseEnter={() => on(false)}
+      onMouseLeave={off}
+      onFocusCapture={() => on(false)}
+      onBlurCapture={off}
+      onClick={() => on(true)}
+    >
       <div class="where" title={annotation.doc}>
-        {doc} · {whereOf(annotation.anchor)}
+        {docLabelOf(annotation.doc)} · {whereOf(annotation.anchor)}
       </div>
       {quotesOf(annotation.anchor).map((quote) => (
-        <div class={annotation.mark.kind === "delete" ? "quote struck" : "quote"} key={quote.key}>
+        <div
+          class={["quote", annotation.mark.kind === "delete" && "struck", quote.mono && "code"]
+            .filter((name) => name !== false)
+            .join(" ")}
+          key={quote.key}
+        >
           “{quote.text}”{quote.removed && <Tag>removed by your edit</Tag>}
         </div>
       ))}
@@ -178,11 +222,25 @@ export function CommentsHandle(): preact.JSX.Element {
   );
 }
 
-export function Comments(): preact.JSX.Element {
+/** The panel; `doc` is what the general box comments: the document shown, or the plan beside one that takes none. */
+export function Comments(props: { readonly doc: GroupedDoc | null }): preact.JSX.Element {
   const draft = typed.value.general;
-  const doc = currentDoc.value;
-  const list = annotations.value;
-  const name = doc === null ? "" : (doc.path.split("/").at(-1) ?? doc.path);
+  const { doc } = props;
+  const list = sorted(annotations.value, docs.value);
+  const view = review.value;
+  const name = doc === null || view === null ? "" : pathLabel(doc, view);
+  const known = useRef<ReadonlySet<string> | null>(null);
+
+  // A comment added scrolls the list to its card: the reviewer sees it land.
+  useEffect(() => {
+    const ids = new Set(list.map((annotation) => annotation.id));
+    const before = known.current;
+    known.current = ids;
+
+    if (before === null) return;
+    const added = list.findLast((annotation) => !before.has(annotation.id));
+    document.querySelector(`#card-${added?.id ?? ""}`)?.scrollIntoView({ block: "nearest" });
+  }, [list.map((annotation) => annotation.id).join("|")]);
 
   const add = (): void => {
     if (doc === null || draft.trim() === "") return;

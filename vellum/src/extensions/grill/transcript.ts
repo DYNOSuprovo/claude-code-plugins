@@ -1,4 +1,4 @@
-import type { Question, Relay } from "./protocol.ts";
+import type { CloseReason, Question, Relay } from "./protocol.ts";
 
 /**
  * The transcript as text: every function takes the file and returns the file. What the page and
@@ -7,8 +7,13 @@ import type { Question, Relay } from "./protocol.ts";
 
 export type Phase = "working" | "waiting";
 
-/** The file cut for the page: Markdown to render, and each question as data, beside its answer. */
+/**
+ * The file cut for the page: its opening and its end as data, so the page says them in its own
+ * words and never the session; Markdown to render; each question as data, beside its answer.
+ */
 export type Segment =
+  | { readonly kind: "opened"; readonly subject: string; readonly at: string }
+  | { readonly kind: "closed"; readonly at: string; readonly reason: CloseReason | "approved" }
   | { readonly kind: "markdown"; readonly text: string }
   | ({ readonly kind: "question"; readonly id: string; readonly answer: string | null } & Question);
 
@@ -32,7 +37,12 @@ const REVIEWER_VOICE = "\n### Reviewer\n\n";
 const REPLY =
   /^### Reviewer\n\n([\s\S]*?)(?=^### |^## Round |^_\(session: |^---\n\nClosed |(?![\s\S]))/gmu;
 
-const FOOTER = /\n---\n\nClosed \d{4}-\d{2}-\d{2} \d{2}:\d{2} · ([a-z]+)\n$/u;
+const STAMP = String.raw`\d{4}-\d{2}-\d{2} \d{2}:\d{2}`;
+
+const FOOTER = new RegExp(String.raw`\n---\n\nClosed (${STAMP}) · ([a-z]+)\n$`, "u");
+
+/** As `header` writes it: the subject, the stamp, and the session the page never shows. */
+const HEADER = new RegExp(String.raw`^# Grill: (.*)\n\nStarted (${STAMP}) · session \w*\n`, "u");
 
 /** As `appendQuestions` writes it, and as Claude types it by hand: a dash of any length, the colon or none. */
 const QUESTION = /^❓\s*\*\*(Q\d+)\*\*\s*[-–—]\s*\*\*(.+?)\*\*:?\s*(.*)$/u;
@@ -229,7 +239,7 @@ export function relaysOf(doc: string, name: string, after: number): Relay[] {
     })),
   ];
 
-  if (FOOTER.exec(doc)?.[1] === "page") entries.push({ kind: "ended", seq: all.length + 1, name });
+  if (FOOTER.exec(doc)?.[2] === "page") entries.push({ kind: "ended", seq: all.length + 1, name });
 
   return entries.filter((entry) => entry.seq > after);
 }
@@ -272,19 +282,39 @@ function cut(text: string, answers: ReadonlyMap<string, string>): Segment[] {
     );
   }
 
-  return segments.filter((segment) => segment.kind === "question" || segment.text.trim() !== "");
+  return segments.filter((segment) => segment.kind !== "markdown" || segment.text.trim() !== "");
+}
+
+function closeReasonOf(word: string): CloseReason | "approved" | null {
+  return word === "page" || word === "stop" || word === "approved" ? word : null;
 }
 
 /**
- * The whole file for the page. Every question is a card, so the markers never reach the screen,
- * and an answer is read beside its question: of a reply, only the note stays as text.
+ * The whole file for the page. The opening and the end are data; every question is a card, so
+ * the markers never reach the screen; an answer is read beside its question: of a reply, only
+ * the note stays as text.
  */
 export function segmentsOf(doc: string): Segment[] {
-  const shown = doc.replaceAll(REPLY, (_, reply: string) => {
+  const head = HEADER.exec(doc);
+  const foot = FOOTER.exec(doc);
+  const reason = foot === null ? null : closeReasonOf(foot[2] ?? "");
+
+  const opened: Segment[] =
+    head === null ? [] : [{ kind: "opened", subject: head[1] ?? "", at: head[2] ?? "" }];
+
+  const closed: Segment[] =
+    foot === null || reason === null ? [] : [{ kind: "closed", at: foot[1] ?? "", reason }];
+
+  const body = doc.slice(
+    head?.[0].length ?? 0,
+    reason === null || foot === null ? doc.length : foot.index,
+  );
+
+  const shown = body.replaceAll(REPLY, (_, reply: string) => {
     const { note } = partsOf(reply);
 
     return note === "" ? "" : `### Reviewer\n\n${note}\n\n`;
   });
 
-  return cut(shown, answersOf(doc));
+  return [...opened, ...cut(shown, answersOf(doc)), ...closed];
 }

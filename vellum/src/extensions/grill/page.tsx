@@ -15,6 +15,7 @@ import {
   typed,
 } from "../../core/page/state.ts";
 import type { Typed } from "../../core/protocol.ts";
+import { footerOf } from "./labels.ts";
 import { grillNumber } from "./parse.ts";
 import type { Block, GrillPosts, GrillState, Opened, Suggestion } from "./protocol.ts";
 
@@ -380,7 +381,19 @@ function GrillDoc(props: RendererProps): preact.JSX.Element {
     <div class="grill-doc" ref={sheet}>
       <div class="plan">
         {blocks.map((block, index) =>
-          block.kind === "html" ? (
+          block.kind === "opened" ? (
+            <div key={index}>
+              <h1>Grill: {block.subject}</h1>
+              <p class="grill-when">Started {block.at}</p>
+            </div>
+          ) : block.kind === "closed" ? (
+            <div key={index}>
+              <hr />
+              <p class="grill-when">
+                {footerOf(block.reason)} · {block.at}
+              </p>
+            </div>
+          ) : block.kind === "html" ? (
             // The server rendered it with raw HTML escaped and unsafe links cut: `toHtml`.
             // oxlint-disable-next-line react/no-danger -- the transcript's Markdown arrives rendered, since the page bundles no Markdown parser for it; `toHtml` in grill/server.ts is what makes it safe to insert.
             <div key={index} dangerouslySetInnerHTML={{ __html: block.html }} />

@@ -22,6 +22,7 @@ export type {
   ElementRef,
   Mark,
   Passage,
+  PassageKind,
   QuickLabel,
 } from "./server/domain/feedback.ts";
 

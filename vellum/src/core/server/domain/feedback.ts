@@ -1,8 +1,12 @@
 import type { ProjectPath, Version } from "./paths.ts";
 import { PLAN_FILE, versionFile } from "./workspace.ts";
 
+/** What a passage quotes: the text as shown, a whole code block, or a diagram by its source's first line. */
+export type PassageKind = "prose" | "code" | "diagram";
+
 /** One place in a document: a quote with its context and source lines. */
 export type Passage = {
+  readonly kind: PassageKind;
   readonly quote: string;
   readonly prefix: string;
   readonly suffix: string;

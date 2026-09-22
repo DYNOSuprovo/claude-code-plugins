@@ -1,15 +1,34 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
-import type { Mark, QuickLabel } from "../protocol.ts";
+import type { ElementRef, Mark, Passage, QuickLabel } from "../protocol.ts";
 import { QUICK_LABELS } from "../protocol.ts";
 import type { ProjectPath } from "../server/domain/paths.ts";
 import { Button, Chip, Popover } from "./kit.tsx";
+import { quoteOf, whereOf } from "./labels.ts";
 import type { Rect } from "./place.ts";
 import { placeNear } from "./place.ts";
 import { setTyped, typed } from "./state.ts";
 
-/** One chosen place, as the popover shows it: what it says, and where it is. */
-export type Pick = { readonly key: string; readonly text: string; readonly where: string };
+/** One chosen place: a passage of a text, or an element of a mockup; the popover says it in the page's words. */
+export type Pick = { readonly key: string } & (
+  | { readonly passage: Passage }
+  | { readonly element: ElementRef }
+);
+
+/** What the popover shows of a pick: the quote, in mono for a code block, and where it is. */
+type Shown = { readonly quote: string; readonly mono: boolean; readonly where: string };
+
+function shown(pick: Pick): Shown {
+  if ("element" in pick) {
+    return { quote: pick.element.text, mono: false, where: pick.element.label };
+  }
+
+  return {
+    quote: quoteOf(pick.passage),
+    mono: pick.passage.kind !== "prose",
+    where: whereOf({ kind: "text", passages: [pick.passage] }),
+  };
+}
 
 export type ComposerProps = {
   /** The document commented: the text typed is kept for the next composer on it. */
@@ -97,11 +116,15 @@ export function Composer(props: ComposerProps): preact.JSX.Element {
       onClose={cancel}
       onSubmit={send}
     >
-      {props.picks.map((pick) => (
-        <div class="quote" key={pick.key}>
-          “{pick.text}” · {pick.where}
-        </div>
-      ))}
+      {props.picks.map((pick) => {
+        const { quote, mono, where } = shown(pick);
+
+        return (
+          <div class={mono ? "quote code" : "quote"} key={pick.key}>
+            “{quote}” · <span class="where">{where}</span>
+          </div>
+        );
+      })}
       <div class="labels">
         {LABELS.map((label) => (
           <Chip key={label} disabled={text !== ""} onClick={() => submit({ kind: "label", label })}>

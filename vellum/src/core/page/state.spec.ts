@@ -79,7 +79,14 @@ function comment(id: string, path: string): Annotation {
 }
 
 function onLine(id: string, path: string, line: number): Annotation {
-  const passage = { quote: "q", prefix: "", suffix: "", lines: [line, line], removed: false };
+  const passage = {
+    quote: "q",
+    prefix: "",
+    suffix: "",
+    lines: [line, line],
+    removed: false,
+    kind: "prose",
+  };
 
   return { ...comment(id, path), anchor: { kind: "text", passages: [passage] } } as never;
 }
@@ -576,7 +583,9 @@ describe("the editor", () => {
         ...onLine("c1", `${WIP}.review/v2.md`, 2),
         anchor: {
           kind: "text",
-          passages: [{ quote: "q", prefix: "", suffix: "", lines: [2, 2], removed: true }],
+          passages: [
+            { quote: "q", prefix: "", suffix: "", lines: [2, 2], removed: true, kind: "prose" },
+          ],
         },
       },
     ]);

@@ -166,7 +166,11 @@ describe("the page's segments", () => {
   test("a question is data, its markers and its closing rule never Markdown", () => {
     const segments = segmentsOf(asked);
 
-    expect(segments.slice(1)).toEqual([
+    expect(segments.slice(0, 2)).toEqual([
+      { kind: "opened", subject: "auth", at: expect.any(String) },
+      { kind: "markdown", text: "\n## Round 1\n\n### Claude\n" },
+    ]);
+    expect(segments.slice(2)).toEqual([
       { kind: "question", id: "Q1", ...STYLE, answer: null },
       { kind: "question", id: "Q2", ...STYLE, answer: null },
       { kind: "markdown", text: "\nAsked.\n" },
@@ -188,7 +192,7 @@ describe("the page's segments", () => {
     const typed =
       "❓ **Q1** – **Riding times**: day or night?\n\n➡️ *Both*\n\n---\n\nYour answers?";
 
-    expect(segmentsOf(appendAnswer(opened, typed, "answer", OWN)).slice(1)).toEqual([
+    expect(segmentsOf(appendAnswer(opened, typed, "answer", OWN)).slice(2)).toEqual([
       {
         kind: "question",
         id: "Q1",

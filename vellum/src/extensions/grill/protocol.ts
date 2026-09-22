@@ -43,6 +43,8 @@ export type GrillState =
  * stay in the file, where they carry the parsing, and the page never prints them.
  */
 export type Block =
+  | { readonly kind: "opened"; readonly subject: string; readonly at: string }
+  | { readonly kind: "closed"; readonly at: string; readonly reason: CloseReason | "approved" }
   | { readonly kind: "html"; readonly html: string }
   | {
       readonly kind: "question";

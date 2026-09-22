@@ -362,7 +362,7 @@ describe("the blocks the page draws", () => {
     const blocks = await get(`blocks?file=${encodeURIComponent(`${WIP}grill-1.md`)}`);
 
     expect(await blocks.json()).toEqual([
-      { kind: "html", html: expect.stringContaining("<h1>Grill: auth</h1>") },
+      { kind: "opened", subject: "auth", at: expect.any(String) },
     ]);
     expect((await get("blocks?file=../../../etc/passwd")).status).toBe(404);
     expect((await get("blocks?file=grill-9.md")).status).toBe(404);

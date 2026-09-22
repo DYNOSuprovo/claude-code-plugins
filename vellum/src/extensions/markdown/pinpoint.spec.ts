@@ -85,6 +85,7 @@ describe("diagramPassage", () => {
       suffix: "",
       lines: [7, 11],
       removed: false,
+      kind: "diagram",
     });
   });
 

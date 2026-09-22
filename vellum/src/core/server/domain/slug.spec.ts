@@ -19,6 +19,18 @@ describe("slugFromTitle", () => {
     });
   });
 
+  test("a long heading is cut between two words, never inside one", () => {
+    const words = "# A very long artifact name for the offline conflict resolution walkthrough";
+    expect(slugFromTitle(words)).toEqual({
+      ok: true,
+      value: "a-very-long-artifact-name-for-the-offline-conflict" as never,
+    });
+    expect(slugFromTitle(`# ${"ab ".repeat(30)}`)).toEqual({
+      ok: true,
+      value: "ab-".repeat(20).slice(0, -1) as never,
+    });
+  });
+
   test("no heading is an error", () => {
     expect(slugFromTitle("no heading here").ok).toBe(false);
   });

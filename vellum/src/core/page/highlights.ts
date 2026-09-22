@@ -1,4 +1,4 @@
-export type HighlightName = "vellum-comment" | "vellum-draft";
+export type HighlightName = "vellum-comment" | "vellum-draft" | "vellum-focus";
 
 /** Paints `ranges` under `name` with the CSS Custom Highlight API; an empty list clears it. */
 export function paint(name: HighlightName, ranges: readonly Range[]): void {

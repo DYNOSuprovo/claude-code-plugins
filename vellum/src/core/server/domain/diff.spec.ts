@@ -84,7 +84,14 @@ function deleteAt(
   lines: readonly [number, number],
   removed = false,
 ): Annotation {
-  const passage = { quote: "fast enough", prefix: "", suffix: "", lines, removed };
+  const passage = {
+    kind: "prose",
+    quote: "fast enough",
+    prefix: "",
+    suffix: "",
+    lines,
+    removed,
+  } as const;
 
   return { id: "a", doc, anchor: { kind: "text", passages: [passage] }, mark: { kind: "delete" } };
 }
