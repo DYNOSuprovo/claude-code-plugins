@@ -6,7 +6,7 @@ import type { Renderer } from "../extension.ts";
 import type { DocRef } from "../protocol.ts";
 import { lineAtTop } from "./caret.ts";
 import { Comments, CommentsHandle } from "./comments.tsx";
-import { DecisionBar } from "./decision-bar.tsx";
+import { DecisionBar, Notices } from "./decision-bar.tsx";
 import { DocList, RailHandle } from "./doc-list.tsx";
 import { Editor } from "./editor.tsx";
 import { isSwitchKey, keyPressOf } from "./selection.ts";
@@ -111,6 +111,8 @@ function Panes(): preact.JSX.Element {
 
 const actions = pageExtensions.flatMap((extension) => extension.actions ?? []);
 
+const extraNotices = pageExtensions.flatMap((extension) => extension.notices ?? []);
+
 function App(): preact.JSX.Element {
   useEffect(() => {
     void start();
@@ -146,6 +148,7 @@ function App(): preact.JSX.Element {
         Skip to document
       </a>
       <DecisionBar actions={actions} />
+      <Notices extensions={extraNotices} />
       <div class="body">
         <DocList />
         <RailHandle />

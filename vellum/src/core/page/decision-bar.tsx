@@ -1,72 +1,23 @@
 import type { ComponentType } from "preact";
 import { useEffect, useState } from "preact/hooks";
 
-import type { Annotation, PlanWorkspace } from "../protocol.ts";
+import type { Annotation } from "../protocol.ts";
 import { countChanges } from "../protocol.ts";
 import { Badge, Banner, Button, Popover } from "./kit.tsx";
+import type { Notice } from "./notices.ts";
+import { decisionsOf, statusOf } from "./notices.ts";
 import {
   annotations,
   connection,
   decide,
   edited,
   editing,
-  error,
-  locked,
+  notices,
   planChanges,
   planText,
   review,
   unsentTyped,
 } from "./state.ts";
-
-type Status = { readonly label: string; readonly tone: "" | "sent" | "ok" | "err" };
-
-type Notice = {
-  readonly text: string;
-  readonly tone: "sent" | "ok" | "err";
-  readonly retry: boolean;
-};
-
-function statusOf(workspace: PlanWorkspace): Status {
-  switch (workspace.kind) {
-    case "drafting":
-      return { label: "Drafting", tone: "" };
-    case "inReview":
-      return workspace.finalizeError === null
-        ? { label: "In review", tone: "" }
-        : { label: "In review", tone: "err" };
-    case "changesRequested":
-      return { label: "Feedback sent", tone: "sent" };
-    case "approved":
-      return { label: "Approved", tone: "ok" };
-  }
-}
-
-function noticeOf(workspace: PlanWorkspace): Notice | null {
-  switch (workspace.kind) {
-    case "drafting":
-      return null;
-    case "inReview":
-      return workspace.finalizeError === null
-        ? null
-        : {
-            text: `Could not rename the folder: ${workspace.finalizeError}. Nothing was sent to Claude.`,
-            tone: "err",
-            retry: true,
-          };
-    case "changesRequested":
-      return {
-        text: "Feedback sent to Claude. Waiting for the next version of the plan.",
-        tone: "sent",
-        retry: false,
-      };
-    case "approved":
-      return {
-        text: `Plan approved. Folder renamed to ${workspace.dir}.`,
-        tone: "ok",
-        retry: false,
-      };
-  }
-}
 
 function titleOf(plan: string | null): string {
   return /^#\s+(.+?)\s*$/mu.exec(plan ?? "")?.[1] ?? "Plan";
@@ -108,6 +59,7 @@ const CLOSED: BarPopover = { kind: "closed" };
 
 type NotesProps = {
   readonly text: string;
+  readonly disabled: boolean;
   readonly onInput: (text: string) => void;
   readonly onApprove: () => void;
   readonly onCancel: () => void;
@@ -133,7 +85,7 @@ function ApprovalNotes(props: NotesProps): preact.JSX.Element {
         <Button size="sm" onClick={props.onCancel}>
           Cancel
         </Button>
-        <Button size="sm" onClick={props.onApprove}>
+        <Button size="sm" variant="send" disabled={props.disabled} onClick={props.onApprove}>
           Approve <kbd>Ctrl</kbd> <kbd>↵</kbd>
         </Button>
       </div>
@@ -153,6 +105,7 @@ type WarningProps = {
   readonly onCancel: () => void;
 };
 
+/** Each reason on two lines: what is there, in red, then what the decision does with it. */
 function Warning(props: WarningProps): preact.JSX.Element {
   const one = props.count === 1;
   const verb = props.action === "approve" ? "Approving" : "Sending";
@@ -179,7 +132,12 @@ function Warning(props: WarningProps): preact.JSX.Element {
         </div>
       ))}
       {props.typed.length > 0 && <div>{verb} discards it.</div>}
-      {props.hold !== null && <div class="warn-text">{props.hold}; approving ends it.</div>}
+      {props.hold !== null && (
+        <>
+          <div class="warn-text">{props.hold}.</div>
+          <div>Approving ends it.</div>
+        </>
+      )}
       <div class="row">
         <Button size="sm" onClick={props.onCancel}>
           Cancel
@@ -192,28 +150,6 @@ function Warning(props: WarningProps): preact.JSX.Element {
   );
 }
 
-// A server revived on another port never answers this tab again: past this, only a new link does.
-const NEW_LINK_HINT_MS = 30_000;
-
-function ConnectionLost(): preact.JSX.Element {
-  const [late, setLate] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLate(true), NEW_LINK_HINT_MS);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  return (
-    <Banner kind="err">
-      <span>
-        Connection to the review server lost. Retrying…
-        {late && " Run /vellum:start for a new link."}
-      </span>
-    </Banner>
-  );
-}
-
 type BarProps = {
   /** The extensions' actions, handed down by `app.tsx`: the one file that reads the registry. */
   readonly actions: readonly ComponentType[];
@@ -222,8 +158,8 @@ type BarProps = {
 export function DecisionBar(props: BarProps): preact.JSX.Element {
   const view = review.value;
   const workspace = view?.workspace;
-  const status = workspace === undefined ? null : statusOf(workspace);
-  const notice = workspace === undefined ? null : noticeOf(workspace);
+  const hold = view?.held ?? null;
+  const status = workspace === undefined ? null : statusOf(workspace, hold);
   const count = annotations.value.length;
   const since = view?.plan?.previous?.version;
   const changed = planChanges.value === null ? null : countChanges(planChanges.value);
@@ -235,14 +171,23 @@ export function DecisionBar(props: BarProps): preact.JSX.Element {
     document.title = `${title} · Vellum`;
   }, [title]);
 
-  const frozen = locked.value || editing.value !== null;
-  const hold = view?.held ?? null;
-  // After a failed rename the first attempt's files stand: "Retry approval" is the one approve left.
-  const stuck = workspace?.kind === "inReview" && workspace.finalizeError !== null;
+  const live = decisionsOf({
+    workspace: workspace ?? null,
+    held: hold,
+    connection: connection.value,
+    editing: editing.value !== null,
+    edited: edited.value !== null,
+    annotations: count,
+    unsentTyped: unsentTyped.value.length,
+  });
 
+  const drawn = workspace !== undefined && workspace.kind !== "approved";
+
+  /** The notes popover closes on success alone: a failure leaves the note where it was typed. */
   const approve = (notes: string): void => {
-    close();
-    void decide({ kind: "approve", edit: edited.value, notes });
+    void decide({ kind: "approve", edit: edited.value, notes }).then((taken) => {
+      if (taken) close();
+    });
   };
 
   const proceed = (next: Next): void => {
@@ -257,7 +202,13 @@ export function DecisionBar(props: BarProps): preact.JSX.Element {
         typedAgreed: unsentTyped.value,
         warned: hold,
       });
-    } else approve(next.kind === "noted" ? next.notes.text : "");
+    } else if (next.kind === "noted") {
+      setPopover(next.notes);
+      approve(next.notes.text);
+    } else {
+      close();
+      approve("");
+    }
   };
 
   /**
@@ -278,90 +229,113 @@ export function DecisionBar(props: BarProps): preact.JSX.Element {
   };
 
   return (
-    <>
-      <header class="bar">
-        <span class="brand">Vellum</span>
-        <span class="title" title={title}>
-          {title}
+    <header class="bar">
+      <span class="brand">Vellum</span>
+      <span class="title" title={title}>
+        {title}
+      </span>
+      {workspace !== undefined && workspace.kind !== "drafting" && (
+        <span class="version">v{workspace.version}</span>
+      )}
+      {changed !== null && since !== undefined && (
+        <span class="stat" title={`Lines changed since v${since}`}>
+          <span class="plus">+{changed.added}</span> <span class="minus">−{changed.removed}</span>
         </span>
-        {workspace !== undefined && workspace.kind !== "drafting" && (
-          <span class="version">v{workspace.version}</span>
-        )}
-        {changed !== null && since !== undefined && (
-          <span class="stat" title={`Lines changed since v${since}`}>
-            <span class="plus">+{changed.added}</span> <span class="minus">−{changed.removed}</span>
-          </span>
-        )}
-        {status !== null && <span class={`status ${status.tone}`}>{status.label}</span>}
-        <span class="spacer" />
-        {props.actions.map((Action, index) => (
-          <Action key={index} />
-        ))}
-        {workspace?.kind !== "drafting" && (
-          <>
-            <Button disabled={frozen || stuck} onClick={() => ask({ kind: "approve" })}>
-              Approve
-            </Button>
-            <Button disabled={frozen || stuck} onClick={() => ask({ kind: "notes" })}>
-              Approve with notes…
-            </Button>
-          </>
-        )}
+      )}
+      {status !== null && (
+        <span class={status.tone === "neutral" ? "status" : `status ${status.tone}`}>
+          {status.text}
+        </span>
+      )}
+      <span class="spacer" />
+      {props.actions.map((Action, index) => (
+        <Action key={index} />
+      ))}
+      {drawn && workspace.kind !== "drafting" && (
+        <>
+          <Button
+            disabled={live.approve.disabled}
+            title={live.approve.title ?? undefined}
+            onClick={() => ask({ kind: "approve" })}
+          >
+            Approve
+          </Button>
+          <Button
+            disabled={live.notes.disabled}
+            title={live.notes.title ?? undefined}
+            onClick={() => ask({ kind: "notes" })}
+          >
+            Approve with notes…
+          </Button>
+        </>
+      )}
+      {drawn && (
         <Button
           variant="send"
-          disabled={frozen || hold !== null || (count === 0 && edited.value === null)}
-          title={hold === null ? undefined : `${hold}; end it first`}
+          disabled={live.feedback.disabled}
+          title={live.feedback.title ?? undefined}
           onClick={() => ask({ kind: "feedback" })}
         >
           Send feedback {count > 0 && <Badge>{count}</Badge>}
         </Button>
-        {popover.kind === "notes" && !frozen && (
-          <ApprovalNotes
-            text={popover.text}
-            onInput={(text) => setPopover({ ...popover, text })}
-            onApprove={() => ask({ kind: "noted", notes: popover })}
-            onCancel={close}
-          />
-        )}
-        {popover.kind === "warn" && !frozen && (
-          <Warning
-            action={popover.next.kind === "feedback" ? "send" : "approve"}
-            count={popover.next.kind === "feedback" ? 0 : count}
-            hold={popover.next.kind === "feedback" ? null : hold}
-            typed={unsentTyped.value}
-            onProceed={() => proceed(popover.next)}
-            onCancel={() => setPopover(popover.next.kind === "noted" ? popover.next.notes : CLOSED)}
-          />
-        )}
-      </header>
-      {connection.value === "down" && <ConnectionLost />}
-      {notice !== null && (
-        <Banner kind={notice.tone}>
-          <span>{notice.text}</span>
-          {notice.retry && (
-            <Button
-              size="sm"
-              disabled={editing.value !== null}
-              onClick={() => void decide({ kind: "approve", edit: null, notes: "" })}
-            >
-              Retry approval
-            </Button>
-          )}
-        </Banner>
       )}
-      {error.value !== null && (
-        <Banner kind="err">
-          <span>{error.value}</span>
-          <Button
-            size="sm"
-            onClick={() => {
-              error.value = null;
-            }}
-          >
-            Dismiss
-          </Button>
-        </Banner>
+      {popover.kind === "notes" && editing.value === null && (
+        <ApprovalNotes
+          text={popover.text}
+          disabled={live.notes.disabled}
+          onInput={(text) => setPopover({ ...popover, text })}
+          onApprove={() => {
+            if (!live.notes.disabled) ask({ kind: "noted", notes: popover });
+          }}
+          onCancel={close}
+        />
       )}
+      {popover.kind === "warn" && editing.value === null && (
+        <Warning
+          action={popover.next.kind === "feedback" ? "send" : "approve"}
+          count={popover.next.kind === "feedback" ? 0 : count}
+          hold={popover.next.kind === "feedback" ? null : hold}
+          typed={unsentTyped.value}
+          onProceed={() => proceed(popover.next)}
+          onCancel={() => setPopover(popover.next.kind === "noted" ? popover.next.notes : CLOSED)}
+        />
+      )}
+    </header>
+  );
+}
+
+function NoticeText(props: { readonly notice: Notice }): preact.JSX.Element {
+  return (
+    <span>
+      {props.notice.text.map((part, index) =>
+        part instanceof Object ? <code key={index}>{part.code}</code> : part,
+      )}
+    </span>
+  );
+}
+
+type NoticesProps = {
+  /** The extensions' notices, handed down by `app.tsx`, drawn after the core's. */
+  readonly extensions: readonly ComponentType[];
+};
+
+/** The column under the bar: every notice the state derives, then what the extensions add. */
+export function Notices(props: NoticesProps): preact.JSX.Element {
+  return (
+    <>
+      {notices.value.map((notice) => (
+        <Banner
+          key={notice.key}
+          kind={notice.kind}
+          role={notice.kind === "err" ? "alert" : "status"}
+          action={notice.action}
+        >
+          <NoticeText notice={notice} />
+        </Banner>
+      ))}
+      {props.extensions.map((Extra, index) => (
+        <Extra key={index} />
+      ))}
     </>
   );
 }

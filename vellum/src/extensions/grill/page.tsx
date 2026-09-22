@@ -1,13 +1,22 @@
 import { signal } from "@preact/signals";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 import type { PageExtension, RendererProps } from "../../core/extension.ts";
 import { extensionRequest } from "../../core/page/api.ts";
-import { Button } from "../../core/page/kit.tsx";
-import { error, review, select, setTyped, typed } from "../../core/page/state.ts";
+import { Banner, Button } from "../../core/page/kit.tsx";
+import {
+  connection,
+  editing,
+  fail,
+  review,
+  select,
+  setTyped,
+  succeed,
+  typed,
+} from "../../core/page/state.ts";
 import type { Typed } from "../../core/protocol.ts";
 import { grillNumber } from "./parse.ts";
-import type { Block, GrillPosts, GrillState, Opened } from "./protocol.ts";
+import type { Block, GrillPosts, GrillState, Opened, Suggestion } from "./protocol.ts";
 
 const ID = "grill";
 
@@ -28,24 +37,30 @@ async function loadState(): Promise<void> {
   grill.value = response.ok ? ((await response.json()) as GrillState) : null;
 }
 
-/** The transcript's blocks, or `null` with the failure in the banner: the reviewer waits on them. */
+/** The transcript's blocks, or `null` with the failure in the notices: the reviewer waits on them. */
 async function blocksOf(path: string): Promise<Block[] | null> {
   try {
     const response = await extensionRequest(ID, `blocks?file=${encodeURIComponent(path)}`);
 
     if (response.ok) {
+      succeed("extension");
+
       // SAFETY: the server's own `Block[]`, serialized by `Response.json` in grill/server.ts.
       return (await response.json()) as Block[];
     }
 
-    error.value = `GET ${path} failed: ${response.status}`;
-  } catch (cause) {
-    error.value = `GET ${path} failed: ${String(cause)}`;
+    fail(
+      "extension",
+      `${nameOf(path)} could not be loaded: the server answered ${response.status}.`,
+    );
+  } catch {
+    fail("extension", `${nameOf(path)} could not be loaded: the server did not answer.`);
   }
 
   return null;
 }
 
+/** What the reviewer waits on: a refusal or a server that did not answer is a failure the notices show. */
 async function post<Name extends keyof GrillPosts>(
   path: Name,
   body: GrillPosts[Name],
@@ -53,9 +68,16 @@ async function post<Name extends keyof GrillPosts>(
   const response = await extensionRequest(ID, path, {
     method: "POST",
     body: JSON.stringify(body),
-  });
+  }).catch(() => null);
 
-  if (!response.ok) error.value = `POST ${ID}/${path} failed: ${response.status}`;
+  if (response === null) {
+    fail("extension", "The grill did not reach the server. What you typed is kept.");
+
+    return new Response(null, { status: 0 });
+  }
+
+  if (response.ok) succeed("extension");
+  else fail("extension", `The grill was refused: the server answered ${response.status}.`);
 
   return response;
 }
@@ -78,70 +100,116 @@ async function reply(
 }
 
 /** What the reviewer did with the banner: `auto` shows it while Claude suggests a grill. */
-type Banner = "auto" | "open" | "dismissed";
+const banner = signal<"auto" | "open" | "dismissed">("auto");
 
-function GrillAction(): preact.JSX.Element {
+/** The subject typed over the suggestion's; `null` while the suggestion's stands. */
+const subjectTyped = signal<string | null>(null);
+
+function suggestionOf(state: GrillState | null): Suggestion | null {
+  return state?.kind === "none" ? state.suggestion : null;
+}
+
+function bannerShown(state: GrillState | null): boolean {
+  return (
+    state?.kind === "none" &&
+    (banner.value === "open" || (banner.value === "auto" && suggestionOf(state) !== null))
+  );
+}
+
+/** Why the Grill button is greyed, in its title; `null` while a grill can open. */
+function grillWhy(state: GrillState | null): string | null {
+  if (connection.value === "down") return "The connection to the review server is lost";
+
+  if (editing.value !== null) return "Finish editing (Done) first";
+
+  if (review.value?.workspace.kind === "changesRequested")
+    return "Waiting for Claude's next version";
+
+  if (state === null) return "Loading the review";
+
+  return state.kind === "open" ? `${nameOf(state.file)} is already open` : null;
+}
+
+function GrillAction(): preact.JSX.Element | null {
   const view = review.value;
   const state = grill.value;
-  const [banner, setBanner] = useState<Banner>("auto");
-  const [subjectTyped, setSubjectTyped] = useState<string | null>(null);
-  const suggestion = state?.kind === "none" ? state.suggestion : null;
-  const subject = subjectTyped ?? suggestion?.subject ?? "";
-
-  const shown =
-    state?.kind === "none" && (banner === "open" || (banner === "auto" && suggestion !== null));
 
   useEffect(() => {
     void loadState();
   }, [view]);
 
+  if (view?.workspace.kind === "approved") return null;
+  const why = grillWhy(state);
+
+  return (
+    <Button
+      variant="grill"
+      class={suggestionOf(state) === null ? undefined : "lit"}
+      disabled={why !== null}
+      title={why ?? undefined}
+      onClick={() => {
+        banner.value = bannerShown(state) ? "dismissed" : "open";
+      }}
+    >
+      Grill
+    </Button>
+  );
+}
+
+/** The suggestion, or the subject asked for: a banner in the flow, its field on a line of its own, the focus in it. */
+function SuggestionBanner(props: { readonly suggestion: Suggestion | null }): preact.JSX.Element {
+  const field = useRef<HTMLInputElement>(null);
+  const subject = subjectTyped.value ?? props.suggestion?.subject ?? "";
+
+  useEffect(() => field.current?.focus(), []);
+
   const start = (): void => {
-    setBanner("auto");
-    setSubjectTyped(null);
+    banner.value = "auto";
+    subjectTyped.value = null;
     void openGrill(subject.trim());
   };
 
+  const dismiss = (): void => {
+    banner.value = "dismissed";
+  };
+
   return (
-    <>
-      {state?.kind === "open" && (
-        <span class="status">
-          Grill open · {state.phase === "working" ? "Claude is working" : nameOf(state.file)}
+    <Banner kind="info">
+      {props.suggestion !== null && (
+        <span>
+          <strong>Claude suggests a grill:</strong> {props.suggestion.reason}
         </span>
       )}
-      <Button
-        variant="grill"
-        class={suggestion === null ? undefined : "lit"}
-        disabled={state?.kind !== "none" || view?.workspace.kind === "approved"}
-        onClick={() => setBanner(shown ? "dismissed" : "open")}
-      >
-        Grill
-      </Button>
-      {shown && (
-        <div class="grill-banner">
-          {suggestion !== null && (
-            <span>
-              <strong>Claude suggests a grill:</strong> {suggestion.reason}
-            </span>
-          )}
-          <input
-            aria-label="Subject of the grill"
-            placeholder="What should Claude grill you on?"
-            value={subject}
-            onInput={(event) => setSubjectTyped(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && subject.trim() !== "") start();
-            }}
-          />
-          <Button size="sm" variant="send" disabled={subject.trim() === ""} onClick={start}>
-            Start grilling
-          </Button>
-          <Button size="sm" onClick={() => setBanner("dismissed")}>
-            Dismiss
-          </Button>
-        </div>
-      )}
-    </>
+      <div class="grill-subject">
+        <input
+          ref={field}
+          aria-label="Subject of the grill"
+          placeholder="What should Claude grill you on?"
+          value={subject}
+          onInput={(event) => {
+            subjectTyped.value = event.currentTarget.value;
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && subject.trim() !== "") start();
+
+            if (event.key === "Escape") dismiss();
+          }}
+        />
+        <Button size="sm" variant="send" disabled={subject.trim() === ""} onClick={start}>
+          Start grilling
+        </Button>
+        <Button size="sm" onClick={dismiss}>
+          Dismiss
+        </Button>
+      </div>
+    </Banner>
   );
+}
+
+function GrillNotice(): preact.JSX.Element | null {
+  const state = grill.value;
+
+  return bannerShown(state) ? <SuggestionBanner suggestion={suggestionOf(state)} /> : null;
 }
 
 type CardProps = {
@@ -244,8 +312,28 @@ function GrillDoc(props: RendererProps): preact.JSX.Element {
     });
   }, [path, modified]);
 
+  const sheet = useRef<HTMLDivElement>(null);
+  const openBefore = useRef(0);
+  const firstOpen = open[0] ?? null;
+
+  // A round that lands scrolls to its first card: the reviewer reads at the bottom, under the foot.
+  useEffect(() => {
+    const landed = openBefore.current === 0 && open.length > 0;
+    openBefore.current = open.length;
+
+    if (!landed || firstOpen === null) return;
+
+    for (const card of sheet.current?.querySelectorAll<HTMLElement>(".grill-q") ?? []) {
+      if (card.querySelector(".num")?.textContent === firstOpen) {
+        card.scrollIntoView({ block: "start" });
+
+        return;
+      }
+    }
+  }, [firstOpen, open.length]);
+
   return (
-    <div class="grill-doc">
+    <div class="grill-doc" ref={sheet}>
       <div class="plan">
         {blocks.map((block, index) =>
           block.kind === "html" ? (
@@ -262,6 +350,11 @@ function GrillDoc(props: RendererProps): preact.JSX.Element {
               }
             />
           ),
+        )}
+        {current?.phase === "working" && (
+          <p class="grill-working" role="status">
+            Claude is working. The next round appears here.
+          </p>
         )}
       </div>
       {current !== null && (
@@ -304,4 +397,5 @@ export const grillPage: PageExtension = {
     },
   ],
   actions: [GrillAction],
+  notices: [GrillNotice],
 };

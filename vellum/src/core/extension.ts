@@ -32,6 +32,8 @@ export type PageExtension = {
   readonly renderers?: readonly Renderer[];
   /** Drawn in the decision bar, before the decision's own buttons, in registry order. */
   readonly actions?: readonly ComponentType[];
+  /** Drawn in the notices column under the bar, in the flow, after the core's own: the grill's suggestion. */
+  readonly notices?: readonly ComponentType[];
 };
 
 /**

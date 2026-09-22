@@ -92,10 +92,22 @@ no build step, so what the page imports costs nothing at `cli start`.
   never reads `commentSwitch`: it reads `commenting`, false on a locked page, so no composer
   opens there, and `addAnnotation` returns when locked, as `select` does while the editor is
   open. A comment nobody can send is a silent loss.
-- `review.held` is what holds the review, or `null`. Held, Send feedback is disabled with the
-  reason as its title, and every way to an approval goes through the warning popover, which
-  says the approval ends what holds it. The bar prints the reason and never reads which
-  extension gave it.
+- `review.held` is what holds the review, or `null`. Held, the pill reads `Held · <reason>`
+  (`statusOf`), a notice says it, Send feedback is disabled with the reason as its title, and
+  every way to an approval goes through the warning popover, which says the approval ends what
+  holds it. The bar prints the reason and never reads which extension gave it.
+- What the page says of its state is derived, in `notices.ts`, pure and held by
+  `notices.spec.ts`: `noticesOf` the column under the bar, `statusOf` the pill, `decisionsOf`
+  the three buttons of the core, greyed or not and why, the reason in each `title`. Nothing
+  writes a sentence into a signal: a request that fails is a `Failure` of its operation, through
+  `fail` of `state.ts`, one per operation, and the next success of that operation removes it
+  (`succeed`); the stale editor derives from `editing` and the version, so its notice leaves
+  with the editor; a card's Delete leaves an `undo` for a while. `app.tsx` draws the column with
+  `Notices`, the core's first, then each extension's `notices` components: the grill's
+  suggestion is one, in the flow, its field on its own line, the focus in it, Escape closing it.
+  An extension's own button computes its greyed state and its `title` itself (`GrillAction`).
+  A notice of kind `err` is `role="alert"`, the others `role="status"`; a literal in one comes
+  as `{ code }` and is drawn in `<code>`. In `approved` the bar draws no button.
 - A module of the page reads the browser inside a function, never at its own scope, so a
   `bun:test` suite imports the store, the renderers and every component but the three `app.tsx`
   keeps to itself (`App`, `Panes`, `Doc`): `api.ts` reads the token off `location` at each call,
@@ -132,31 +144,36 @@ no build step, so what the page imports costs nothing at `cli start`.
   strings, and swapped they compile, invert the line diff and record the old text as the edit. Every load settles the edit
   through `editOnLoad` (kept, landed, stale), a restored one included, which is why the restore
   comes before the first load. The editor never closes by itself and nothing Claude does clears
-  the reviewer's comments: a stale edit is dropped with a banner, never silently, and Done on a
-  version that moved keeps the editor open so the typing can be copied.
+  the reviewer's comments: a stale edit is dropped with a notice (a `Failure` of op `edit`),
+  never silently, and Done on a version that moved is greyed under the notice `staleEditor`
+  derives, the editor open so the typing can be copied.
 - One line diff, computed once: `planChanges` in `state.ts` compares the previous version with
   the text on screen, the bar prints its count, and the plan's renderer marks it while
   "Changes since" is on. On Done the same `lineDiff` shifts the plan's comments through
   `shiftAnnotations`, so a feedback only ever names lines of the text it is sent with.
 - `EventSource` reconnects by itself, so the page polls nothing: `subscribe` reports `error`
-  and `open`, `connection` keeps `up | down`, and the bar draws the lost-connection banner while
-  `down`. A server revived on the same port and token clears it with no reload; past thirty
-  seconds the banner names `/vellum:start`, the one way to a link that works.
+  and `open`, `connection` keeps `up | down`, and the column draws the lost-connection notice
+  while `down`, the three decisions and Grill greyed meanwhile. A server revived on the same
+  port and token clears it with no reload; past `NEW_LINK_HINT_MS` the notice names
+  `/vellum:start`, the one way to a link that works.
 - The server watches the working directory, so every file Claude writes reaches the page as a
   workspace event. A renderer loads its document through `docUrl`, whose query is the file's
   `modified`: a rewrite reloads that document alone, and nothing else remounts.
-- What the reviewer waits on fails in the banner, through `error` of `state.ts`, as the core's
-  own requests do: a write (`post` in `grill/page.tsx`) and a document's load (`sourceOf` in
-  `markdown/page.tsx`, `blocksOf` in `grill/page.tsx`). A load checks `response.ok` before it
-  reads the body, or the server's error page is drawn as the document and takes comments, and it
-  catches, or an aborted request reaches nobody. A read that only refreshes what is on
-  screen may fail in silence, since the next workspace event reads again:
-  `loadState` in `grill/page.tsx`.
-- In the Markdown renderer the banner says the failure and the sheet says the state it leaves: a
+- What the reviewer waits on fails in the notices, through `fail` of `state.ts`, as the core's
+  own requests do: a write (`post` in `grill/page.tsx`, op `extension`) and a document's load
+  (`sourceOf` in `markdown/page.tsx`, op `load`, `blocksOf` in `grill/page.tsx`). A load checks
+  `response.ok` before it reads the body, or the server's error page is drawn as the document and
+  takes comments, and it catches, or an aborted request reaches nobody. A read that only
+  refreshes what is on screen may fail in silence, since the next workspace event reads again:
+  `loadState` in `grill/page.tsx`. `decide` answers whether the server took the decision, and
+  the notes popover closes on that alone: a failure leaves the note where it was typed.
+- In the Markdown renderer the notice says the failure and the sheet says the state it leaves: a
   first load that failed prints it where the wait was, a failed reload keeps the text the reviewer
   is reading. `waitingText` in `markdown/sheet.ts` chooses, purely, and `MarkdownDoc` draws it in
   the one `.waiting` line it already had. No other renderer has that state: a grill's transcript
-  whose blocks failed to load stays an empty sheet under the banner.
+  whose blocks failed to load stays an empty sheet under the notice. While Claude works on a
+  round the transcript's sheet carries a `role="status"` line, and a round that lands scrolls to
+  its first open card.
 - A block says its source lines in `data-lines="start-end"`: `markdown/tree.ts` writes it,
   `parseLines` of `anchoring.ts` is the one place it is read, and `tree.spec.ts` holds the two
   together. Every reader calls it, the pure helpers of `markdown/` included: a second copy of

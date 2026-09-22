@@ -1,0 +1,225 @@
+import type { PlanWorkspace } from "../protocol.ts";
+import type { Version } from "../server/domain/paths.ts";
+import type { BannerKind } from "./kit.tsx";
+
+/**
+ * What the page says of its state, derived: the notices under the bar, the pill, and whether
+ * each decision is live and why not. Pure, so `notices.spec.ts` reads every case as a call.
+ */
+
+/** A piece of a notice's text: a literal (a path, a command) comes wrapped, and is drawn in `<code>`. */
+export type NoticePart = string | { readonly code: string };
+
+export type Notice = {
+  /** One notice per cause: a cause that repeats replaces, never stacks. */
+  readonly key: string;
+  readonly kind: BannerKind;
+  readonly text: readonly NoticePart[];
+  readonly action?: { readonly label: string; readonly run: () => void };
+};
+
+/** A request that failed, one per operation: a success of the same operation removes it. */
+export type Failure = {
+  readonly op: "review" | "draft" | "decision" | "load" | "extension" | "edit";
+  readonly text: string;
+};
+
+/** A server revived on another port never answers this tab again: past this, only a new link does. */
+export const NEW_LINK_HINT_MS = 30_000;
+
+/** Why an open editor cannot hand its text over; `null` while the version it opened on is under review. */
+export function staleEditor(
+  editing: { readonly version: Version } | null,
+  workspace: PlanWorkspace | null,
+): string | null {
+  if (editing === null || workspace === null || workspace.kind === "drafting") return null;
+  const live = workspace.version;
+
+  if (workspace.kind === "inReview" && live === editing.version) return null;
+
+  return live === editing.version
+    ? `v${live} is no longer under review. Copy what you need, then Cancel.`
+    : `v${live} arrived while you were editing v${editing.version}. Copy what you need, then Cancel.`;
+}
+
+function workspaceNotice(workspace: PlanWorkspace, retry: () => void): Notice | null {
+  switch (workspace.kind) {
+    case "drafting":
+      return workspace.batches === 0
+        ? null
+        : {
+            key: "workspace",
+            kind: "sent",
+            text: ["Comments sent to Claude: it revises ", { code: "plan.md" }, " and goes on."],
+          };
+    case "inReview":
+      return workspace.finalizeError === null
+        ? null
+        : {
+            key: "finalize",
+            kind: "err",
+            text: [
+              `Could not rename the folder: ${workspace.finalizeError}. Nothing was sent to Claude.`,
+            ],
+            action: { label: "Retry approval", run: retry },
+          };
+    case "changesRequested":
+      return {
+        key: "workspace",
+        kind: "sent",
+        text: ["Feedback sent to Claude. Waiting for the next version of the plan."],
+      };
+    case "approved":
+      return {
+        key: "workspace",
+        kind: "ok",
+        text: ["Plan approved: the folder is now ", { code: workspace.dir }],
+      };
+  }
+}
+
+/** The core's notices, in the order the column draws them. */
+export function noticesOf(input: {
+  readonly workspace: PlanWorkspace | null;
+  readonly held: string | null;
+  readonly connection: "up" | "down";
+  /** How long the connection has been down, in ms; `null` while it is up. */
+  readonly downSince: number | null;
+  readonly editing: { readonly version: Version } | null;
+  readonly failures: readonly Failure[];
+  readonly undo: { readonly label: string; readonly run: () => void } | null;
+  /** What "Retry approval" runs, after a rename that failed. */
+  readonly retry: () => void;
+}): readonly Notice[] {
+  const notices: Notice[] = [];
+  const down = input.connection === "down";
+
+  if (down) {
+    const late = (input.downSince ?? 0) >= NEW_LINK_HINT_MS;
+
+    notices.push({
+      key: "connection",
+      kind: "err",
+      text: [
+        "Connection to the review server lost. Retrying… Your comments are kept in this tab, not saved.",
+        ...(late ? [" Run ", { code: "/vellum:start" }, " for a new link."] : []),
+      ],
+    });
+  }
+
+  for (const failure of input.failures) {
+    if (down && failure.op === "draft") continue;
+    notices.push({ key: `failure:${failure.op}`, kind: "err", text: [failure.text] });
+  }
+
+  const stale = staleEditor(input.editing, input.workspace);
+
+  if (stale !== null) notices.push({ key: "stale-editor", kind: "err", text: [stale] });
+
+  if (input.held !== null) {
+    notices.push({
+      key: "held",
+      kind: "info",
+      text: [`The review is held: ${input.held}. Send feedback resumes once it ends.`],
+    });
+  }
+
+  const own = input.workspace === null ? null : workspaceNotice(input.workspace, input.retry);
+
+  if (own !== null) notices.push(own);
+
+  if (input.undo !== null) {
+    notices.push({ key: "undo", kind: "info", text: ["Comment deleted."], action: input.undo });
+  }
+
+  return notices;
+}
+
+export type Status = { readonly text: string; readonly tone: "ok" | "err" | "sent" | "neutral" };
+
+/** The pill: what state the review is in, `Held · <reason>` when something holds it. */
+export function statusOf(workspace: PlanWorkspace, held: string | null): Status {
+  switch (workspace.kind) {
+    case "drafting":
+      return {
+        text: workspace.batches === 0 ? "Drafting" : `Drafting · ${workspace.batches} sent`,
+        tone: "neutral",
+      };
+    case "inReview":
+      if (workspace.finalizeError !== null) return { text: "Approval failed", tone: "err" };
+
+      return held === null
+        ? { text: "In review", tone: "neutral" }
+        : { text: `Held · ${held}`, tone: "neutral" };
+    case "changesRequested":
+      return { text: "Feedback sent", tone: "sent" };
+    case "approved":
+      return { text: "Approved", tone: "ok" };
+  }
+}
+
+export type Live = { readonly disabled: boolean; readonly title: string | null };
+
+export type Decisions = { readonly approve: Live; readonly notes: Live; readonly feedback: Live };
+
+const LIVE: Live = { disabled: false, title: null };
+
+function greyed(title: string): Live {
+  return { disabled: true, title };
+}
+
+/**
+ * The three buttons of the core: greyed or not, and why, the reason written in its `title`. An
+ * extension's button is computed by the extension.
+ */
+export function decisionsOf(input: {
+  readonly workspace: PlanWorkspace | null;
+  readonly held: string | null;
+  readonly connection: "up" | "down";
+  readonly editing: boolean;
+  readonly edited: boolean;
+  readonly annotations: number;
+  readonly unsentTyped: number;
+}): Decisions {
+  const { workspace } = input;
+
+  const common =
+    workspace === null
+      ? "Loading the review"
+      : input.connection === "down"
+        ? "The connection to the review server is lost"
+        : input.editing
+          ? "Finish editing (Done) first"
+          : workspace.kind === "changesRequested"
+            ? "Waiting for Claude's next version"
+            : workspace.kind === "approved"
+              ? "The plan is approved"
+              : null;
+
+  if (common !== null || workspace === null) {
+    const all = greyed(common ?? "Loading the review");
+
+    return { approve: all, notes: all, feedback: all };
+  }
+
+  const approve =
+    workspace.kind === "drafting"
+      ? greyed("No version to approve yet")
+      : workspace.kind === "inReview" && workspace.finalizeError !== null
+        ? greyed("Retry the approval from the banner")
+        : LIVE;
+
+  const nothing =
+    input.unsentTyped > 0
+      ? "Add the comment you typed first (Add comment)"
+      : "Add a comment or edit the plan first";
+
+  const feedback =
+    input.held === null
+      ? input.annotations > 0 || input.edited
+        ? LIVE
+        : greyed(nothing)
+      : greyed(`${input.held}; end it first`);
+
+  return { approve, notes: approve, feedback };
+}

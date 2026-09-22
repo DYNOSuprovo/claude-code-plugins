@@ -12,7 +12,16 @@ import { srgb } from "../../core/page/kit.tsx";
 import type { Rect } from "../../core/page/place.ts";
 import { windowOf } from "../../core/page/place.ts";
 import { dragRange, toggled } from "../../core/page/selection.ts";
-import { commenting, dark, docs, error, holding, review, select } from "../../core/page/state.ts";
+import {
+  commenting,
+  dark,
+  docs,
+  fail,
+  holding,
+  review,
+  select,
+  succeed,
+} from "../../core/page/state.ts";
 import type { DocRef, Passage } from "../../core/protocol.ts";
 import { parseProjectPath } from "../../core/server/domain/paths.ts";
 import type { Changes, RemovedRun } from "./changes.ts";
@@ -278,15 +287,22 @@ function onClick(event: MouseEvent): void {
   select(target);
 }
 
-/** The document's text, or `null` with the failure in the banner: an error page is not the document. */
+/** The document's text, or `null` with the failure in the notices: an error page is not the document. */
 async function sourceOf(doc: DocRef): Promise<string | null> {
+  const name = doc.path.split("/").at(-1) ?? doc.path;
+
   try {
     const response = await fetch(docUrl(doc));
 
-    if (response.ok) return await response.text();
-    error.value = `GET ${doc.path} failed: ${response.status}`;
-  } catch (cause) {
-    error.value = `GET ${doc.path} failed: ${String(cause)}`;
+    if (response.ok) {
+      succeed("load");
+
+      return await response.text();
+    }
+
+    fail("load", `${name} could not be loaded: the server answered ${response.status}.`);
+  } catch {
+    fail("load", `${name} could not be loaded: the server did not answer.`);
   }
 
   return null;

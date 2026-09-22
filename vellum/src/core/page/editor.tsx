@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 import { offsetOfLine } from "./caret.ts";
 import { Button, Popover } from "./kit.tsx";
+import { staleEditor } from "./notices.ts";
 import type { EditSession } from "./state.ts";
-import { editing, finishEdit, setTyped, typed } from "./state.ts";
+import { editing, finishEdit, review, setTyped, typed } from "./state.ts";
 
 /** The session the editor opened on: nothing in it changes while it is open. */
 export type EditorProps = {
@@ -25,6 +26,7 @@ function discard(): void {
 export function Editor({ session }: EditorProps): preact.JSX.Element {
   const textarea = useRef<HTMLTextAreaElement>(null);
   const [asking, setAsking] = useState(false);
+  const stale = staleEditor(session, review.value?.workspace ?? null);
   const kept = typed.peek().editor;
   const initial = kept !== null && kept.version === session.version ? kept.text : session.base;
 
@@ -57,6 +59,8 @@ export function Editor({ session }: EditorProps): preact.JSX.Element {
         <Button
           size="sm"
           variant="send"
+          disabled={stale !== null}
+          title={stale ?? undefined}
           onClick={() => {
             setTyped({ editor: null });
             finishEdit(session, text());

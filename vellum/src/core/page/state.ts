@@ -21,6 +21,8 @@ import {
 } from "../protocol.ts";
 import type { ProjectPath, Version } from "../server/domain/paths.ts";
 import { fetchDraft, fetchReview, postDecision, putDraft, subscribe } from "./api.ts";
+import type { Failure } from "./notices.ts";
+import { NEW_LINK_HINT_MS, noticesOf } from "./notices.ts";
 
 export const review = signal<ReviewView | null>(null);
 
@@ -106,9 +108,28 @@ export const editing = signal<EditSession | null>(null);
 /** "Changes since" is off at every load: the reviewer reads the plan itself first. */
 export const showChanges = signal(false);
 
-export const error = signal<string | null>(null);
+/** The requests that failed, one per operation: `fail` replaces the operation's entry, `succeed` removes it. */
+export const failures = signal<readonly Failure[]>([]);
+
+export function fail(op: Failure["op"], text: string): void {
+  failures.value = [...failures.value.filter((failure) => failure.op !== op), { op, text }];
+}
+
+export function succeed(op: Failure["op"]): void {
+  if (failures.value.some((failure) => failure.op === op)) {
+    failures.value = failures.value.filter((failure) => failure.op !== op);
+  }
+}
+
+/** What the last Delete of a card can undo, for `UNDO_MS`; `null` past that or once undone. */
+export const undo = signal<{ readonly label: string; readonly run: () => void } | null>(null);
 
 export const connection = signal<"up" | "down">("up");
+
+/** When the stream first failed, and how long ago as far as the notice cares: `0`, then past the hint's delay. */
+const downAt = signal<number | null>(null);
+
+const downFor = signal<number | null>(null);
 
 export const planDoc = computed<GroupedDoc | null>(() => {
   const plan = review.value?.plan;
@@ -165,13 +186,6 @@ export function flipCommentSwitch(): void {
   commentSwitch.value = !commentSwitch.value;
 }
 
-/** Why an open editor cannot hand its text over: said as soon as it is known, and again at Done. */
-function staleEditor(editingVersion: Version, live: Version): string {
-  return live === editingVersion
-    ? `v${live} is no longer under review. Copy what you need, then Cancel.`
-    : `v${live} arrived while you were editing v${editingVersion}. Copy what you need, then Cancel.`;
-}
-
 /** What a load makes of the unsent edit: kept, cleared because it landed, or dropped with a banner. */
 function settleEdit(view: ReviewView): void {
   const edit = edited.value;
@@ -190,7 +204,10 @@ function settleEdit(view: ReviewView): void {
   edited.value = null;
 
   if (fate === "stale") {
-    error.value = `Your unsent edit of v${edit.version} was dropped: another version of the plan arrived. Your comments are kept.`;
+    fail(
+      "edit",
+      `Your unsent edit of v${edit.version} was dropped: another version of the plan arrived. Your comments are kept.`,
+    );
 
     return;
   }
@@ -200,39 +217,51 @@ function settleEdit(view: ReviewView): void {
 }
 
 async function loadReview(): Promise<void> {
-  const fetched = await fetchReview();
+  const fetched = await fetchReview().catch(() => null);
 
-  if (!fetched.ok) {
-    error.value = `GET /api/review failed: ${fetched.status}`;
+  if (fetched === null || !fetched.ok) {
+    fail(
+      "review",
+      fetched === null
+        ? "The review could not be loaded: the server did not answer."
+        : `The review could not be loaded: the server answered ${fetched.status}.`,
+    );
 
     return;
   }
 
-  const { workspace } = fetched.value;
-  review.value = fetched.value;
-  batch(() => settleEdit(fetched.value));
-  const session = editing.value;
-
-  // Last, so it wins over a dropped edit: the open editor still holds that edit's text.
-  if (session !== null && workspace.kind !== "drafting" && workspace.version !== session.version) {
-    error.value = staleEditor(session.version, workspace.version);
-  }
+  batch(() => {
+    succeed("review");
+    review.value = fetched.value;
+    settleEdit(fetched.value);
+  });
 }
 
-export async function decide(decision: Decision): Promise<void> {
-  const status = await postDecision(decision);
+/** `true` once the server took the decision; a refusal or a server that did not answer is a failure the notices show. */
+export async function decide(decision: Decision): Promise<boolean> {
+  const status = await postDecision(decision).catch(() => null);
 
-  if (status === 409) error.value = "This version was already decided.";
-  else if (status >= 300) error.value = `POST /api/decision failed: ${status}`;
-  else {
+  if (status === null) {
+    fail("decision", "The decision did not reach the server. Your comments are kept in this tab.");
+
+    return false;
+  }
+
+  if (status === 409) fail("decision", "This version was already decided.");
+  else if (status >= 300) {
+    fail("decision", `Not sent: the server answered ${status}. Your comments are kept.`);
+  } else {
     batch(() => {
       annotations.value = [];
       edited.value = null;
       typed.value = EMPTY_TYPED;
+      succeed("decision");
     });
   }
 
   await loadReview();
+
+  return status < 300;
 }
 
 /** Edit: the editor opens on the version under review, on the unsent edit of it when there is one. */
@@ -247,8 +276,8 @@ export function openEditor(line: number): void {
 /**
  * Done, with the session the editor opened on and the text typed: the comments follow their lines
  * through the edit, and an edit back to the version's text is no edit. When another version
- * arrived meanwhile, or this one was decided elsewhere, the editor stays open: the typing must
- * stay reachable.
+ * arrived meanwhile, or this one was decided elsewhere, the editor stays open, under the notice
+ * `staleEditor` derives: the typing must stay reachable.
  */
 export function finishEdit(session: EditSession, text: string): void {
   const { version, base } = session;
@@ -256,11 +285,7 @@ export function finishEdit(session: EditSession, text: string): void {
 
   if (view === null || view.plan === null || view.workspace.kind === "drafting") return;
 
-  if (view.workspace.kind !== "inReview" || view.workspace.version !== version) {
-    error.value = staleEditor(version, view.workspace.version);
-
-    return;
-  }
+  if (view.workspace.kind !== "inReview" || view.workspace.version !== version) return;
 
   const { doc, text: reviewed } = view.plan;
 
@@ -268,6 +293,7 @@ export function finishEdit(session: EditSession, text: string): void {
     annotations.value = shiftAnnotations(annotations.value, doc, lineDiff(base, text));
     edited.value = text === reviewed ? null : { version, text };
     editing.value = null;
+    succeed("edit");
   });
 }
 
@@ -277,8 +303,37 @@ export function addAnnotation(annotation: Omit<Annotation, "id">): void {
   annotations.value = [...annotations.value, { ...annotation, id: crypto.randomUUID() }];
 }
 
+/** How long a deleted card can be undone from the notice. */
+const UNDO_MS = 8_000;
+
+let undoTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Delete on a card: at once, and undone from the notice for a while; a second Delete replaces the first's undo. */
 export function removeAnnotation(id: string): void {
+  const index = annotations.value.findIndex((annotation) => annotation.id === id);
+  const gone = annotations.value[index];
+
+  if (gone === undefined) return;
   annotations.value = annotations.value.filter((annotation) => annotation.id !== id);
+
+  if (undoTimer !== null) clearTimeout(undoTimer);
+
+  const timer = setTimeout(() => {
+    undo.value = null;
+  }, UNDO_MS);
+
+  undoTimer = timer;
+
+  undo.value = {
+    label: "Undo",
+    run: () => {
+      clearTimeout(timer);
+      batch(() => {
+        undo.value = null;
+        annotations.value = annotations.value.toSpliced(index, 0, gone);
+      });
+    },
+  };
 }
 
 /** A card's Edit: the mark changes, the place stays. */
@@ -300,9 +355,14 @@ async function saveDraft(draft: Draft): Promise<void> {
   try {
     const status = await putDraft(draft);
 
-    if (status >= 300) error.value = `PUT /api/draft failed: ${status}`;
-  } catch (cause) {
-    error.value = `PUT /api/draft failed: ${String(cause)}`;
+    if (status >= 300) {
+      fail(
+        "draft",
+        `Your comments are kept in this tab, not saved: the server answered ${status}.`,
+      );
+    } else succeed("draft");
+  } catch {
+    fail("draft", "Your comments are kept in this tab, not saved: the server did not answer.");
   }
 }
 
@@ -378,18 +438,49 @@ export async function start(): Promise<void> {
       );
     });
   } else {
-    error.value =
+    fail(
+      "draft",
       saved.reason ??
-      `GET /api/draft failed: ${saved.status}. Nothing is saved until a reload succeeds.`;
+        `The saved draft could not be read: the server answered ${saved.status}. Nothing is saved until a reload succeeds.`,
+    );
   }
 
   subscribe(
     () => void loadReview(),
     () => {
       connection.value = "down";
+
+      if (downAt.peek() !== null) return;
+      const at = Date.now();
+      batch(() => {
+        downAt.value = at;
+        downFor.value = 0;
+      });
+
+      setTimeout(() => {
+        if (downAt.peek() === at) downFor.value = Date.now() - at;
+      }, NEW_LINK_HINT_MS);
     },
     () => {
-      connection.value = "up";
+      batch(() => {
+        connection.value = "up";
+        downAt.value = null;
+        downFor.value = null;
+      });
     },
   );
 }
+
+/** The core's notices, drawn under the bar in this order. */
+export const notices = computed(() =>
+  noticesOf({
+    workspace: review.value?.workspace ?? null,
+    held: review.value?.held ?? null,
+    connection: connection.value,
+    downSince: downFor.value,
+    editing: editing.value,
+    failures: failures.value,
+    undo: undo.value,
+    retry: () => void decide({ kind: "approve", edit: null, notes: "" }),
+  }),
+);

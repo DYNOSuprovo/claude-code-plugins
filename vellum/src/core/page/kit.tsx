@@ -20,13 +20,15 @@ function classes(...names: readonly (string | false | undefined)[]): string {
   return names.filter((name) => name !== false && name !== undefined && name !== "").join(" ");
 }
 
+/** A `title` given as `undefined` leaves no attribute: Preact would write an empty one, since the DOM has the property. */
 export function Button(props: ButtonProps): JSX.Element {
-  const { variant = "default", size = "md", class: extra, children, ...rest } = props;
+  const { variant = "default", size = "md", class: extra, title, children, ...rest } = props;
 
   return (
     <button
       type="button"
       {...rest}
+      {...(title === undefined ? {} : { title })}
       class={classes("btn", variant !== "default" && variant, size === "sm" && "sm", extra)}
     >
       {children}
@@ -57,15 +59,24 @@ export function Tag(props: { readonly children: ComponentChildren }): JSX.Elemen
   return <span class="chip">{props.children}</span>;
 }
 
-export type BannerKind = "sent" | "ok" | "err";
+export type BannerKind = "sent" | "ok" | "err" | "info";
 
 export function Banner(props: {
   readonly kind: BannerKind;
+  /** `alert` for what went wrong, `status` otherwise: the default. */
+  readonly role?: "status" | "alert";
+  /** The one button a banner offers, after its text. */
+  readonly action?: { readonly label: string; readonly run: () => void } | undefined;
   readonly children: ComponentChildren;
 }): JSX.Element {
   return (
-    <div class={`banner ${props.kind}`} role="status">
+    <div class={`banner ${props.kind}`} role={props.role ?? "status"}>
       {props.children}
+      {props.action !== undefined && (
+        <Button size="sm" onClick={props.action.run}>
+          {props.action.label}
+        </Button>
+      )}
     </div>
   );
 }

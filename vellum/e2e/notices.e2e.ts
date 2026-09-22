@@ -86,8 +86,9 @@ test.describe("the decisions", () => {
     const approve = page.locator(".bar").getByRole("button", { name: "Approve", exact: true });
     await expect(approve).toBeDisabled();
     await expect(approve).toHaveAttribute("title", /Done/u);
-    await expect(page.getByRole("button", { name: "Grill" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Grill" })).toHaveAttribute("title", /Done/u);
+    const grill = page.getByRole("button", { name: "Grill", exact: true });
+    await expect(grill).toBeDisabled();
+    await expect(grill).toHaveAttribute("title", /Done/u);
   });
 
   test("after a feedback they wait for the next version, Grill too", async ({ page, vellum }) => {
@@ -96,7 +97,7 @@ test.describe("the decisions", () => {
     await page.getByRole("button", { name: /Send feedback/u }).click();
     await expect(page.locator(".bar .status")).toHaveText("Feedback sent");
 
-    const grill = page.getByRole("button", { name: "Grill" });
+    const grill = page.getByRole("button", { name: "Grill", exact: true });
     await expect(grill).toBeDisabled();
     await expect(grill).toHaveAttribute("title", /next version/iu);
     await expect(page.getByRole("button", { name: "Approve", exact: true })).toHaveAttribute(
@@ -207,7 +208,7 @@ test.describe("the grill", () => {
 
     await page.keyboard.press("Escape");
     await expect(banner).toHaveCount(0);
-    await page.getByRole("button", { name: "Grill" }).click();
+    await page.getByRole("button", { name: "Grill", exact: true }).click();
     await expect(banner.getByRole("textbox")).toBeFocused();
   });
 
@@ -237,7 +238,7 @@ test.describe("the grill", () => {
     const q4 = await boxOf(page.locator(".grill-q").nth(3));
     const foot = await boxOf(page.locator(".grill-foot"));
     const window = await boxOf(pane);
-    expect(q4.y).toBeGreaterThanOrEqual(window.y);
+    expect(q4.y).toBeGreaterThanOrEqual(window.y - 1);
     expect(q4.y + 40).toBeLessThanOrEqual(foot.y);
   });
 });

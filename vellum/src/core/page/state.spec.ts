@@ -115,8 +115,9 @@ function port<Name extends keyof Ports>(name: Name, fake: Ports[Name]): void {
   });
 }
 
+// Last in, first out: a test that fakes a port twice puts the real one back, not the first fake.
 afterEach(() => {
-  for (const restore of restores.splice(0)) restore();
+  for (const restore of restores.splice(0).toReversed()) restore();
 });
 
 type Served = {
@@ -570,8 +571,8 @@ describe("the editor", () => {
     expect(editing.value).toBeNull();
   });
 
-  test("Done once another version arrived keeps the editor open and says why", async () => {
-    const { edited, editing, error, finishEdit, openEditor, review } = await freshStore();
+  test("Done once another version arrived keeps the editor open, and the notices say why", async () => {
+    const { edited, editing, finishEdit, notices, openEditor, review } = await freshStore();
     review.value = versioned({ version: 1, text: "a\n" });
     openEditor(1);
     review.value = versioned({ version: 2, text: "b\n" });
@@ -579,20 +580,23 @@ describe("the editor", () => {
 
     expect(editing.value).not.toBeNull();
     expect(edited.value).toBeNull();
-    expect(error.value).toBe(
+    expect(notices.value.map((notice) => notice.text.join(""))).toEqual([
       "v2 arrived while you were editing v1. Copy what you need, then Cancel.",
-    );
+    ]);
   });
 
-  test("Done once the version was decided elsewhere keeps the editor open and says so", async () => {
-    const { editing, error, finishEdit, openEditor, review } = await freshStore();
+  test("Done once the version was decided elsewhere keeps the editor open, and the notices say so", async () => {
+    const { editing, finishEdit, notices, openEditor, review } = await freshStore();
     review.value = versioned({ version: 1, text: "a\n" });
     openEditor(1);
     review.value = versioned({ version: 1, text: "a\n", kind: "changesRequested" });
     finishEdit({ version: 1, base: "a\n", line: 1 } as never, "mine\n");
 
     expect(editing.value).not.toBeNull();
-    expect(error.value).toBe("v1 is no longer under review. Copy what you need, then Cancel.");
+    expect(notices.value.map((notice) => notice.text.join(""))).toEqual([
+      "v1 is no longer under review. Copy what you need, then Cancel.",
+      "Feedback sent to Claude. Waiting for the next version of the plan.",
+    ]);
   });
 });
 
@@ -669,9 +673,12 @@ describe("start", () => {
     await store.start();
 
     expect(store.edited.value).toBeNull();
-    expect(store.error.value).toBe(
-      "Your unsent edit of v1 was dropped: another version of the plan arrived. Your comments are kept.",
-    );
+    expect(store.failures.value).toEqual([
+      {
+        op: "edit",
+        text: "Your unsent edit of v1 was dropped: another version of the plan arrived. Your comments are kept.",
+      },
+    ]);
     expect(store.annotations.value).toEqual(kept);
   });
 
@@ -684,7 +691,7 @@ describe("start", () => {
     await store.start();
 
     expect(store.edited.value).toEqual(edit(1, "mine\n"));
-    expect(store.error.value).toBeNull();
+    expect(store.failures.value).toEqual([]);
   });
 
   test("a restored edit that landed as the next version is cleared, and its comments become that version's", async () => {
@@ -700,7 +707,7 @@ describe("start", () => {
     await store.start();
 
     expect(store.edited.value).toBeNull();
-    expect(store.error.value).toBeNull();
+    expect(store.failures.value).toEqual([]);
     expect(store.annotations.value).toEqual([comment("c1", `${WIP}.review/v2.md`)]);
   });
 
@@ -712,9 +719,12 @@ describe("start", () => {
     await settled();
 
     expect(server.puts).toEqual([]);
-    expect(store.error.value).toBe(
-      "GET /api/draft failed: 500. Nothing is saved until a reload succeeds.",
-    );
+    expect(store.failures.value).toEqual([
+      {
+        op: "draft",
+        text: "The saved draft could not be read: the server answered 500. Nothing is saved until a reload succeeds.",
+      },
+    ]);
   });
 
   test("after it each change is one write, and the next waits for the one before", async () => {
@@ -814,7 +824,7 @@ describe("start", () => {
     await settled();
 
     expect(server.puts).toEqual([]);
-    expect(store.error.value).toBe(refused);
+    expect(store.failures.value).toEqual([{ op: "draft", text: refused }]);
   });
 
   test("what is typed is restored before the first load, with the comments", async () => {
@@ -891,7 +901,7 @@ describe("start", () => {
     store.addAnnotation(comment("", `${WIP}.review/v1.md`));
     await settled();
 
-    expect(store.error.value).toBe("PUT /api/draft failed: Error: offline");
+    expect(store.failures.value).toEqual([]);
     expect(server.puts.map((put) => put.annotations.length)).toEqual([0, 1, 2]);
   });
 
@@ -901,7 +911,12 @@ describe("start", () => {
     await store.start();
     await settled();
 
-    expect(store.error.value).toBe("PUT /api/draft failed: 500");
+    expect(store.failures.value).toEqual([
+      {
+        op: "draft",
+        text: "Your comments are kept in this tab, not saved: the server answered 500.",
+      },
+    ]);
   });
 
   test("the event stream opens once the first load is in, on the token's path", async () => {
@@ -942,7 +957,9 @@ describe("start", () => {
     await store.start();
 
     expect(store.review.value).toBeNull();
-    expect(store.error.value).toBe("GET /api/review failed: 500");
+    expect(store.failures.value).toEqual([
+      { op: "review", text: "The review could not be loaded: the server answered 500." },
+    ]);
   });
 
   test("a version that lands under an open editor says so, over the dropped edit's own banner", async () => {
@@ -957,9 +974,13 @@ describe("start", () => {
 
     expect(store.edited.value).toBeNull();
     expect(store.editing.value).not.toBeNull();
-    expect(store.error.value).toBe(
-      "v3 arrived while you were editing v1. Copy what you need, then Cancel.",
-    );
+    expect(store.notices.value.map((notice) => [notice.key, notice.text.join("")])).toEqual([
+      [
+        "failure:edit",
+        "Your unsent edit of v1 was dropped: another version of the plan arrived. Your comments are kept.",
+      ],
+      ["stale-editor", "v3 arrived while you were editing v1. Copy what you need, then Cancel."],
+    ]);
   });
 });
 
@@ -973,11 +994,9 @@ describe("decide", () => {
     store.edited.value = edit(1, "mine\n");
     await store.decide({ kind: "approve", edit: null, notes: "" });
 
-    expect([store.annotations.value, store.edited.value, store.error.value]).toEqual([
-      [],
-      null,
-      null,
-    ]);
+    expect(store.annotations.value).toEqual([]);
+    expect(store.edited.value).toBeNull();
+    expect(store.failures.value).toEqual([]);
     expect(server.calls).toEqual(["POST /api/decision", "GET /api/review"]);
   });
 
@@ -997,7 +1016,9 @@ describe("decide", () => {
     await store.decide({ kind: "approve", edit: null, notes: "" });
 
     expect(store.annotations.value).toEqual(unsent);
-    expect(store.error.value).toBe("POST /api/decision failed: 300");
+    expect(store.failures.value).toEqual([
+      { op: "decision", text: "Not sent: the server answered 300. Your comments are kept." },
+    ]);
   });
 
   test("a version already decided keeps the comments and says so", async () => {
@@ -1007,7 +1028,9 @@ describe("decide", () => {
     await store.decide({ kind: "approve", edit: null, notes: "" });
 
     expect(store.annotations.value).toEqual(unsent);
-    expect(store.error.value).toBe("This version was already decided.");
+    expect(store.failures.value).toEqual([
+      { op: "decision", text: "This version was already decided." },
+    ]);
   });
 
   test("any other refusal keeps the comments and names the status", async () => {
@@ -1017,7 +1040,59 @@ describe("decide", () => {
     await store.decide({ kind: "approve", edit: null, notes: "" });
 
     expect(store.annotations.value).toEqual(unsent);
-    expect(store.error.value).toBe("POST /api/decision failed: 500");
+    expect(store.failures.value).toEqual([
+      { op: "decision", text: "Not sent: the server answered 500. Your comments are kept." },
+    ]);
+  });
+
+  test("a server that does not answer is a failure too, the comments kept, and the decision answers false", async () => {
+    const store = await freshStore();
+    serve({ draft: null, review: versioned({ version: 1 }) });
+    store.annotations.value = unsent;
+    port("fetch", () => Promise.reject(new Error("offline")));
+    const taken = await store.decide({ kind: "approve", edit: null, notes: "" });
+
+    expect(taken).toBe(false);
+    expect(store.annotations.value).toEqual(unsent);
+    expect(store.failures.value.map((failure) => failure.op)).toEqual(["decision"]);
+  });
+
+  test("a decision the server took answers true, and clears the failure of the one before", async () => {
+    const store = await freshStore();
+    const server = serve({ draft: null, review: versioned({ version: 1 }), decision: 500 });
+    await store.decide({ kind: "approve", edit: null, notes: "" });
+    server.answer = { ...server.answer, decision: 200 };
+    const taken = await store.decide({ kind: "approve", edit: null, notes: "" });
+
+    expect(taken).toBe(true);
+    expect(store.failures.value).toEqual([]);
+  });
+});
+
+describe("the failures", () => {
+  test("one per operation: a repeat replaces, a success removes, the others stay", async () => {
+    const { fail, failures, succeed } = await freshStore();
+    fail("load", "first");
+    fail("decision", "no");
+    fail("load", "second");
+    succeed("decision");
+
+    expect(failures.value).toEqual([{ op: "load", text: "second" }]);
+  });
+});
+
+describe("a deleted card", () => {
+  test("can be undone from the notice, back at its place, and the notice goes", async () => {
+    const { annotations, notices, removeAnnotation, undo } = await freshStore();
+    const [a, b, c] = ["a", "b", "c"].map((id) => comment(id, `${WIP}plan.md`));
+    annotations.value = [a, b, c] as never;
+    removeAnnotation("b");
+
+    expect(annotations.value).toEqual([a, c] as never);
+    expect(notices.value.at(-1)?.key).toBe("undo");
+    undo.value?.run();
+    expect(annotations.value).toEqual([a, b, c] as never);
+    expect(undo.value).toBeNull();
   });
 });
 
