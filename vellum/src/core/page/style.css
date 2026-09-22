@@ -17,6 +17,7 @@
   --code-string: #2a7348;
   --code-number: #8a5a00;
   --code-name: #1f5f8b;
+  /* Two surfaces the theme does not own, so the dark block leaves them: an image's paper, a mockup mark's outline. */
   --paper: #fbfcf9;
   --outline: #16202a;
 
@@ -76,8 +77,6 @@
     --code-string: #93d8a8;
     --code-number: #e8c07c;
     --code-name: #8fc7ee;
-    --paper: #fbfcf9;
-    --outline: #16202a;
     --tint: color-mix(in oklab, var(--desk) 55%, var(--sheet));
     --wash-marker: color-mix(in oklab, var(--marker) 32%, transparent);
     --field: color-mix(in oklab, var(--sheet) 88%, black);

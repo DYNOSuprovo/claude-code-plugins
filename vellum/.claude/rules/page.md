@@ -22,7 +22,7 @@ no build step, so what the page imports costs nothing at `cli start`.
   `index.html`. What an extension may import, and how one is added: `extensions.md`. Held by
   `src/boundaries.spec.ts`.
 - `style.css` is the one place a colour is written: its `:root` and its dark block, which
-  redefines every base token. Every other surface derives with `color-mix()`, and every size
+  redefines every base token but `--paper` and `--outline`, the two surfaces the theme does not own. Every other surface derives with `color-mix()`, and every size
   is a token of the three scales (`--t-*`, `--s-*`, `--r-*`). Two families, one rule: prose is
   `--serif` (Literata), code and literals (a path, a version, the diff count, a key) are
   `--mono` (JetBrains Mono), and the chrome reads as prose. The fonts ship in `fonts/`, each
