@@ -282,6 +282,7 @@ function syncOnce(repo: string, catalog: string, target: string): SyncReport {
     .split("\0")
     .filter(Boolean);
 
+  const installed = installedEntries();
   const checkout = command(["git", "checkout", "--detach", target], catalog);
   const output = rawOutput(checkout);
 
@@ -292,7 +293,6 @@ function syncOnce(repo: string, catalog: string, target: string): SyncReport {
   }
 
   report.catalog = { kind: "moved", from: old, to: target };
-  const installed = installedEntries();
 
   for (const change of changedPlugins(paths, before, after)) {
     const plugin = after.find((candidate) => candidate.name === change.name);

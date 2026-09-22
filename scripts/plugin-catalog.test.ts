@@ -289,6 +289,21 @@ test("archives a renamed plugin without updating or reinstalling it", () => {
   expect(calls()).not.toContain("claude plugin update");
 });
 
+test("leaves the catalog in place when the installed entries are unreadable, so the next sync replays", () => {
+  const installed = join(root, "claude/plugins/installed_plugins.json");
+  const valid = readFileSync(installed, "utf8");
+  const old = git(catalog, "rev-parse", "HEAD");
+  manifest("2.0.0");
+  const target = land();
+  write(installed, valid.slice(0, 10));
+  expect(run().code).toBe(1);
+  expect(git(catalog, "rev-parse", "HEAD")).toBe(old);
+  write(installed, valid);
+  expect(run().code).toBe(0);
+  expect(git(catalog, "rev-parse", "HEAD")).toBe(target);
+  expect(report().plugins[0].entry).toBe("updated");
+});
+
 test("records a notification failure without failing sync", () => {
   manifest("2.0.0");
   land();
