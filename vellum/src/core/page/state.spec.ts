@@ -1142,6 +1142,45 @@ describe("a deleted card", () => {
     expect(annotations.value).toEqual([a, b, c] as never);
     expect(undo.value).toBeNull();
   });
+
+  test("its undo goes with a decision the server took: a sent comment is not brought back", async () => {
+    const store = await freshStore();
+    serve({ draft: null, review: versioned({ version: 1 }), decision: 200 });
+    store.annotations.value = [comment("a", `${WIP}.review/v1.md`)];
+    store.removeAnnotation("a");
+    await store.decide({ kind: "feedback", edit: null, annotations: [] });
+
+    expect(store.undo.value).toBeNull();
+  });
+
+  test("its undo goes with Done and with Discard edit: the lines it kept are the old text's", async () => {
+    const { annotations, discardEdit, edited, finishEdit, removeAnnotation, review, undo } =
+      await freshStore();
+
+    review.value = versioned({ version: 1, text: "a\nb\n" });
+    annotations.value = [onLine("a", `${WIP}.review/v1.md`, 2)];
+    removeAnnotation("a");
+    finishEdit({ version: 1, base: "a\nb\n", line: 1 } as never, "new\na\nb\n");
+    const afterDone = undo.value;
+    edited.value = edit(1, "new\na\nb\n");
+    annotations.value = [onLine("b", `${WIP}.review/v1.md`, 3)];
+    removeAnnotation("b");
+    discardEdit();
+
+    expect([afterDone, undo.value]).toEqual([null, null]);
+  });
+
+  test("its undo restores nothing on a page that locked meanwhile", async () => {
+    const { annotations, removeAnnotation, review, undo } = await freshStore();
+    review.value = versioned({ version: 1 });
+    annotations.value = [comment("a", `${WIP}.review/v1.md`)];
+    removeAnnotation("a");
+    review.value = versioned({ version: 1, kind: "changesRequested" });
+    undo.value?.run();
+
+    expect(annotations.value).toEqual([]);
+    expect(undo.value).toBeNull();
+  });
 });
 
 describe("readWindow", () => {
