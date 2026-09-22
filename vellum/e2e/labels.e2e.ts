@@ -7,7 +7,8 @@ import { boxOf, commentOn, dragText, expect, openVellum, reviewV1, test } from "
  * What the page names: a card says the plan's version and a line, a code block is quoted by
  * its first line, a diagram by its kind, a mockup's element by its label; the rail tells two
  * documents apart and keeps a long name's extension; a card leads to its passage and the list
- * to a new card; the general box beside the plan comments the plan; the transcript's foot says
+ * to a new card; beside the plan, each Markdown sheet keeps its own highlights whatever the other
+ * paints or clears; the general box beside the plan comments the plan; the transcript's foot says
  * who ended the grill.
  */
 
@@ -169,6 +170,89 @@ test.describe("the list", () => {
     const last = await boxOf(page.locator(".comments .card").last());
     const box = await boxOf(list);
     expect(last.y + last.height).toBeLessThanOrEqual(box.y + box.height + 1);
+  });
+});
+
+/** How many ranges of the highlight `name` lie in each pane, the plan's first. */
+function highlighted(page: Page, name: string): Promise<number[]> {
+  return page.evaluate((key) => {
+    const ranges = [...(CSS.highlights.get(key) ?? [])];
+
+    return [...document.querySelectorAll(".pane")].map(
+      (pane) => ranges.filter((range) => pane.contains(range.startContainer)).length,
+    );
+  }, name);
+}
+
+/**
+ * The plan and `research-notes.md` side by side, a comment dragged in each. The split is turned
+ * on over another artifact first, so the notes' sheet mounts after the plan's and its effects run
+ * after the plan's: the order in which its cleanup erased the plan's highlights.
+ */
+async function commentedSideBySide(page: Page, vellum: Vellum): Promise<void> {
+  await reviewV1(page, vellum);
+  await page.locator("#rail button", { hasText: "a-very-long" }).click();
+  await page.locator(".tools [role=switch]", { hasText: "Beside the plan" }).click();
+  await page.locator("#rail button", { hasText: "research-notes.md" }).click();
+  await expect(page.locator(".pane")).toHaveCount(2);
+  await expect(page.locator(".pane").nth(1)).toContainText("Replay ordering");
+  await commentOn(page);
+
+  for (const [pane, paragraph, text] of [
+    [0, 0, "Which forms?"],
+    [1, 1, "Which order?"],
+  ] as const) {
+    const passage = page.locator(".pane").nth(pane).locator("article.plan > p").nth(paragraph);
+    await passage.scrollIntoViewIfNeeded();
+    await dragText(page, passage, 4, 30);
+    await page.keyboard.type(text);
+    await page.keyboard.press("Control+Enter");
+    await expect(page.locator(".comments .card", { hasText: text })).toHaveCount(1);
+  }
+}
+
+test.describe("a Markdown artifact beside the plan", () => {
+  test("each pane keeps its comment's highlight", async ({ page, vellum }) => {
+    await commentedSideBySide(page, vellum);
+
+    await expect.poll(() => highlighted(page, "vellum-comment")).toEqual([1, 1]);
+  });
+
+  test("Shift+Tab from the artifact's card to the plan's lights the plan's passage", async ({
+    page,
+    vellum,
+  }) => {
+    await commentedSideBySide(page, vellum);
+    const cards = page.locator(".comments .card");
+    await cards.nth(1).getByRole("button", { name: "Edit" }).focus();
+    await expect.poll(() => highlighted(page, "vellum-focus")).toEqual([0, 1]);
+    await page.keyboard.press("Shift+Tab");
+
+    await expect(cards.nth(0).getByRole("button", { name: "Delete" })).toBeFocused();
+    await expect.poll(() => highlighted(page, "vellum-focus")).toEqual([1, 0]);
+  });
+
+  // Blur and focus in one task, as a script's `focus()` gives them: between the two that the
+  // keyboard gives, the page renders, and the plan's passage lit whatever the effects' order.
+  test("a focus moved in one step from the artifact's card to the plan's lights the plan's passage", async ({
+    page,
+    vellum,
+  }) => {
+    await commentedSideBySide(page, vellum);
+    const cards = page.locator(".comments .card");
+    await cards.nth(1).getByRole("button", { name: "Edit" }).focus();
+    await expect.poll(() => highlighted(page, "vellum-focus")).toEqual([0, 1]);
+    await cards.nth(0).getByRole("button", { name: "Delete" }).focus();
+
+    await expect.poll(() => highlighted(page, "vellum-focus")).toEqual([1, 0]);
+  });
+
+  test("turning Beside the plan off leaves the artifact's highlight", async ({ page, vellum }) => {
+    await commentedSideBySide(page, vellum);
+    await page.locator(".tools [role=switch]", { hasText: "Beside the plan" }).click();
+    await expect(page.locator(".pane")).toHaveCount(1);
+
+    await expect.poll(() => highlighted(page, "vellum-comment")).toEqual([1]);
   });
 });
 

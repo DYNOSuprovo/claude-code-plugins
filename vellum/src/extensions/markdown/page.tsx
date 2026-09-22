@@ -262,8 +262,8 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
 
     const picked = (draft?.chosen ?? []).map((one) => one.passage);
 
-    paint("vellum-comment", rangesOf(root, commented));
-    paint("vellum-draft", rangesOf(root, picked));
+    paint(root, "vellum-comment", rangesOf(root, commented));
+    paint(root, "vellum-draft", rangesOf(root, picked));
     box(
       root,
       "commented",
@@ -277,8 +277,8 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     fillet(commented);
 
     return () => {
-      paint("vellum-comment", []);
-      paint("vellum-draft", []);
+      paint(root, "vellum-comment", []);
+      paint(root, "vellum-draft", []);
       box(root, "commented", []);
       box(root, "picked", []);
       fillet([]);
@@ -299,7 +299,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     const passages =
       target.anchor.kind === "text" ? target.anchor.passages.filter((one) => !one.removed) : [];
 
-    paint("vellum-focus", rangesOf(root, passages));
+    paint(root, "vellum-focus", rangesOf(root, passages));
     box(root, "focused", passages);
     const [first] = passages;
 
@@ -309,7 +309,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     }
 
     return () => {
-      paint("vellum-focus", []);
+      paint(root, "vellum-focus", []);
       box(root, "focused", []);
     };
   }, [focus, props.annotations, content]);
