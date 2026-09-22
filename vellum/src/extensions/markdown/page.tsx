@@ -93,6 +93,8 @@ function removedBlock(run: RemovedRun, wide = false): ComponentChild {
 
 /** What is drawn before `node`: its removed runs, as a row of their own before a row. */
 function removedBefore(node: HastElement, runs: readonly RemovedRun[]): ComponentChild[] {
+  if (runs.length === 0) return [];
+
   if (node.tagName !== "tr") {
     const wide = node.tagName === "pre" || mermaidSource(node) !== null;
 
