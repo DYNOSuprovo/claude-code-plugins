@@ -161,9 +161,9 @@ How it works:
   2. Commit your changes - the hook auto-syncs to settings.json
   3. Direct edits to settings.json are blocked
 
-Manual sync: /settings-sync
-Check sync:  /settings-check
-Validate:    /settings-validate
+Manual sync: settings-manager sync --source <source path> --target <target path>
+Check sync:  settings-manager check --source <source path> --target <target path>
+Validate:    settings-manager validate --source <source path>
 ```
 
 **For chezmoi:**
