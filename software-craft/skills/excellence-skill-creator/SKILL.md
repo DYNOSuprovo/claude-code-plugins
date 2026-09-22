@@ -1,6 +1,6 @@
 ---
 name: excellence-skill-creator
-description: 'Create opinionated, anti-slop skills that encode taste. NOT for: general skill structure, reference guides, procedural docs (use skill-creator instead). USE for: frontend-design, cli-design, system-architecture style skills. Triggers: "anti-slop skill", "opinionated skill", "make Claude less generic", "skill like frontend-design", "design-excellence skill".'
+description: 'Create opinionated, anti-slop skills that encode taste. Use when the user wants a skill that makes Claude less generic in a domain, in the style of frontend-design, cli-design or system-architecture. NOT for: general skill structure, reference guides, procedural docs (use skill-creator instead).'
 ---
 
 Design-excellence skills transform Claude from a generic pattern-matcher into an opinionated craftsperson. A skill without strong opinions is just documentation with delusions of grandeur.
@@ -53,7 +53,7 @@ The description format matters: state what it does, the user intents that should
 
 **When to run**: Always.
 
-Start from the domain's anti-slop angle, then fill the seven sections of `<excellence_structure>`: design thinking questions that force real decisions, guidelines carried by good/bad example pairs, the specific anti-patterns Claude tends toward in this domain, measurable success criteria, what simple cases need versus complex ones, and a one-sentence closing principle.
+Start from the domain's anti-slop angle, then fill the seven sections of `<excellence_structure>`: an opening context saying what the user provides and what the skill produces, design thinking questions that force real decisions, guidelines carried by good/bad example pairs, the specific anti-patterns Claude tends toward in this domain, measurable success criteria, what simple cases need versus complex ones, and a one-sentence closing principle.
 
 This is the core pass. It transforms structure into opinionated content.
 
@@ -227,7 +227,7 @@ Don't add recovery suggestions to internal errors that users never see. Don't st
 </error_complexity>
 ```
 
-This example demonstrates all seven sections: frontmatter with triggers, design thinking, guidelines with example pairs, anti-patterns, success criteria, and complexity matching.
+This example demonstrates all seven sections: frontmatter with a "Use when" clause, design thinking, guidelines with example pairs, anti-patterns, success criteria, and complexity matching.
 </excellence_worked_example>
 
 <excellence_writing_tips>
