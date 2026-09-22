@@ -8,6 +8,14 @@
 
 set -euo pipefail
 
+# Git passes one line per ref: <local ref> <local oid> <remote ref> <remote oid>.
+# A deletion carries the null oid as its local oid and pushes no code to check.
+pushed_refs="$(cat)"
+if [[ -n "${pushed_refs}" ]] && ! grep -qvE '^[^ ]+ 0+ ' <<<"${pushed_refs}"; then
+  echo "pre-push: deletions only, gates skipped"
+  exit 0
+fi
+
 git_env_list="$(git rev-parse --local-env-vars)"
 mapfile -t git_env_vars <<<"${git_env_list}"
 unset "${git_env_vars[@]}"
