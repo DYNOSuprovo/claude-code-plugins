@@ -24,16 +24,24 @@ Flag only what would make the implementer build the wrong thing or get stuck. Wo
 
 ## Output
 
+A finding that points at a place in the plan names it twice, so the review page can mark it: `lines a–b` as the Read tool numbers the plan's lines, `lines a–a` for one line, then, on the next line after `  > `, a quote. The quote is words copied exactly from one of those lines, as they read on the rendered page: never across two lines, and with no backtick, asterisk, bracket or link target inside it. Quote the words beside the markup, or the words inside a code span without its backticks. A finding about the plan as a whole, such as its size, has neither lines nor quote.
+
+Each finding is one line, its quote the line under it. Leave out a list that has no item. Write nothing after the last list.
+
 ```
 ## Plan review
 
 Status: Approved | Issues found
 
 Issues:
-- [section] finding - why it matters for implementation
+- [section] lines a–b: finding - why it matters for implementation
+  > exact words from those lines
+- [section] finding about the plan as a whole - why it matters for implementation
 
 Verdict: overengineered | underengineered | right - why
 
 Advisory (does not block):
-- ...
+- [section] lines a–b: advice
+  > exact words from those lines
+- advice about the plan as a whole
 ```
