@@ -94,9 +94,13 @@ export function changesOf(tree: Root, diff: LineDiff): Changes {
         if (innermost === undefined) continue;
         marked.add(innermost.marks);
 
-        // A fenced block's first line is its fence: the code starts on the next one.
-        if (innermost.element.tagName === "pre" && line > innermost.start && line < innermost.end) {
-          add(addedLines, innermost.element, line - innermost.start - 1);
+        if (innermost.element.tagName === "pre") {
+          const fence = innermost.element.properties.dataFenced === true ? 1 : 0;
+          const first = innermost.start + fence;
+
+          if (line >= first && line <= innermost.end - fence) {
+            add(addedLines, innermost.element, line - first);
+          }
         }
       }
     }

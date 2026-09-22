@@ -135,6 +135,12 @@ describe("changesOf, the lines of a code block", () => {
     expect(addedLines(text, diff)).toEqual(["pre 1-4: 0, 1"]);
   });
 
+  test("an indented block has no fence: its first, middle and last line are named from 0", () => {
+    const text = "Intro.\n\n    a\n    b\n    c\n";
+    const diff: LineDiff = [{ kind: "added", after: 3, count: 3 }];
+    expect(addedLines(text, diff)).toEqual(["pre 3-5: 0, 1, 2"]);
+  });
+
   test("an added paragraph names no line", () => {
     const diff: LineDiff = [{ kind: "added", after: 1, count: 1 }];
     expect(addedLines("One.\n", diff)).toEqual([]);

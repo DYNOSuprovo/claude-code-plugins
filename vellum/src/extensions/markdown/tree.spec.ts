@@ -34,7 +34,27 @@ function spanClasses(text: string): unknown[] {
   return found;
 }
 
+function fencedOf(text: string): unknown[] {
+  const found: unknown[] = [];
+
+  const walk = (node: Root | RootContent): void => {
+    if (node.type === "element" && node.tagName === "pre") found.push(node.properties.dataFenced);
+
+    if ("children" in node) for (const child of node.children) walk(child);
+  };
+
+  walk(toTree(text));
+
+  return found;
+}
+
 describe("toTree", () => {
+  test("a code block opened by a fence is marked fenced, an indented one is not", () => {
+    const text = "```ts\na\n```\n\n> ~~~\n> b\n> ~~~\n\n    ```\n    c\n";
+
+    expect(fencedOf(text)).toEqual([true, true, undefined]);
+  });
+
   test("what it writes in `data-lines` is what `parseLines` reads", () => {
     const written = linesOf("A paragraph\nof two lines.\n\nAnother.\n", "p");
 
