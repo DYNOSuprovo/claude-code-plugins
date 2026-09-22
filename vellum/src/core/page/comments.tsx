@@ -74,15 +74,28 @@ function MarkWords(props: { readonly mark: Mark }): preact.JSX.Element {
 }
 
 /**
- * A comment's words, reopened in place: every keystroke goes to the annotation itself, so the
- * text is never held anywhere but in the store; `open` is the one thing the card keeps. While
- * the editor is open the actions are off, the card readable.
+ * A comment's words, reopened in place: every keystroke with words in it goes to the annotation
+ * itself, so the store never holds an empty comment and a reload keeps the last words; the card
+ * keeps the field's text, so that it can be cleared, and `open`. While the editor is open the
+ * actions are off, the card readable.
  */
 function CardWords(props: { readonly annotation: Annotation }): preact.JSX.Element {
   const { annotation } = props;
   const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
   const { mark } = annotation;
   const off = editing.value !== null;
+
+  const reopen = (body: string): void => {
+    setText(body);
+    setOpen(true);
+  };
+
+  const type = (body: string): void => {
+    setText(body);
+
+    if (body.trim() !== "") updateAnnotation(annotation.id, { kind: "comment", body });
+  };
 
   if (!open || mark.kind !== "comment") {
     return (
@@ -91,7 +104,7 @@ function CardWords(props: { readonly annotation: Annotation }): preact.JSX.Eleme
         {!locked.value && (
           <div class="actions">
             {mark.kind === "comment" && (
-              <button type="button" disabled={off} onClick={() => setOpen(true)}>
+              <button type="button" disabled={off} onClick={() => reopen(mark.body)}>
                 Edit
               </button>
             )}
@@ -110,13 +123,11 @@ function CardWords(props: { readonly annotation: Annotation }): preact.JSX.Eleme
         rows={3}
         aria-label="Comment"
         autofocus
-        value={mark.body}
-        onInput={(event) =>
-          updateAnnotation(annotation.id, { kind: "comment", body: event.currentTarget.value })
-        }
+        value={text}
+        onInput={(event) => type(event.currentTarget.value)}
       />
       <div class="actions">
-        <button type="button" disabled={mark.body.trim() === ""} onClick={() => setOpen(false)}>
+        <button type="button" disabled={text.trim() === ""} onClick={() => setOpen(false)}>
           Done
         </button>
       </div>
