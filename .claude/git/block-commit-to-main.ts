@@ -13,6 +13,6 @@ const branch = getCurrentBranch();
 
 if (branch && isProtectedBranch(branch)) {
   console.error(`\nERROR: Direct commits to '${branch}' are blocked.`);
-  console.error("Work on 'dev' and merge via PR.\n");
+  console.error("Work on 'dev'; only the human fast-forwards 'main': docs/repo-ops.md.\n");
   process.exit(1);
 }

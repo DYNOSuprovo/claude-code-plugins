@@ -123,6 +123,6 @@ if (import.meta.main) {
   if (!branch || !isProtectedBranch(branch)) process.exit(HOOK_EXIT.ALLOW);
 
   console.error(`BLOCKED: '${branch}' is a protected branch.`);
-  console.error("Work on 'dev' and merge via PR.");
+  console.error("Work on 'dev'; only the human fast-forwards 'main': docs/repo-ops.md.");
   process.exit(HOOK_EXIT.BLOCK);
 }
