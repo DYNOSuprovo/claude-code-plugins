@@ -42,7 +42,8 @@ export function staleEditor(
     : `v${live} arrived while you were editing v${editing.version}. Copy what you need, then Cancel.`;
 }
 
-function workspaceNotice(workspace: PlanWorkspace, retry: () => void): Notice | null {
+/** `retry` is `null` while the editor is open: an approval then would drop the typing unasked. */
+function workspaceNotice(workspace: PlanWorkspace, retry: (() => void) | null): Notice | null {
   switch (workspace.kind) {
     case "drafting":
       return workspace.batches === 0
@@ -52,17 +53,22 @@ function workspaceNotice(workspace: PlanWorkspace, retry: () => void): Notice | 
             kind: "sent",
             text: ["Comments sent to Claude: it revises ", { code: "plan.md" }, " and goes on."],
           };
-    case "inReview":
-      return workspace.finalizeError === null
-        ? null
-        : {
-            key: "finalize",
-            kind: "err",
-            text: [
-              `Could not rename the folder: ${workspace.finalizeError}. Nothing was sent to Claude.`,
-            ],
-            action: { label: "Retry approval", run: retry },
-          };
+    case "inReview": {
+      if (workspace.finalizeError === null) return null;
+
+      const notice: Notice = {
+        key: "finalize",
+        kind: "err",
+        text: [
+          `Could not rename the folder: ${workspace.finalizeError}. Nothing was sent to Claude.`,
+        ],
+      };
+
+      if (retry === null) return notice;
+
+      return { ...notice, action: { label: "Retry approval", run: retry } };
+    }
+
     case "changesRequested":
       return {
         key: "workspace",
@@ -124,7 +130,10 @@ export function noticesOf(input: {
     });
   }
 
-  const own = input.workspace === null ? null : workspaceNotice(input.workspace, input.retry);
+  const own =
+    input.workspace === null
+      ? null
+      : workspaceNotice(input.workspace, input.editing === null ? input.retry : null);
 
   if (own !== null) notices.push(own);
 
