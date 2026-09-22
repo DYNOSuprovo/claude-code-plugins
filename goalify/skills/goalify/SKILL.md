@@ -47,8 +47,9 @@ Include only information that changes execution:
 
 - objective
 - relevant context
-- constraints and side-effect boundaries
-- success criteria
+- constraints and side-effect boundaries, including explicit approval before
+  any destructive or outward-facing side effect
+- observable success criteria
 - validation or evidence
 - stop condition
 - pause/blocker condition
@@ -130,17 +131,3 @@ Extract only what affects the goal payload:
 
 In interactive mode, ask one decision at a time with AskUserQuestion. In default
 mode, ask only for blocking ambiguity.
-
-## Quality Check
-
-Before final output, verify:
-
-- the output is a goal payload, not a wrapper or a meta-explanation
-- short output does not start with `Objective:`
-- no generic Claude Code role preamble is included
-- success criteria are observable
-- validation or evidence is specified when useful
-- stop and pause conditions are clear
-- the goal instructs the executor to get explicit approval before destructive or
-  external/outward-facing side effects
-- long payloads are written to `.agents/goals/`, not pasted inline
