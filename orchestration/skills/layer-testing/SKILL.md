@@ -10,6 +10,7 @@ allowed-tools:
   - Bash(pnpm lint *)
   - Bash(jq *)
   - Bash(git worktree add *)
+  - Bash(pnpm install *)
   - Read(~/.claude/plugins/cache/*/claude-orchestration/*/skills/layer-testing/templates/**)
 ---
 
@@ -163,10 +164,11 @@ Wait for user response.
 
 6. **Create Worktree**
 
-Note the current branch (`git branch --show-current`) as ${BASE_BRANCH}, then:
+Note the commit `git rev-parse HEAD` prints as ${BASE_SHA}, then create the worktree where git-worktree's hook allows it (`<repo>` is the repository's directory name; the new path is ${WORKTREE_PATH}) and install its dependencies, which a new worktree lacks:
 
 ```bash
-git worktree add ../worktree-test/${MODULE}-${LAYER}-coverage -b test/${MODULE}-${LAYER}-coverage
+git worktree add ../<repo>.wt/test/${MODULE}-${LAYER}-coverage -b test/${MODULE}-${LAYER}-coverage
+pnpm install --frozen-lockfile --dir ../<repo>.wt/test/${MODULE}-${LAYER}-coverage
 ```
 
 7. **Spawn Testing Agent**
@@ -211,7 +213,7 @@ pnpm test ${FILES} --coverage
 # Parse and verify >= target
 
 # 3. No production code changes since the worktree branched
-git diff --name-only ${BASE_BRANCH}...HEAD | grep -v test | wc -l  # Should be 0
+git diff --name-only ${BASE_SHA}..HEAD | grep -v test | wc -l  # Should be 0
 
 # 4. Type check passes
 pnpm typecheck

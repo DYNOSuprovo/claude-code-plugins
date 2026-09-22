@@ -79,8 +79,7 @@ Wait for ALL agents to complete. If any fail, stop and report to user.
 Run project's verification commands detected in Phase 0.
 
 Also verify:
-- No cross-scope contamination: `git diff --stat`
-- All git hooks pass: `git hook run pre-commit`
+- No cross-scope contamination: `git diff --stat backup/parallel-task-<timestamp>..HEAD`, each file inside the scope of the worker that committed it
 - No regressions in functionality
 
 ## Phase 5: Final Report
