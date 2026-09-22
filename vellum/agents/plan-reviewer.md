@@ -24,7 +24,7 @@ Flag only what would make the implementer build the wrong thing or get stuck. Wo
 
 ## Output
 
-A finding that points at a place in the plan names it twice, so the review page can mark it: `lines a–b` as the Read tool numbers the plan's lines, `lines a–a` for one line, then, on the next line after `  > `, a quote. The quote is words copied exactly from one of those lines, as they read on the rendered page: never across two lines, and with no backtick, asterisk, bracket or link target inside it. Quote the words beside the markup, or the words inside a code span without its backticks. A finding about the plan as a whole, such as its size, has neither lines nor quote.
+A finding that points at a place in the plan names it twice, so the review page can mark it: `lines a–b` as the Read tool numbers the plan's lines, `lines a–a` for one line, then, on the next line after `  > `, a quote. The quote is words from those lines, on one line, exactly as the rendered page shows them: without their Markdown (no heading or list marker, no backtick, asterisk or underscore of emphasis, no link target), and a code block's text as it stands. A diagram's source is not on the page: such a finding gives its lines and no quote. A finding about the plan as a whole, such as its size, has neither lines nor quote.
 
 Each finding is one line, its quote the line under it. Leave out a list that has no item. Write nothing after the last list.
 

@@ -85,6 +85,58 @@ describe("parseVerdict", () => {
     ]);
   });
 
+  test("a dash of any kind, spaced or not, and a capital still name the lines", () => {
+    const text = verdict(
+      ...APPROVED,
+      "",
+      "Issues:",
+      "- lines 3—4: a",
+      "  > x",
+      "- lines 3 – 4: b",
+      "  > y",
+      "- Lines 3-4: c",
+      "  > z",
+    );
+
+    expect(parseVerdict(text)?.issues.map((finding) => finding.place?.lines)).toEqual([
+      [3, 4],
+      [3, 4],
+      [3, 4],
+    ]);
+  });
+
+  test("an indented line under a finding, a wrap or a nested point, continues its text", () => {
+    const text = verdict(
+      ...APPROVED,
+      "",
+      "Issues:",
+      "- [A] lines 3–4: slice 2 names",
+      "  no check",
+      "  - nor a command",
+      "  > wire the parser",
+    );
+
+    expect(parseVerdict(text)?.issues).toEqual([
+      {
+        section: "A",
+        text: "slice 2 names\nno check\n- nor a command",
+        place: { lines: [3, 4], quote: "wire the parser" },
+      },
+    ]);
+  });
+
+  test("the fence the format is shown in is no line of the verdict", () => {
+    const text = ["```", verdict(...APPROVED, "", "Issues:", "- a"), "```"].join("\n");
+
+    expect(parseVerdict(text)?.issues).toEqual([{ section: null, text: "a", place: null }]);
+  });
+
+  test("line endings and trailing spaces are no part of a line", () => {
+    const text = ["## Plan review ", "", "Status: Approved", "Verdict: right - x"].join("\r\n");
+
+    expect(parseVerdict(text)?.size).toEqual({ kind: "right", why: "x" });
+  });
+
   test("the format's markers inside a finding or its quote are its text", () => {
     const text = verdict(
       ...APPROVED,
