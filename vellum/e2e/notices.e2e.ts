@@ -28,7 +28,7 @@ async function addGeneralComment(page: Page, text: string): Promise<void> {
 }
 
 async function openEditor(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.locator(".tools").getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page.locator(".editor textarea")).toBeFocused();
 }
 
