@@ -1131,8 +1131,9 @@ describe("the failures", () => {
 
 describe("a deleted card", () => {
   test("can be undone from the notice, back at its place, and the notice goes", async () => {
-    const { annotations, notices, removeAnnotation, undo } = await freshStore();
+    const { annotations, notices, removeAnnotation, review, undo } = await freshStore();
     const [a, b, c] = ["a", "b", "c"].map((id) => comment(id, `${WIP}plan.md`));
+    review.value = drafting([doc(`${WIP}plan.md`, "plan")]);
     annotations.value = [a, b, c] as never;
     removeAnnotation("b");
 

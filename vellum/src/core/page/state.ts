@@ -128,8 +128,20 @@ export function succeed(op: Failure["op"]): void {
   }
 }
 
-/** What the last Delete of a card can undo, for `UNDO_MS`; `null` past that or once undone. */
+/**
+ * What the last Delete of a card can undo, for `UNDO_MS`; `null` past that, once undone, and
+ * after a decision, Done or Discard edit, which the comment it holds was made before.
+ */
 export const undo = signal<{ readonly label: string; readonly run: () => void } | null>(null);
+
+let undoTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearUndo(): void {
+  if (undoTimer !== null) clearTimeout(undoTimer);
+  undoTimer = null;
+
+  if (undo.peek() !== null) undo.value = null;
+}
 
 export const connection = signal<"up" | "down">("up");
 
@@ -262,6 +274,7 @@ export async function decide(decision: Decision): Promise<boolean> {
       annotations.value = [];
       edited.value = null;
       typed.value = EMPTY_TYPED;
+      clearUndo();
       succeed("decision");
     });
   }
@@ -299,6 +312,7 @@ export function finishEdit(session: EditSession, text: string): void {
   batch(() => {
     annotations.value = shiftAnnotations(annotations.value, doc, { version: reviewed, base, text });
     edited.value = text === reviewed ? null : { version, text };
+    clearUndo();
     succeed("edit");
   });
 }
@@ -325,6 +339,7 @@ export function discardEdit(): void {
       lineDiff(edit.text, plan.text),
     );
     edited.value = null;
+    clearUndo();
   });
 }
 
@@ -337,31 +352,27 @@ export function addAnnotation(annotation: Omit<Annotation, "id">): void {
 /** How long a deleted card can be undone from the notice. */
 const UNDO_MS = 8_000;
 
-let undoTimer: ReturnType<typeof setTimeout> | null = null;
-
-/** Delete on a card: at once, and undone from the notice for a while; a second Delete replaces the first's undo. */
+/**
+ * Delete on a card: at once, and undone from the notice for a while; a second Delete replaces
+ * the first's undo. Undone on a page that locked meanwhile, the comment stays gone, as
+ * `addAnnotation` takes none.
+ */
 export function removeAnnotation(id: string): void {
   const index = annotations.value.findIndex((annotation) => annotation.id === id);
   const gone = annotations.value[index];
 
   if (gone === undefined) return;
   annotations.value = annotations.value.filter((annotation) => annotation.id !== id);
-
-  if (undoTimer !== null) clearTimeout(undoTimer);
-
-  const timer = setTimeout(() => {
-    undo.value = null;
-  }, UNDO_MS);
-
-  undoTimer = timer;
+  clearUndo();
+  undoTimer = setTimeout(clearUndo, UNDO_MS);
 
   undo.value = {
     label: "Undo",
     run: () => {
-      clearTimeout(timer);
       batch(() => {
-        undo.value = null;
-        annotations.value = annotations.value.toSpliced(index, 0, gone);
+        clearUndo();
+
+        if (!locked.peek()) annotations.value = annotations.value.toSpliced(index, 0, gone);
       });
     },
   };
