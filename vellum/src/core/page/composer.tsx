@@ -42,7 +42,8 @@ export function Composer(props: ComposerProps): preact.JSX.Element {
   // focus in its frame: the textarea takes it back at every change of place.
   useEffect(() => textarea.current?.focus({ preventScroll: true }), [places]);
 
-  // Placed from its own height, measured once drawn: another quote, another height.
+  // Placed from its own height, measured once drawn and again when its content changes: another
+  // quote or a longer text, another height.
   useLayoutEffect(() => {
     const element = box.current;
 
@@ -52,7 +53,7 @@ export function Composer(props: ComposerProps): preact.JSX.Element {
     setSize((current) =>
       current.width === measured.width && current.height === measured.height ? current : measured,
     );
-  });
+  }, [places, body]);
 
   const at = placeNear(props.target, props.pane, size);
 
