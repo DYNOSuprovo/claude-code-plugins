@@ -124,6 +124,15 @@ describe("noticesOf", () => {
     );
   });
 
+  test("a failed rename carries no Retry approval while the editor is open", () => {
+    const failed = { ...inReview, finalizeError: "EACCES" };
+    const editing = { ...quiet, workspace: failed, editing: { version: 1 as never } };
+    const [notice] = noticesOf(editing);
+
+    expect(notice?.key).toBe("finalize");
+    expect(notice?.action).toBeUndefined();
+  });
+
   test("while drafting, a batch sent is said until the version arrives", () => {
     expect(keys({ ...quiet, workspace: drafting })).toEqual([]);
     expect(text({ ...quiet, workspace: { ...drafting, batches: 1 } }, "workspace")).toContain(
