@@ -211,6 +211,11 @@ describe("unshiftAnnotations", () => {
     expect(unshiftAnnotations([deleteAt(PLAN, [2, 2])], PLAN, back)).toEqual([]);
   });
 
+  test("a passage whose range holds a line only the edit holds goes too, though both its ends are the version's", () => {
+    const back = lineDiff("a\nNEW\nb\nc\n", "a\nb\nc\n");
+    expect(unshiftAnnotations([deleteAt(PLAN, [1, 3])], PLAN, back)).toEqual([]);
+  });
+
   test("a comment with a passage on a line only the edit holds loses that passage alone", () => {
     const back = lineDiff("a\nNEW\nb\nc\n", "a\nb\nc\n");
     expect(unshiftAnnotations([deleteAtBoth("a", [2, 2], [4, 4])], PLAN, back)).toEqual([
