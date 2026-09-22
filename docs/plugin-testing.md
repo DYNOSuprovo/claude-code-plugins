@@ -402,8 +402,95 @@ date does not exempt a pattern, numeric length caps included.
 
 ## Install and update
 
-`bengous-plugins` is registered as a `directory` source pointing at this
-working tree, so the catalog is the tree and there is no fetch step.
+`bengous-plugins` uses a `directory` source. Its catalog is the registered
+working tree, not the installed cache. The managed target is
+`~/Work/claude-code-plugins.wt/catalog`, detached on `origin/dev` and locked
+with the reason `claude plugin catalog`.
+
+`scripts/plugin-catalog.ts` owns `setup`, `sync`, and `status`. `setup` creates
+that worktree next to the main checkout, locks it and installs each plugin's
+dependencies. It also repairs a locked registration whose directory is gone.
+`sync` finds the worktree by its lock reason, regardless of the caller's
+checkout. It never fetches, pushes, or changes a branch ref.
+
+The dotfiles units `claude-plugin-catalog.path` and
+`claude-plugin-catalog.service` watch the main repository's
+`.git/logs/refs/remotes/origin/dev`. After activation, a landing or a fetch
+that advances that ref starts the script from the catalog. A PR branch push
+does not trigger it. The script checks the ref again after its notification
+and journal write, then repeats if another landing arrived during the run.
+
+A plugin source change triggers a notification even without a version bump.
+Changed `package.json` or `bun.lock` files trigger `bun install --cwd <plugin>
+--frozen-lockfile`. Only installed user entries with a different catalog
+version receive `claude plugin update --json --scope user <id>`. An installed
+plugin absent from the catalog is skipped and shown as `not in catalog` by
+`status`. Other scopes stay outside this automation.
+
+The main checkout remains independent and can still need a manual pull.
+Restart open sessions after a catalog change: hooks and reference reads can
+observe new files while other session state still reflects the previous tree.
+A session started during dependency installation can see old dependencies.
+Whether `update` downgrades an installed entry after a revert is not measured;
+`status` exposes a remaining version mismatch.
+
+Each pass appends to `$XDG_STATE_HOME/claude-plugin-catalog/log.jsonl`, with
+`~/.local/state` as the default state directory. Raw subprocess output goes
+to the service journal. `status` reports the marketplace path, catalog HEAD,
+`origin/dev`, tracked edits, path unit state, last report and entry versions.
+`CLAUDE_CONFIG_DIR` selects the Claude state directory, default `~/.claude`.
+
+Tracked edits block a sync. Restore the named unstaged edits with
+`git -C <catalog> restore .`; inspect and unstage staged edits first.
+An untracked file blocks only when Git refuses to overwrite it; inspect the
+named file before removing it. Start `claude-plugin-catalog` after repair.
+Install or update failures produce a critical notification and preserve the
+full output in the report. Retry a failed install with `bun install --cwd
+<catalog>/<plugin> --frozen-lockfile`; retry a failed entry update with
+`claude plugin update --json --scope user <id>`. An already current catalog
+does not replay failed steps. Notification failures appear as `notifyError`.
+A script crash reaches `claude-plugin-catalog-failure@.service`. Once a fix
+lands, recover with `git -C <catalog> checkout --detach origin/dev`, then
+`systemctl --user start claude-plugin-catalog`.
+
+### Activate after the script lands
+
+The units, activation template and Claude settings live in the dotfiles repo.
+Do not deploy them before the script lands on `dev`: the service executes the
+catalog's copy of the script. The live sequence is:
+
+1. Run `bun scripts/plugin-catalog.ts setup` from this repository after the
+   script lands, then apply only the three units and their activation script
+   from the dotfiles. The script reloads systemd and enables the path unit.
+2. Verify the path unit is enabled and active, and a fetch advances the
+   catalog. Test another reflog write during a pass and the failure unit.
+3. Redirect in place with `claude plugin marketplace add
+   ~/Work/claude-code-plugins.wt/catalog`, then apply only the Claude settings
+   source. Never remove the marketplace: removal uninstalls its plugins and
+   removes their enable flags. Adding the same name at a new path preserves
+   them, as measured in the approved plan's throwaway config.
+4. Inspect a new session's debug log for catalog paths. Check
+   `plugin-cache-sync status` and `try-plugin`, then observe a real landing.
+
+These live checks remain unmeasured by the disposable-repository tests in
+`scripts/plugin-catalog.test.ts`. In particular, those tests use command
+stubs and do not prove desktop notifications, engine loading, or unit
+activation. The source settings include
+`Read(~/Work/claude-code-plugins.wt/catalog/**)` so reference reads do not ask
+for permission in ordinary sessions.
+
+### Undo the catalog
+
+1. Run `systemctl --user disable --now claude-plugin-catalog.path`.
+2. Redirect in place with `claude plugin marketplace add
+   ~/Work/claude-code-plugins`.
+3. Remove the units and activation script from the dotfiles source, restore
+   the marketplace path there, and remove the catalog Read grant. Record
+   deleted targets in `.chezmoiremove`, then apply only those targets.
+4. Run `git worktree unlock ~/Work/claude-code-plugins.wt/catalog`, then
+   `git worktree remove ~/Work/claude-code-plugins.wt/catalog`.
+
+### Installed copies
 
 - An install is a copy, not a link: `ls -i` shows a different inode for a
   file in the tree and its cache copy. The copy is frozen at the state it was
@@ -424,7 +511,7 @@ working tree, so the catalog is the tree and there is no fetch step.
   marketplace. `bengous-plugins` carries `autoUpdate: true`, yet repeated `-p`
   sessions left a pending bump uninstalled, one of them with
   `FORCE_AUTOUPDATE_PLUGINS=1`. Headless may skip the background updater.
-  Until someone measures an interactive session, update by hand. What the
+  The catalog service explicitly updates changed user entries after activation. What the
   answer changes here is narrow: a pending bump moves the copy and the entry,
   not the files a session of this marketplace runs.
 
@@ -438,19 +525,23 @@ replaces must already be disabled, and disabling one is the owner's call, not
 the checker's: if it is enabled, stop and say so.
 
 1. Bump `plugin.json` and commit. `pre-commit` writes the version into
-   `marketplace.json` and the README row; the catalog is the tree, so the
-   installer sees the bump as soon as it is committed.
+   `marketplace.json` and the README row. Land on `dev` and wait for catalog
+   sync before checking the managed marketplace.
 2. `claude plugin install <plugin>@<marketplace>`, or `claude plugin update
    <plugin>` when an older version is installed. It answers in seconds, and
    the cache holds every file when it returns.
 3. `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate <cache path>`
    prints the same hooks and `$` calls there as it does on the source tree.
-4. Launch from a scratch workspace, with neither `--plugin-dir` nor
-   `--setting-sources project`: the enable flag lives in the user's settings,
-   and the workspace's own `.claude/settings.json` still loads beside it.
+4. Use a throwaway `CLAUDE_CONFIG_DIR` for the permission check. Register the
+   catalog and install the plugin in that config first, with the same
+   `CLAUDE_CONFIG_DIR` on both commands. Authenticate that config if needed.
+   Do not copy the live settings or their catalog Read grant. Launch from a
+   scratch workspace with no local grants, neither `--plugin-dir` nor
+   `--setting-sources project`. The temporary user's enable flag must load.
 
    ```bash
-   cd <workspace> && env CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 <mise>/claude \
+   cd <workspace> && env CLAUDE_CONFIG_DIR=<run>/claude-config \
+     CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 <mise>/claude \
      --permission-mode default --model opus --debug-file <run>/s.debug.log
    ```
 
