@@ -3,7 +3,7 @@ name: verify-no-regressions
 argument-hint: "[count] [base-branch]"
 description: >
   Verify no behavioral regressions after implementation. Spawns parallel
-  subagents for semantic diff review + test execution. Use when: user says
+  subagents for semantic diff review while the test suite runs. Use when: user says
   "verify no regressions", "check for regressions", "make sure nothing broke".
 ---
 
@@ -37,6 +37,6 @@ Spawn the subagents in a **single message**. Tell each agent which diff commands
    - Classifies each change as INTENTIONAL, RISKY (could break callers), or REGRESSION
    - Reports verdict: PASS / NEEDS_REVIEW / FAIL
 
-2. **Test runner** (`model: sonnet` -- runs one command, reports a verdict; skip if no test infrastructure) -- one additional agent that runs the test suite and reports PASS / FAIL.
+2. **Test suite** (skip if no test infrastructure) -- run it yourself in the same message, with the Bash tool's `run_in_background: true`; its exit status is the PASS / FAIL verdict.
 
-After all agents complete, synthesize a single report with overall verdict.
+After the reviewers and the test run complete, synthesize a single report with overall verdict.

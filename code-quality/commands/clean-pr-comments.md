@@ -49,14 +49,13 @@ Comments that explain what code CANNOT express:
 
 ## Workflow
 
-1. **Identify scope:**
-   ```bash
-   git diff --stat origin/main...HEAD
-   ```
+1. **Identify scope** from `$ARGUMENTS`:
+   - A PR reference: `gh pr checkout <ref>`, then `gh pr diff <ref> --name-only`
+   - Empty: the current branch, `git diff --stat origin/main...HEAD`
 
 2. **Select strategy based on PR size:**
-   - **≤10 files:** Process sequentially yourself
-   - **>10 files:** Spawn parallel agents (see Scaling below)
+   - **Default:** Process the files yourself
+   - **Too large to read in one context:** Spawn parallel agents (see Scaling below)
 
 3. **Read each file**, identify all comments
 
@@ -74,7 +73,7 @@ Comments that explain what code CANNOT express:
 
 ## Scaling
 
-For PRs with >10 files, divide work across parallel agents:
+When the changed files are too large to read in one context, divide work across parallel agents:
 
 1. **Group files** by directory or logical area
 

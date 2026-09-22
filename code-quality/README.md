@@ -24,7 +24,7 @@ repo-wide audits.
 ### verify-no-regressions
 
 Verify no behavioral regressions after implementation: spawns parallel subagents for
-semantic diff review and test execution. Moved here from claude-meta-tools in 1.5.0.
+semantic diff review while the test suite runs. Moved here from claude-meta-tools in 1.5.0.
 
 ## Philosophy
 

@@ -11,7 +11,7 @@ allowed-tools:
   - Agent
   - AskUserQuestion
   - mcp__Context7__resolve-library-id
-  - mcp__Context7__get-library-docs
+  - mcp__Context7__query-docs
 ---
 
 # Lint Rule Audit
@@ -20,7 +20,7 @@ allowed-tools:
 
 ## Your Task
 
-Execute a systematic lint rule audit following these phases. Take action at each phase—run commands, spawn subagents, analyze code—rather than only suggesting. Research best practices, analyze violations in the codebase, and provide actionable recommendations.
+Audit the rule through the phases below: research best practices, analyze the violations in this codebase, and end with actionable recommendations.
 
 ## Phase 1: Discovery
 
@@ -250,13 +250,3 @@ A successful audit:
 - Delivers structured report matching the template in Phase 4
 - Generates ready-to-use subagent prompt if fixes are appropriate (Phase 5)
 - Ends with decision prompt for user to choose next steps (Phase 6)
-
-## Output Requirements
-
-Always include:
-1. Violation metrics with file counts
-2. Research findings with clickable source links
-3. Codebase-specific pattern analysis
-4. Clear recommendation with reasoning
-5. Generated subagent prompt (if fixes appropriate)
-6. Decision prompt for next steps
