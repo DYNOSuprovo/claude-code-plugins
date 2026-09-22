@@ -86,12 +86,19 @@ export function lockFailed(kind: HookFailure["kind"]): ResultOf["tool.check"] {
 }
 
 /**
- * A settings allow rule (`Bash(mkdir:*)`) would let a file-modifying command past the lock, as
- * the native plan mode never does: the person decides it instead. The built-in read-only set
- * carries no rule, so `git log` and `ls` still pass.
+ * The tools that run a shell command. The engine offers `PowerShell` beside `Bash`, by default
+ * on Windows, and its docs tell a hook that inspects shell commands to match `Bash|PowerShell`.
+ */
+const SHELLS: ReadonlySet<string> = new Set(["Bash", "PowerShell"]);
+
+/**
+ * A settings allow rule (`Bash(mkdir:*)`, `PowerShell(Set-Content:*)`) would let a
+ * file-modifying shell command past the lock, as the native plan mode never does: the person
+ * decides it instead. The built-in read-only set carries no rule, so `git log` and `ls` still
+ * pass.
  */
 export function checkVerdict(tool: string, engine: ResultOf["tool.check"]): ResultOf["tool.check"] {
-  return tool === "Bash" && engine.decision === "allow" && engine.rule !== undefined
+  return SHELLS.has(tool) && engine.decision === "allow" && engine.rule !== undefined
     ? { ...engine, decision: "ask" }
     : engine;
 }
