@@ -367,7 +367,12 @@ describe("routes", () => {
     expect((await putDraft({ ...EMPTY_DRAFT, typed: { general: "" } })).status).toBe(400);
     expect((await putDraft({ ...EMPTY_DRAFT, typed: { ...TYPED, general: 1 } })).status).toBe(400);
     expect(
-      (await putDraft({ ...EMPTY_DRAFT, typed: { ...TYPED, composer: { body: "x" } } })).status,
+      (await putDraft({ ...EMPTY_DRAFT, typed: { ...TYPED, composer: { "mockup.html": 1 } } }))
+        .status,
+    ).toBe(400);
+    expect(
+      (await putDraft({ ...EMPTY_DRAFT, typed: { ...TYPED, composer: { doc: "x", body: "x" } } }))
+        .status,
     ).toBe(400);
     expect(
       (
@@ -388,7 +393,7 @@ describe("routes", () => {
 
     const typed = {
       general: "Overall: no.",
-      composer: { doc: `${WIP}mockup.html`, body: "Bigger" },
+      composer: { [`${WIP}mockup.html`]: "Bigger", [`${WIP}plan.md`]: "Which forms?" },
       grill: { [`${WIP}grill-1.md`]: { answers: { Q1: "IndexedDB." }, note: "Why?" } },
       editor: { version: 1, text: "# Mine\n" },
     };
