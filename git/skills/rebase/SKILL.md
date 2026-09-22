@@ -149,7 +149,7 @@ On `ok: false`, report `error` and `detail`, then:
 ```
 plan-stale         the branch moved since Phase 1 — start over at Phase 1
 plan-invalid       the steps break a rule; detail says which. Fix them in
-                   Phase 4 and re-run this phase. Do NOT restart Phase 1:
+                   Phase 4 and re-run this phase. Do not restart Phase 1:
                    the plan is not stale and a fresh one repeats the fault.
 base-not-ancestor  the base is not behind HEAD; that is a transplant, not an
                    edit. Start over at Phase 1 to get a real base.
@@ -169,11 +169,11 @@ if result.error == "conflict":
   The rebase paused at commit {state.current} of {state.total}.
   List state.conflicted — "{path} ({markers} conflicts)" — then print every
   line of result.guidance. Stop there: the user resolves, then runs
-  /git:rebase continue. Do NOT resolve the conflict without being asked to.
+  /git:rebase continue. Do not resolve the conflict unless asked to.
 
 if result.error == "exec-failed":
   A commit message could not be applied and the rebase is paused mid-way.
-  Print detail verbatim. Do NOT suggest /git:rebase continue: it skips the
+  Print detail verbatim. Do not suggest /git:rebase continue: it skips the
   failed step and the message is lost for good. The way out is
   /git:rebase abort, then fix the cause, then /git:rebase again.
 
