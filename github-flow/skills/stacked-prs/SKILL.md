@@ -75,7 +75,7 @@ trunk
 
 ## Parallel sessions: worktrees and handoffs
 
-A handoff is one agent session dedicated to one layer, 40 to 90 lines, six fixed sections (template: `assets/handoff-template.md`): required reading, input required from the user, pre-flight, file scope, traps, deliverables. Handoffs live in a gitignored orchestration folder (convention `.gh/`), with a `README.md` that carries the session order and says which source wins on contradiction. That `README.md` is orchestrator-owned: it is one file symlinked into every worktree, so sessions report their state and the orchestrator writes the line. Two sessions ticking it at once race on the same file.
+A handoff is one agent session dedicated to one layer, holding only what that session cannot read in the code, in six fixed sections (template: `assets/handoff-template.md`): required reading, input required from the user, pre-flight, file scope, traps, deliverables. Handoffs live in a gitignored orchestration folder (convention `.gh/`), with a `README.md` that carries the session order and says which source wins on contradiction. That `README.md` is orchestrator-owned: it is one file symlinked into every worktree, so sessions report their state and the orchestrator writes the line. Two sessions ticking it at once race on the same file.
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-handoff.ts" <branch> --base origin/<top> [--link .env.local] [--install '<cmd>']

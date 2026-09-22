@@ -12,7 +12,7 @@ GitHub lifecycle for Claude Code through `gh`: agent-ready issues, review-ready 
 | `await-merge` | `/github-flow:await-merge [--dry-run] [--rebase] [pr]` | Watches the checks, merges by squash (`--rebase` for atomic commits, never a merge commit), fast-forwards the local base branch. |
 | `commit-push-pr` | `/github-flow:commit-push-pr [issue] [images] [notes]` | Chains `git:commit` then `github-flow:pr`. |
 | `stacked-prs` | `/github-flow:stacked-prs [subcommand \| symptom]` | Runs a stack of PRs with `gh stack`: the cycle, the rules the CLI does not enforce, the repair table, and a worktree per layer cut from the top of the stack with its handoff symlinked in. |
-| `dispatch` | `/github-flow:dispatch <n> [<n>...] [--plan\|--no-plan] [--approve]` | Gates each issue on readiness, then spawns one `issue-worker` per issue; labels the outcome, reports a table. |
+| `dispatch` | `/github-flow:dispatch <n> [<n>...] [--plan] [--approve]` | Gates each issue on readiness, then spawns one `issue-worker` per issue; labels the outcome, reports a table. |
 | `shift` | `/github-flow:shift [--max <n>] [--dry-run]` | One pass of the loop: triage, dispatch, maintain the loop's PRs, return a digest. |
 
 `issue`, `pr` and `stacked-prs` invoke themselves when the request matches. `triage`, `await-merge` and `commit-push-pr` run only on an explicit call: each one closes, merges or pushes, and "check issue 12" must not close issue 12. `dispatch` and `shift` stay model-invocable because a scheduled fire runs no other kind, and neither one merges or pushes a shared branch; `shift` closes an issue only through the `triage` protocol it applies itself.
