@@ -104,7 +104,8 @@ no build step, so what the page imports costs nothing at `cli start`.
   (`succeed`); the stale editor derives from `editing` and the version, so its notice leaves
   with the editor; a card's Delete leaves an `undo` for a while. `app.tsx` draws the column with
   `Notices`, the core's first, then each extension's `notices` components: the grill's
-  suggestion is one, in the flow, its field on its own line, the focus in it, Escape closing it.
+  suggestion is one, in the flow, its field on its own line, Escape closing it; the field takes
+  the focus when the Grill button opens the banner, not when a suggestion arrives under a typing.
   An extension's own button computes its greyed state and its `title` itself (`GrillAction`).
   A notice of kind `err` is `role="alert"`, the others `role="status"`; a literal in one comes
   as `{ code }` and is drawn in `<code>`. In `approved` the bar draws no button.
@@ -134,8 +135,11 @@ no build step, so what the page imports costs nothing at `cli start`.
   and note by transcript, the editor's typing by version. No component keeps a text in a
   `useState`: what is typed survives the pane that unmounts and the reload, and a composer or an
   editor opened again on the same document or version starts with it, though neither reopens by
-  itself. `unsentTyped` names what a decision would throw; Send feedback and Approve put the
-  warning first when it is not empty, and a decision that lands clears it. Cancel of the editor
+  itself. A typing whose field is gone goes with it, or the warning would name what nobody can
+  see or clear: a grill's answers once the server says no grill is open on the transcript
+  (`forgetClosed` in `grill/page.tsx`), the editor's typing once its version is no longer under
+  review (`settleEditorTyping`). `unsentTyped` names what a decision would throw; Send feedback
+  and Approve put the warning first when it is not empty, and a decision that lands clears it. Cancel of the editor
   over a changed text asks first; End grill sends what is typed as a reply before it closes.
 - An unsent edit is an `Edit`: a text with the version it edits. The stamp is taken when the
   editor opens, and `Editor` keeps that version and its base text for its whole session: a
@@ -171,8 +175,9 @@ no build step, so what the page imports costs nothing at `cli start`.
   workspace event. A renderer loads its document through `docUrl`, whose query is the file's
   `modified`: a rewrite reloads that document alone, and nothing else remounts.
 - What the reviewer waits on fails in the notices, through `fail` of `state.ts`, as the core's
-  own requests do: a write (`post` in `grill/page.tsx`, op `extension`) and a document's load
-  (`sourceOf` in `markdown/page.tsx`, op `load`, `blocksOf` in `grill/page.tsx`). A load checks
+  own requests do: a write (`post` in `grill/page.tsx`, op `send`) and a document's load
+  (`sourceOf` in `markdown/page.tsx`, op `load`, `blocksOf` in `grill/page.tsx`, op
+  `extension`), two ops so a load that succeeds leaves a refused write in the notices. A load checks
   `response.ok` before it reads the body, or the server's error page is drawn as the document and
   takes comments, and it catches, or an aborted request reaches nobody. A read that only
   refreshes what is on screen may fail in silence, since the next workspace event reads again:

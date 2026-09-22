@@ -18,9 +18,13 @@ export type Notice = {
   readonly action?: { readonly label: string; readonly run: () => void };
 };
 
-/** A request that failed, one per operation: a success of the same operation removes it. */
+/**
+ * A request that failed, one per operation: a success of the same operation removes it.
+ * `extension` is what an extension loads, `send` what the reviewer sends it: a load that
+ * succeeds must not clear a refused send.
+ */
 export type Failure = {
-  readonly op: "review" | "draft" | "decision" | "load" | "extension" | "edit";
+  readonly op: "review" | "draft" | "decision" | "load" | "extension" | "send" | "edit";
   readonly text: string;
 };
 

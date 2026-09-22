@@ -30,11 +30,24 @@ function nameOf(path: string): string {
   return path.split("/").at(-1) ?? path;
 }
 
+/** The typing kept for a transcript no grill is open on has no field left: it goes. */
+function forgetClosed(state: GrillState): void {
+  const open = state.kind === "open" ? state.file : null;
+  const kept = typed.peek().grill;
+  const closed = Object.keys(kept).filter((path) => path !== open);
+
+  if (closed.length === 0) return;
+  setTyped({ grill: Object.fromEntries(Object.entries(kept).filter(([path]) => path === open)) });
+}
+
 async function loadState(): Promise<void> {
   const response = await extensionRequest(ID, "state");
 
   // SAFETY: the server's own `GrillState`, serialized by `Response.json` in grill/server.ts.
-  grill.value = response.ok ? ((await response.json()) as GrillState) : null;
+  const state = response.ok ? ((await response.json()) as GrillState) : null;
+
+  if (state !== null) forgetClosed(state);
+  grill.value = state;
 }
 
 /** The transcript's blocks, or `null` with the failure in the notices: the reviewer waits on them. */
@@ -71,13 +84,13 @@ async function post<Name extends keyof GrillPosts>(
   }).catch(() => null);
 
   if (response === null) {
-    fail("extension", "The grill did not reach the server. What you typed is kept.");
+    fail("send", "The grill did not reach the server. What you typed is kept.");
 
-    return new Response(null, { status: 0 });
+    return Response.error();
   }
 
-  if (response.ok) succeed("extension");
-  else fail("extension", `The grill was refused: the server answered ${response.status}.`);
+  if (response.ok) succeed("send");
+  else fail("send", `The grill was refused: the server answered ${response.status}.`);
 
   return response;
 }
@@ -156,14 +169,25 @@ function GrillAction(): preact.JSX.Element | null {
   );
 }
 
-/** The suggestion, or the subject asked for: a banner in the flow, its field on a line of its own, the focus in it. */
-function SuggestionBanner(props: { readonly suggestion: Suggestion | null }): preact.JSX.Element {
+/**
+ * The suggestion, or the subject asked for: a banner in the flow, its field on a line of its
+ * own. The field takes the focus when the Grill button opened the banner, never when a
+ * suggestion arrives under a typing. Start grilling is greyed for the Grill button's reasons.
+ */
+function SuggestionBanner(props: {
+  readonly suggestion: Suggestion | null;
+  readonly why: string | null;
+}): preact.JSX.Element {
   const field = useRef<HTMLInputElement>(null);
   const subject = subjectTyped.value ?? props.suggestion?.subject ?? "";
+  const { why } = props;
 
-  useEffect(() => field.current?.focus(), []);
+  useEffect(() => {
+    if (banner.peek() === "open") field.current?.focus();
+  }, []);
 
   const start = (): void => {
+    if (why !== null || subject.trim() === "") return;
     banner.value = "auto";
     subjectTyped.value = null;
     void openGrill(subject.trim());
@@ -190,12 +214,18 @@ function SuggestionBanner(props: { readonly suggestion: Suggestion | null }): pr
             subjectTyped.value = event.currentTarget.value;
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && subject.trim() !== "") start();
+            if (event.key === "Enter") start();
 
             if (event.key === "Escape") dismiss();
           }}
         />
-        <Button size="sm" variant="send" disabled={subject.trim() === ""} onClick={start}>
+        <Button
+          size="sm"
+          variant="send"
+          disabled={why !== null || subject.trim() === ""}
+          title={why ?? undefined}
+          onClick={start}
+        >
           Start grilling
         </Button>
         <Button size="sm" onClick={dismiss}>
@@ -209,7 +239,9 @@ function SuggestionBanner(props: { readonly suggestion: Suggestion | null }): pr
 function GrillNotice(): preact.JSX.Element | null {
   const state = grill.value;
 
-  return bannerShown(state) ? <SuggestionBanner suggestion={suggestionOf(state)} /> : null;
+  return bannerShown(state) ? (
+    <SuggestionBanner suggestion={suggestionOf(state)} why={grillWhy(state)} />
+  ) : null;
 }
 
 type CardProps = {
