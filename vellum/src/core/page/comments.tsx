@@ -59,7 +59,6 @@ function MarkWords(props: { readonly mark: Mark }): preact.JSX.Element {
   return (
     <div>
       <Tag>{QUICK_LABELS[mark.label].name}</Tag>
-      {mark.body !== "" && <div>{mark.body}</div>}
     </div>
   );
 }

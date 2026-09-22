@@ -47,11 +47,11 @@ export function isQuickLabel(value: string): value is QuickLabel {
 
 export const DELETE_SENTENCE = "Delete this.";
 
-/** What the reviewer says about a place: words of their own, "delete this", or a label whose `body` may be empty. */
+/** What the reviewer says about a place: words of their own, "delete this", or a label, a comment by itself. */
 export type Mark =
   | { readonly kind: "comment"; readonly body: string }
   | { readonly kind: "delete" }
-  | { readonly kind: "label"; readonly label: QuickLabel; readonly body: string };
+  | { readonly kind: "label"; readonly label: QuickLabel };
 
 export type Annotation = {
   readonly id: string;
@@ -75,14 +75,11 @@ function indent(words: string): string {
   return words.trim().split("\n").join("\n   ");
 }
 
-/** The mark in words Claude acts on: a label is its sentence, then the reviewer's detail when there is one. */
+/** The mark in words Claude acts on: a label is its sentence. */
 function wordsOf(mark: Mark): string {
   if (mark.kind === "comment") return mark.body;
 
-  if (mark.kind === "delete") return DELETE_SENTENCE;
-  const { sentence } = QUICK_LABELS[mark.label];
-
-  return mark.body.trim() === "" ? sentence : `${sentence}\n${mark.body}`;
+  return mark.kind === "delete" ? DELETE_SENTENCE : QUICK_LABELS[mark.label].sentence;
 }
 
 /** Where each anchored place is, one string each; a global anchor has none. */

@@ -307,13 +307,15 @@ document.addEventListener("keyup", onKey);
 // The keyup never arrives once the focus left: the page must hear the release from here.
 window.addEventListener("blur", () => hold(false));
 
-window.addEventListener("scroll", draw, true);
-
-// The page places its composer from the box of a pick: a reflow moves the box, so it is sent again.
-window.addEventListener("resize", () => {
+// The page places its composer from the box of a pick: a scroll or a reflow moves the box, so it is sent again.
+function moved(): void {
   draw();
 
   if (chosen.length > 0) sendPick();
-});
+}
+
+window.addEventListener("scroll", moved, true);
+
+window.addEventListener("resize", moved);
 
 window.addEventListener("message", onMessage);

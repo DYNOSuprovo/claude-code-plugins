@@ -1,4 +1,5 @@
-import type { ComponentChildren, JSX } from "preact";
+import type { ComponentChildren, JSX, RefObject } from "preact";
+import { useEffect, useRef } from "preact/hooks";
 
 /**
  * The page's components, each one a class of `style.css` spelled in one place: what every
@@ -69,7 +70,10 @@ export function Banner(props: {
   );
 }
 
-export function Popover(props: {
+const FOCUSABLE =
+  "button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), a[href]";
+
+export type PopoverProps = {
   /** What the dialog is, for assistive technology. */
   readonly label: string;
   readonly top?: number;
@@ -77,8 +81,66 @@ export function Popover(props: {
   /** While a target is being added, the popover fades and lets the pointer through. */
   readonly through?: boolean;
   readonly class?: string | undefined;
+  /** The popover's element, for a caller that measures it. */
+  readonly box?: RefObject<HTMLDivElement>;
+  /** Escape, or a pointer down outside the popover. The focus goes back to the element that held it at the opening. */
+  readonly onClose: () => void;
+  /** Ctrl+Enter or ⌘+Enter, from any field of the popover. */
+  readonly onSubmit?: () => void;
   readonly children: ComponentChildren;
-}): JSX.Element {
+};
+
+/**
+ * At the opening the focus enters: on the `autofocus` element, else the first focusable one. It
+ * scrolls nothing: the popover is placed where it is seen, and a focus that scrolls would move the
+ * pane before the placement lands.
+ */
+export function Popover(props: PopoverProps): JSX.Element {
+  const own = useRef<HTMLDivElement>(null);
+  const box = props.box ?? own;
+  const latest = useRef(props);
+  latest.current = props;
+
+  useEffect(() => {
+    const element = box.current;
+
+    if (element === null) return;
+    const opener = document.activeElement;
+    (
+      element.querySelector<HTMLElement>("[autofocus]") ??
+      element.querySelector<HTMLElement>(FOCUSABLE)
+    )?.focus({ preventScroll: true });
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        latest.current.onClose();
+      }
+
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) latest.current.onSubmit?.();
+    };
+
+    // A pointer let through to add a target must not close what it adds to.
+    const onPointerDown = (event: PointerEvent): void => {
+      if (latest.current.through === true) return;
+
+      if (event.target instanceof Node && element.contains(event.target)) return;
+      latest.current.onClose();
+    };
+
+    element.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown, true);
+
+    return () => {
+      element.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      const active = document.activeElement;
+      const left = active === null || active === document.body || element.contains(active);
+
+      if (left && opener instanceof HTMLElement && document.contains(opener)) opener.focus();
+    };
+  }, []);
+
   const style: JSX.CSSProperties = {};
 
   if (props.top !== undefined) style.top = `${props.top}px`;
@@ -91,6 +153,7 @@ export function Popover(props: {
       role="dialog"
       aria-label={props.label}
       style={style}
+      ref={box}
     >
       {props.children}
     </div>

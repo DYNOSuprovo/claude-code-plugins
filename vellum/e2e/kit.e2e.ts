@@ -150,9 +150,9 @@ test.describe("the composer stays in the pane", () => {
   test("a block near the bottom of the pane opens it above", async ({ page, vellum }) => {
     await reviewV1(page, vellum);
     await commentOn(page);
-    const paragraph = page.locator("article.plan > p").nth(1);
+    const heading = page.locator("article.plan > h2", { hasText: "Slices" });
 
-    await paragraph.evaluate((element) => {
+    await heading.evaluate((element) => {
       const pane = element.closest(".pane");
 
       if (pane === null) throw new Error("no pane");
@@ -160,7 +160,7 @@ test.describe("the composer stays in the pane", () => {
         element.getBoundingClientRect().bottom - pane.getBoundingClientRect().bottom + 40;
     });
 
-    const target = await boxOf(paragraph);
+    const target = await boxOf(heading);
     await page.mouse.click(target.x + 30, target.y + 8);
     const popover = page.locator(".popover");
     await expect(popover).toBeVisible();
@@ -249,7 +249,7 @@ test.describe("the bar's popovers", () => {
     await page.keyboard.press("Enter");
 
     await expect(page.locator(".popover")).toHaveCount(1);
-    expect(await focused(page)).toBe("BUTTON Cancel");
+    await expect(page.getByRole("button", { name: "Cancel" })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(page.locator(".popover")).toHaveCount(0);
     expect(await focused(page)).toBe("BUTTON Approve");
@@ -258,7 +258,7 @@ test.describe("the bar's popovers", () => {
   test("a click outside closes the warning", async ({ page, vellum }) => {
     await withOneComment(page, vellum);
     await page.getByRole("button", { name: "Approve", exact: true }).click();
-    await expect(page.locator(".popover")).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Cancel" })).toBeFocused();
     await page.mouse.click(600, 500);
 
     await expect(page.locator(".popover")).toHaveCount(0);
@@ -280,11 +280,13 @@ test.describe("the bar's popovers", () => {
 
     await notes.click();
     await anyway.click();
+    await expect(page.locator("#approval-notes")).toBeFocused();
     await page.mouse.click(600, 500);
     await expect(page.locator(".popover")).toHaveCount(0);
 
     await notes.click();
     await anyway.click();
+    await expect(page.locator("#approval-notes")).toBeFocused();
     await page.keyboard.type("Ship it.");
     await page.keyboard.press("Control+Enter");
     await expect(page.locator(".bar .status")).toHaveText("Approved");
@@ -342,7 +344,8 @@ test.describe("in a mockup", () => {
       const popover = page.locator(".popover");
       await expect(popover).toBeVisible();
       const before = { heading: await boxOf(heading), popover: await boxOf(popover) };
-      await page.mouse.move(800, 620);
+      const frame = await boxOf(page.locator(".pane iframe").last());
+      await page.mouse.move(frame.x + frame.width - 30, frame.y + frame.height - 60);
 
       for (let i = 0; i < 4; i += 1) await page.mouse.wheel(0, 60);
 

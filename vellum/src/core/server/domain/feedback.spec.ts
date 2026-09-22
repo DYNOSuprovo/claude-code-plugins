@@ -160,26 +160,13 @@ test("a delete mark prints Delete this. under its place", () => {
   );
 });
 
-test("a label with a body prints its sentence, then the body", () => {
-  const text = marked({ kind: "label", label: "verify", body: "Bun.serve or the watcher?" });
-
-  expect(text).toEndWith(
-    [
-      'lines 14–14: "persist per user"',
-      "   Verify this against the code or the docs, and cite what you read.",
-      "   Bun.serve or the watcher?",
-      "",
-    ].join("\n"),
-  );
-});
-
 test.each([
   ["clarify", "Clarify this: say what it means in concrete terms."],
   ["verify", "Verify this against the code or the docs, and cite what you read."],
   ["tooMuch", "Overengineered: cut this down to what the request needs."],
   ["missingCheck", "Nothing closes this: add the check that proves it."],
-] as const)("the label %s with an empty body prints its sentence alone", (label, sentence) => {
-  expect(marked({ kind: "label", label, body: "" })).toEndWith(
+] as const)("the label %s prints its sentence, and nothing else", (label, sentence) => {
+  expect(marked({ kind: "label", label })).toEndWith(
     `lines 14–14: "persist per user"\n   ${sentence}\n`,
   );
 });

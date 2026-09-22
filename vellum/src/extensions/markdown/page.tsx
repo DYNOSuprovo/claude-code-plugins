@@ -9,6 +9,7 @@ import { docUrl, fileUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { paint } from "../../core/page/highlights.ts";
 import { srgb } from "../../core/page/kit.tsx";
+import type { Rect } from "../../core/page/place.ts";
 import { dragRange, toggled } from "../../core/page/selection.ts";
 import { commenting, dark, docs, error, holding, review, select } from "../../core/page/state.ts";
 import type { DocRef, Passage } from "../../core/protocol.ts";
@@ -135,38 +136,67 @@ function toVNode(node: RootContent, key: number, changes: Changes | null): Compo
 
 type Chosen = { readonly range: Range; readonly passage: Passage };
 
+/** The chosen places, and the last one's box in the pane's scrolled content, where the composer is placed near. */
 type Draft = {
   readonly chosen: readonly [Chosen, ...Chosen[]];
-  readonly top: number;
-  readonly left: number;
+  readonly target: Rect;
 };
 
-type Wash = {
-  readonly target: Target;
-  readonly top: number;
-  readonly left: number;
-  readonly width: number;
-  readonly height: number;
-};
+type Wash = { readonly target: Target } & Rect;
 
 /** `rect`, from the viewport into the scrolled content of the pane around `root`. */
-function inPane(root: HTMLElement, rect: DOMRect): { top: number; left: number } | null {
+function inPane(root: HTMLElement, rect: DOMRect): Rect | null {
   const pane = root.parentElement;
 
   if (pane === null) return null;
   const paneRect = pane.getBoundingClientRect();
 
-  return { top: rect.top - paneRect.top + pane.scrollTop, left: rect.left - paneRect.left };
+  return {
+    top: rect.top - paneRect.top + pane.scrollTop,
+    left: rect.left - paneRect.left + pane.scrollLeft,
+    width: rect.width,
+    height: rect.height,
+  };
 }
 
-function draftUnder(
+/** The pane's window, in its own scrolled content: what the composer must stay inside. */
+function paneWindow(root: HTMLElement): Rect | null {
+  const pane = root.parentElement;
+
+  return pane === null
+    ? null
+    : {
+        top: pane.scrollTop,
+        left: pane.scrollLeft,
+        width: pane.clientWidth,
+        height: pane.clientHeight,
+      };
+}
+
+function draftOf(
   root: HTMLElement,
   chosen: readonly [Chosen, ...Chosen[]],
   rect: DOMRect,
 ): Draft | null {
-  const at = inPane(root, rect);
+  const target = inPane(root, rect);
 
-  return at === null ? null : { chosen, top: at.top + rect.height + 8, left: Math.max(8, at.left) };
+  return target === null ? null : { chosen, target };
+}
+
+/** The block holding `passage`, made focusable: where the focus goes once the composer closes. */
+function focusPassage(root: HTMLElement, passage: Passage): void {
+  const start = rangeFor(root, passage)?.startContainer ?? null;
+  const from = start instanceof Element ? start : (start?.parentElement ?? null);
+
+  const block =
+    from?.closest<HTMLElement>("[data-lines]") ??
+    [...root.querySelectorAll<HTMLElement>("[data-lines]")].find(
+      (candidate) => candidate.dataset.lines === passage.lines.join("-"),
+    );
+
+  if (block === undefined || block === null) return;
+  block.tabIndex = -1;
+  block.focus({ preventScroll: true });
 }
 
 /** Mermaid removes any element carrying the id it renders under: one counter for the whole page, not one per pane. */
@@ -385,7 +415,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
         // A place is never chosen collapsed: a collapsed one lost its text to a reload of the file.
         return current === null || last === undefined || last.range.collapsed
           ? current
-          : draftUnder(root, current.chosen, last.range.getBoundingClientRect());
+          : draftOf(root, current.chosen, last.range.getBoundingClientRect());
       });
     });
 
@@ -409,7 +439,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     setDraft(
       first === undefined || last === undefined
         ? null
-        : draftUnder(root, [first, ...rest], last.range.getBoundingClientRect()),
+        : draftOf(root, [first, ...rest], last.range.getBoundingClientRect()),
     );
   };
 
@@ -477,6 +507,15 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
 
   if (waiting !== null) return <div class="waiting">{waiting}</div>;
   const adding = holding.value && draft !== null;
+  const pane = container.current === null ? null : paneWindow(container.current);
+
+  const leave = (): void => {
+    const root = container.current;
+    const first = draft?.chosen[0];
+    setDraft(null);
+
+    if (root !== null && first !== undefined) focusPassage(root, first.passage);
+  };
 
   return (
     <>
@@ -505,7 +544,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
           <span class="wash-label">{wash.target.label}</span>
         </div>
       )}
-      {draft !== null && (
+      {draft !== null && pane !== null && (
         <Composer
           picks={draft.chosen.map(({ passage }) => ({
             key: `${passage.lines[0]}-${passage.prefix}-${passage.quote}`,
@@ -513,14 +552,14 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
             where: `lines ${passage.lines[0]}–${passage.lines[1]}`,
           }))}
           through={adding}
-          top={draft.top}
-          left={draft.left}
-          onCancel={() => setDraft(null)}
+          target={draft.target}
+          pane={pane}
+          onCancel={leave}
           onSubmit={(mark) => {
             const [first, ...rest] = draft.chosen;
             const passages = [first.passage, ...rest.map((one) => one.passage)] as const;
             props.annotate({ doc: props.doc.path, anchor: { kind: "text", passages }, mark });
-            setDraft(null);
+            leave();
           }}
         />
       )}

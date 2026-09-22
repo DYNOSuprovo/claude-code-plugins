@@ -112,12 +112,14 @@ function parseMark(value: unknown): Mark | null {
 
   if (value.kind === "delete") return { kind: "delete" };
 
-  if (typeof value.body !== "string") return null;
+  if (value.kind === "label") {
+    return typeof value.label === "string" && isQuickLabel(value.label)
+      ? { kind: "label", label: value.label }
+      : null;
+  }
 
-  if (value.kind === "comment") return { kind: "comment", body: value.body };
-
-  return value.kind === "label" && typeof value.label === "string" && isQuickLabel(value.label)
-    ? { kind: "label", label: value.label, body: value.body }
+  return value.kind === "comment" && typeof value.body === "string"
+    ? { kind: "comment", body: value.body }
     : null;
 }
 

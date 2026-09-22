@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import type { PopoverProps } from "./kit.tsx";
 import { Button, Chip, Handle } from "./kit.tsx";
 
 describe("the kit owns its classes", () => {
@@ -16,6 +17,13 @@ describe("the kit owns its classes", () => {
 
     expect(Button({ class: "lit", children: "x" }).props.class).toBe("btn lit");
     expect(button.props.class).toBe("btn");
+  });
+
+  test("a popover closes: `onClose` is no option", () => {
+    // @ts-expect-error -- `PopoverProps` requires `onClose`: a dialog Escape cannot close traps the keyboard.
+    const trap: PopoverProps = { label: "New comment", children: "x" };
+
+    expect("onClose" in trap).toBe(false);
   });
 
   test("a handle's class names its side, and its accessible name is its label, else its name", () => {

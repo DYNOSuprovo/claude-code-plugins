@@ -285,18 +285,18 @@ describe("routes", () => {
     expect((await send({ anchor: unnamed, mark: BIGGER })).status).toBe(400);
   });
 
-  test("a decision with a label mark round-trips to the feedback file", async () => {
+  test("a decision with a label mark round-trips to the feedback file, its sentence alone", async () => {
     const { dir, send } = drafting();
     const mark = { kind: "label", label: "verify", body: "Bun.serve or the watcher?" };
     expect((await send({ anchor: CARD, mark })).status).toBe(200);
     expect(await Bun.file(join(dir, WIP, ".review/v0.feedback-1.md")).text()).toContain(
-      "   Verify this against the code or the docs, and cite what you read.\n   Bun.serve or the watcher?\n",
+      '"Pro"\n   Verify this against the code or the docs, and cite what you read.\n',
     );
   });
 
   test("an unknown label is refused", async () => {
     const { send } = drafting();
-    const mark = { kind: "label", label: "nitpick", body: "" };
+    const mark = { kind: "label", label: "nitpick" };
     expect((await send({ anchor: CARD, mark })).status).toBe(400);
   });
 
@@ -404,11 +404,11 @@ describe("routes", () => {
     );
   });
 
-  test("a comment or a label without a body is refused", async () => {
+  test("a comment without a body is refused; a label takes none", async () => {
     const { send } = drafting();
     expect((await send({ anchor: CARD, mark: { kind: "comment" } })).status).toBe(400);
     expect((await send({ anchor: CARD, mark: { kind: "label", label: "verify" } })).status).toBe(
-      400,
+      200,
     );
   });
 

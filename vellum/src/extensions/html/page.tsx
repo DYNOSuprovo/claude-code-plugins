@@ -4,6 +4,7 @@ import type { RendererProps, PageExtension } from "../../core/extension.ts";
 import { docUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { srgb } from "../../core/page/kit.tsx";
+import type { Rect } from "../../core/page/place.ts";
 import { commenting, dark, flipCommentSwitch, holding } from "../../core/page/state.ts";
 import type { ElementRef } from "../../core/protocol.ts";
 import type { FrameTheme, PageToFrame, PickBox } from "./messages.ts";
@@ -14,16 +15,28 @@ type Draft = {
   readonly box: PickBox;
 };
 
-/** The frame's box plus the iframe's own place in the scrolled pane. */
-function under(frame: HTMLIFrameElement, box: PickBox): { top: number; left: number } | null {
+/** The frame's box in the scrolled pane, and the pane's window there, for the composer's placement. */
+function placeOf(frame: HTMLIFrameElement, box: PickBox): { target: Rect; pane: Rect } | null {
   const pane = frame.parentElement;
 
   if (pane === null) return null;
   const rect = frame.getBoundingClientRect();
   const paneRect = pane.getBoundingClientRect();
-  const top = box.top + rect.top - paneRect.top + pane.scrollTop;
 
-  return { top: top + box.height + 8, left: Math.max(8, box.left + rect.left - paneRect.left) };
+  return {
+    target: {
+      top: box.top + rect.top - paneRect.top + pane.scrollTop,
+      left: box.left + rect.left - paneRect.left + pane.scrollLeft,
+      width: box.width,
+      height: box.height,
+    },
+    pane: {
+      top: pane.scrollTop,
+      left: pane.scrollLeft,
+      width: pane.clientWidth,
+      height: pane.clientHeight,
+    },
+  };
 }
 
 function themeOf(): FrameTheme {
@@ -92,12 +105,14 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
+  // The focus goes back to the mockup, where the pick was made.
   const close = (): void => {
     setDraft(null);
     post({ type: "vellum:clear" });
+    frame.current?.focus();
   };
 
-  const at = frame.current === null || draft === null ? null : under(frame.current, draft.box);
+  const at = frame.current === null || draft === null ? null : placeOf(frame.current, draft.box);
   const adding = (held || frameHolding) && draft !== null;
 
   return (
@@ -121,8 +136,8 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
             where: element.label,
           }))}
           through={adding}
-          top={at.top}
-          left={at.left}
+          target={at.target}
+          pane={at.pane}
           onCancel={close}
           onSubmit={(mark) => {
             props.annotate({

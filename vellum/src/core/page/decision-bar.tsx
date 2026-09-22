@@ -1,5 +1,5 @@
 import type { ComponentType } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 
 import type { Annotation, PlanWorkspace } from "../protocol.ts";
 import { countChanges } from "../protocol.ts";
@@ -108,23 +108,20 @@ type NotesProps = {
 };
 
 function ApprovalNotes(props: NotesProps): preact.JSX.Element {
-  const textarea = useRef<HTMLTextAreaElement>(null);
-
-  // `autofocus` is honoured once per document, and the composer may have taken it already.
-  useEffect(() => textarea.current?.focus(), []);
-
   return (
-    <Popover label="Approval notes" class="pop-bar">
+    <Popover
+      label="Approval notes"
+      class="pop-bar"
+      onClose={props.onCancel}
+      onSubmit={props.onApprove}
+    >
       <label for="approval-notes">Notes for Claude, read before its first action</label>
       <textarea
         id="approval-notes"
         rows={3}
-        ref={textarea}
+        autofocus
         value={props.text}
         onInput={(event) => props.onInput(event.currentTarget.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) props.onApprove();
-        }}
       />
       <div class="row">
         <Button size="sm" onClick={props.onCancel}>
@@ -150,7 +147,7 @@ function ApprovalWarning(props: WarningProps): preact.JSX.Element {
   const one = props.count === 1;
 
   return (
-    <Popover label="Before approving" class="pop-bar">
+    <Popover label="Before approving" class="pop-bar" onClose={props.onCancel}>
       {props.count > 0 && (
         <>
           <div class="warn-text">
