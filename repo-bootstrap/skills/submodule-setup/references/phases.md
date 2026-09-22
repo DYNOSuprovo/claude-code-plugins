@@ -348,20 +348,18 @@ Expected: `PARENT_REPO_PAT` appears in list for parent and all submodule repos.
 **Skip this phase if:** `SOURCE_BRANCHES` from Phase 1 is empty or user specified "start fresh"
 </decision_criteria>
 
-For each submodule with source branch (execute sequentially per submodule):
+For each submodule with source branch (execute sequentially per submodule), run `mktemp -d` twice first and write the two printed paths below as `<extract-dir>` and `<clone-dir>`:
 
 ```bash
 # Extract from branch
 cd /path/to/parent-repo
-EXTRACT_DIR=$(mktemp -d)
-git archive origin/<source-branch>:<source-path> | tar -x -C "$EXTRACT_DIR"
+git archive origin/<source-branch>:<source-path> | tar -x -C <extract-dir>
 
 # Clone and populate new repo
-cd "$(mktemp -d)"
-git clone git@github.com:<org>/<submodule-repo>.git
-cd <submodule-repo>
+git clone git@github.com:<org>/<submodule-repo>.git <clone-dir>/<submodule-repo>
+cd <clone-dir>/<submodule-repo>
 git checkout -b <default-branch>
-cp -r "$EXTRACT_DIR"/. .
+cp -r <extract-dir>/. .
 git add .
 git commit -m "feat: initial content from <source-branch>"
 git push -u origin <default-branch>
