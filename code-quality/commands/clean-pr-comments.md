@@ -50,7 +50,7 @@ Comments that explain what code CANNOT express:
 ## Workflow
 
 1. **Identify scope** from `$ARGUMENTS`:
-   - A PR reference: `gh pr checkout <ref>`, then `gh pr diff <ref> --name-only`
+   - A PR reference: `gh pr checkout <ref>`, then `gh pr diff <ref> --name-only`. The checkout switches the user's branch and fails on a dirty tree: say so before running it.
    - Empty: the current branch, `git diff --stat origin/main...HEAD`
 
 2. **Select strategy based on PR size:**
