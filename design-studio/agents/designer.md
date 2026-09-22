@@ -17,11 +17,11 @@ Your only job: create 5 unique designs and verify they render.
 
 **Use your frontend-design skill to make these designs exceptional.**
 
-This invokes the frontend-design skill which guides you toward:
+The frontend-design skill is preloaded into your context. It guides you toward:
 - Bold aesthetic choices
 - Distinctive typography (not Inter, Roboto, Arial)
 - Strong color palettes
-- None of these defaults: purple gradients, a cream or off-white background, italic accent words in headlines, numbered "01/02/03" section labels, monospace labels, pill-shaped buttons
+- None of these defaults: purple gradients, a cream or off-white background, italic accent words in headlines, numbered "01/02/03" labels on anything that is not a real sequence, monospace labels, pill-shaped buttons
 
 ## Sequential Creation
 
