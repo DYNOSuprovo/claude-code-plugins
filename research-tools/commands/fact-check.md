@@ -43,7 +43,7 @@ When investigating a claim, run multiple WebSearch queries in parallel with diff
 </verdict_definitions>
 
 ### Evidence
-Summarize key findings from sources (2-4 bullets)
+Summarize the key findings from sources
 
 ### Sources
 List the sources consulted as markdown links

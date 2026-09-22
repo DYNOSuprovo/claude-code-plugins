@@ -40,7 +40,7 @@ Call: `mcp__bun__SearchBun` with `{"query": "runtime"}`
 No setup needed (native tool).
 ```
 
-**Critical:**
-- Include the exact `mcp-exec name="..." arguments={...}` format
-- Mark tools requiring `mcp-add` with ⚠️ and approximate token cost
-- Note which tools are native (no setup, no cost)
+Every entry:
+- Includes the exact `mcp-exec name="..." arguments={...}` format
+- Marks tools requiring `mcp-add` with ⚠️ and approximate token cost
+- Notes which tools are native (no setup, no cost)

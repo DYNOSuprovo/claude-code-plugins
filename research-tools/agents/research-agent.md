@@ -43,7 +43,7 @@ If no results, try a different single keyword.
 
 ## Step 3: Return Answer
 
-Provide 3-5 key findings with code examples when relevant.
+Provide the findings that answer the query, with code examples when relevant.
 
 End with a tools summary so the main agent learns the pattern:
 ```
