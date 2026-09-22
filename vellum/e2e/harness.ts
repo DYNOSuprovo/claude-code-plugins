@@ -102,6 +102,11 @@ export async function startVellum(
   };
 
   process.on("exit", onExit);
+  let gone = false;
+
+  child.once("exit", () => {
+    gone = true;
+  });
 
   const url = await firstLine(child.stdout, /^http/u);
   const copied = await firstLine(child.stderr, /copied to /u);
@@ -145,9 +150,17 @@ export async function startVellum(
       close: (reason = "page") => api("x/grill/close", { reason }),
       state: () => api("x/grill/state"),
     },
+    // A test may stop the server itself, to cut the connection: the fixture's stop is then a no-op.
     stop: () =>
       new Promise((exited) => {
         process.off("exit", onExit);
+
+        if (gone) {
+          exited();
+
+          return;
+        }
+
         child.once("exit", () => exited());
         child.kill("SIGTERM");
       }),
