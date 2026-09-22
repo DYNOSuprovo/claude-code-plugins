@@ -5,7 +5,8 @@ import { axe, boxOf, expect, openVellum, readFixture, reviewV1, test } from "./h
 
 /**
  * The shell: the handles keep a gutter of their own, the bar holds one line and names the plan,
- * the page has its landmarks, the rail says which document shows, and nothing jumps.
+ * the page has its landmarks, the rail says which document shows, the comments panel loads folded
+ * under 900px, and nothing jumps.
  */
 
 async function addGeneralComment(page: Page, text: string): Promise<void> {
@@ -311,6 +312,18 @@ test.describe("the rail's handle", () => {
     await page.mouse.click(line.x + line.width / 2, line.y + line.height / 2);
 
     await expect(page.locator(".doc-head .path")).toContainText("research-notes.md");
+  });
+});
+
+test.describe("in a window under 900px", () => {
+  test.use({ viewport: { width: 800, height: 600 } });
+
+  test("the comments panel loads folded", async ({ page, vellum }) => {
+    await reviewV1(page, vellum);
+    const panel = page.locator("#comments");
+
+    await expect(panel).toContainClass("folded");
+    await expect(panel).toHaveAttribute("inert", "");
   });
 });
 

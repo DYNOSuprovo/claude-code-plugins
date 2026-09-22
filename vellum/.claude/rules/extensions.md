@@ -63,8 +63,8 @@ and the engine events the core hands it. `grill` is the one extension with all t
 - An extension's classes in `core/page/style.css` carry its id as a prefix (`.grill-doc`,
   `.grill-q`): the stylesheet is global, and a bare `.grill` also styled the `.btn.grill` button.
 - A helper and its `*.spec.ts` live in the folder, beside the half that uses them: its choice
-  is a pure function tested with `bun test`, its DOM part a thin adapter, since the page has
-  no DOM implementation to test against.
+  is a pure function tested with `bun test`, which has no DOM, and its DOM part a thin adapter
+  the browser suite drives through the whole page.
 - A new document kind is a new extension, never a branch in an existing renderer.
 - An option or a flag exists when someone asked to turn it, never in advance. Config files,
   manifests and `enabled` are not designed yet; where the question stands is `docs/architecture.md`

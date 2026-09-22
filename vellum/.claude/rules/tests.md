@@ -18,7 +18,9 @@ paths:
   harness is `e2e/harness.ts`: the `vellum` fixture starts `preview.ts` on a copy of the fixture
   `test.use({ fixture })` names (`rich` by default), one server per test, and drives it through
   the API as the hooks module does (`gate`, `grill.*`); `axe` and `contrast` are its two measures.
-  `e2e/playwright.config.ts` runs every suite at the audit's five windows. A test ends with the
+  `e2e/playwright.config.ts` runs every suite at the audit's five windows; a test that needs
+  another width sets it with `test.use({ viewport })`, since `readWindow` reads the width once a
+  load and a resize after `page.goto` leaves the comments panel as it was. A test ends with the
   page in a state the fixture documents, never with a screenshot compared to a golden file: a
   pixel diff says that something moved, an assertion says what. Chromium is installed once per
   machine and per pinned version (`bun run --cwd vellum e2e:install`); CI runs the suite in its
