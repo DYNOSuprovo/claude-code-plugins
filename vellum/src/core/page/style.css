@@ -203,7 +203,7 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .plan img { max-width: 100%; height: auto; }
 .plan .scroll-x { overflow-x: auto; margin-left: calc(var(--s-6) * -1); padding-left: var(--s-6); }
 .plan .task-list-item { list-style: none; }
-.plan .task-list-item > input { margin: 0 0.35em 0 -1.2em; }
+.plan .task-list-item > input, .plan .task-list-item > p:first-child > input { margin: 0 0.35em 0 -1.2em; }
 .plan pre { position: relative; isolation: isolate; background: var(--tint); color: var(--ink); padding: var(--s-3); border-radius: var(--r-md); overflow: auto; font: var(--t-14)/var(--lh-code) var(--mono); font-variant-ligatures: none; }
 .plan pre code { background: none; padding: 0; font-size: inherit; }
 .plan pre .line-added { position: absolute; z-index: -1; left: 0; right: 0; top: calc(var(--s-3) + var(--line) * var(--lh-code) * var(--t-14)); height: calc(var(--lh-code) * var(--t-14)); background: var(--wash-ok); pointer-events: none; }

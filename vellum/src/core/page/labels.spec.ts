@@ -28,11 +28,7 @@ function doc(path: string, group: GroupedDoc["group"] = "artifact"): GroupedDoc 
 }
 
 function reviewing(docs: readonly GroupedDoc[]): Labelled {
-  return {
-    workspace: IN_REVIEW,
-    plan: { doc: `${WIP}.review/v3.md`, workingCopy: `${WIP}plan.md` } as never,
-    docs,
-  };
+  return { workspace: IN_REVIEW, docs };
 }
 
 const PLAN = doc(`${WIP}.review/v3.md`, "plan");
@@ -120,14 +116,22 @@ describe("docLabel", () => {
     const plan = doc(`${WIP}plan.md`, "plan");
     const docs = [plan, doc(`${WIP}screens/dialog.html`)];
 
-    const view: Labelled = {
-      workspace: { kind: "drafting", dir: WIP as never, batches: 0 },
-      plan: null,
-      docs,
-    };
+    const view: Labelled = { workspace: { kind: "drafting", dir: WIP as never, batches: 0 }, docs };
 
     expect(docLabel(plan, view).name).toBe("Plan draft");
     expect(docLabel(docs[1] as GroupedDoc, view).dir).toBe("screens");
+  });
+
+  test("before plan.md is written, an artifact is still read beside the plan", () => {
+    const transcript = doc(`${WIP}grill-1.md`);
+
+    const view: Labelled = {
+      workspace: { kind: "drafting", dir: WIP as never, batches: 0 },
+      docs: [transcript],
+    };
+
+    expect(docLabel(transcript, view)).toEqual({ name: "grill-1.md", dir: null });
+    expect(pathLabel(transcript, view)).toBe("grill-1.md");
   });
 });
 

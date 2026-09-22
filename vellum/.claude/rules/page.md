@@ -211,9 +211,9 @@ no build step, so what the page imports costs nothing at `cli start`.
   source are attributes, drawn by CSS `content: attr()`. So it takes no pick, and never enters
   the quote search of `anchoring.ts`. `markdown/changes.ts` chooses, purely,
   which block carries a mark and where a removed run goes: inside the `li` that follows it,
-  after its checkbox, before the `tr` for a row, where `page.tsx` draws it as a row of its own,
-  never directly under `ul`, `ol`, `tbody` or `tr`; for a `pre` it also names the added lines by
-  their index, which `page.tsx` draws as bands over the block.
+  after its checkbox, before the `tr` for a row, where `markdown/vnode.ts` draws it as a row of
+  its own, never directly under `ul`, `ol`, `tbody` or `tr`; for a `pre` it also names the added
+  lines by their index, which `markdown/vnode.ts` draws as bands over the block.
 - An HTML file is served with a sandboxed CSP, so the page cannot reach into it: `html/frame.ts`
   runs inside the mockup and owns the selection there, the page only sends it whether the page
   comments, the Ctrl state, the places already commented (a selector and the text chosen in it,

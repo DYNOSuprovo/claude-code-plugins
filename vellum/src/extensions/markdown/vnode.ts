@@ -133,12 +133,27 @@ function classOf(node: HastElement, added: boolean): string | undefined {
   return all === "" ? undefined : all;
 }
 
-/** A task's checkbox is named after its item, which the box's own markup leaves nameless. */
-function taskLabel(parent: HastElement | null): Record<string, string> {
-  const classes = parent?.properties.className;
-  const task = Array.isArray(classes) && classes.includes("task-list-item");
+type TaskLabel = { readonly "aria-label"?: string };
 
-  return task && parent !== null ? { "aria-label": textOf(parent).trim() } : {};
+function isList(node: RootContent): boolean {
+  return node.type === "element" && (node.tagName === "ul" || node.tagName === "ol");
+}
+
+/**
+ * A task's checkbox is named after its item, which the box's own markup leaves nameless. The
+ * tree holds no raw HTML, so every `input` is a task's box: its parent is the item, or in a
+ * loose list the item's first paragraph; a nested list is the next items', not this one's.
+ */
+function taskLabel(parent: HastElement | null): TaskLabel {
+  if (parent === null) return {};
+  const own = parent.children.filter((child) => !isList(child));
+
+  return {
+    "aria-label": own
+      .map((child) => textOf(child))
+      .join("")
+      .trim(),
+  };
 }
 
 /** A name in backticks that reaches a document of the review is drawn as a link to it. */
@@ -213,8 +228,11 @@ export function toVNode(
 
   if (node.tagName === "table") return h("div", { key, class: "scroll-x" }, drawn);
 
+  // Inside a link already, a second one would nest two anchors.
   const linked =
-    node.tagName === "code" && parent?.tagName !== "pre" ? linkedName(node, sheet) : null;
+    node.tagName === "code" && parent?.tagName !== "pre" && parent?.tagName !== "a"
+      ? linkedName(node, sheet)
+      : null;
 
   return linked === null
     ? drawn

@@ -13,8 +13,8 @@ export function planLabel(workspace: PlanWorkspace): string {
 /** A line of the rail: the file's name, and the folder that tells it from its neighbours, or none. */
 export type DocLabel = { readonly name: string; readonly dir: string | null };
 
-/** What `docLabel` reads of the review: the version, the plan's working copy, the listed documents. */
-export type Labelled = Pick<ReviewView, "workspace" | "plan" | "docs">;
+/** What `docLabel` reads of the review: the version and the plan's folder, the listed documents. */
+export type Labelled = Pick<ReviewView, "workspace" | "docs">;
 
 function dirname(path: string): string {
   const at = path.lastIndexOf("/");
@@ -26,18 +26,14 @@ function basename(path: string): string {
   return path.slice(path.lastIndexOf("/") + 1);
 }
 
-/** The plan's folder: the working copy's, or while drafting the plan's own; `null` with no plan. */
-function planDirOf(view: Labelled): string | null {
-  const copy = view.plan?.workingCopy ?? view.docs.find((doc) => doc.group === "plan")?.path;
-
-  return copy === undefined ? null : dirname(copy);
+/** The plan's folder, the workspace's: known before `plan.md` is written, as a grill's transcript is. */
+function planDirOf(view: Labelled): string {
+  return view.workspace.dir.replace(/\/$/u, "");
 }
 
 /** `path` under `dir`, or as it is. */
-function under(path: string, dir: string | null): string {
-  return dir !== null && dir !== "" && path.startsWith(`${dir}/`)
-    ? path.slice(dir.length + 1)
-    : path;
+function under(path: string, dir: string): string {
+  return dir !== "" && path.startsWith(`${dir}/`) ? path.slice(dir.length + 1) : path;
 }
 
 function tail(dir: string, segments: number): string {
@@ -69,7 +65,7 @@ export function dirLabels(dirs: readonly string[]): ReadonlyMap<string, string> 
 }
 
 /** An artifact's folder is read beside the plan, a cited file's from the project root. */
-function folderOf(doc: GroupedDoc, planDir: string | null): string {
+function folderOf(doc: GroupedDoc, planDir: string): string {
   return dirname(doc.group === "artifact" ? under(doc.path, planDir) : doc.path);
 }
 

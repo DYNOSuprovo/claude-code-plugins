@@ -1,3 +1,4 @@
+import { Fragment } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import type { Anchor, Annotation, GroupedDoc, Mark } from "../protocol.ts";
@@ -184,15 +185,18 @@ function Card(props: { readonly annotation: Annotation }): preact.JSX.Element {
       <div class="where" title={annotation.doc}>
         {docLabelOf(annotation.doc)} · {whereOf(annotation.anchor)}
       </div>
+      {/* The tag stays out of the quote, which stops at three lines and would hide it. */}
       {quotesOf(annotation.anchor).map((quote) => (
-        <div
-          class={["quote", annotation.mark.kind === "delete" && "struck", quote.mono && "code"]
-            .filter((name) => name !== false)
-            .join(" ")}
-          key={quote.key}
-        >
-          “{quote.text}”{quote.removed && <Tag>removed by your edit</Tag>}
-        </div>
+        <Fragment key={quote.key}>
+          <div
+            class={["quote", annotation.mark.kind === "delete" && "struck", quote.mono && "code"]
+              .filter((name) => name !== false)
+              .join(" ")}
+          >
+            “{quote.text}”
+          </div>
+          {quote.removed && <Tag>removed by your edit</Tag>}
+        </Fragment>
       ))}
       <CardWords annotation={annotation} />
     </div>
@@ -231,15 +235,18 @@ export function Comments(props: { readonly doc: GroupedDoc | null }): preact.JSX
   const name = doc === null || view === null ? "" : pathLabel(doc, view);
   const known = useRef<ReadonlySet<string> | null>(null);
 
-  // A comment added scrolls the list to its card: the reviewer sees it land.
+  // A comment added scrolls the list to its card: the reviewer sees it land. Several at once are
+  // a load (the draft, after the panel mounted empty), which keeps the list where it is.
   useEffect(() => {
     const ids = new Set(list.map((annotation) => annotation.id));
     const before = known.current;
     known.current = ids;
 
     if (before === null) return;
-    const added = list.findLast((annotation) => !before.has(annotation.id));
-    document.querySelector(`#card-${added?.id ?? ""}`)?.scrollIntoView({ block: "nearest" });
+    const [added, ...more] = list.filter((annotation) => !before.has(annotation.id));
+
+    if (added === undefined || more.length > 0) return;
+    document.querySelector(`#card-${added.id}`)?.scrollIntoView({ block: "nearest" });
   }, [list.map((annotation) => annotation.id).join("|")]);
 
   const add = (): void => {

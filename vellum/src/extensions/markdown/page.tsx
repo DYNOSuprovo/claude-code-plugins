@@ -52,12 +52,12 @@ function box(root: HTMLElement, name: string, passages: readonly Passage[]): voi
 }
 
 /** Where a passage is on screen: its text's block, or the figure that stands for it. */
-function blockOf(root: HTMLElement, passage: Passage): Element | null {
+function blockOf(root: HTMLElement, passage: Passage): HTMLElement | null {
   const start = rangeFor(root, passage)?.startContainer;
   const from = start instanceof Element ? start : (start?.parentElement ?? null);
 
   return (
-    from?.closest("[data-lines]") ??
+    from?.closest<HTMLElement>("[data-lines]") ??
     [...root.querySelectorAll<HTMLElement>("[data-lines]")].find(
       (block) => block.dataset.lines === passage.lines.join("-"),
     ) ??
@@ -100,16 +100,9 @@ function draftOf(
 
 /** The block holding `passage`, made focusable: where the focus goes once the composer closes. */
 function focusPassage(root: HTMLElement, passage: Passage): void {
-  const start = rangeFor(root, passage)?.startContainer ?? null;
-  const from = start instanceof Element ? start : (start?.parentElement ?? null);
+  const block = blockOf(root, passage);
 
-  const block =
-    from?.closest<HTMLElement>("[data-lines]") ??
-    [...root.querySelectorAll<HTMLElement>("[data-lines]")].find(
-      (candidate) => candidate.dataset.lines === passage.lines.join("-"),
-    );
-
-  if (block === undefined || block === null) return;
+  if (block === null) return;
 
   if (!block.hasAttribute("tabindex")) block.tabIndex = -1;
   block.focus({ preventScroll: true });
@@ -217,6 +210,9 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const shown = props.source ?? text;
   const listed = docs.value;
   const plan = review.value?.plan ?? null;
+  // Every workspace event loads a new view: the sheet is drawn again, its diagrams with it, only
+  // when a path a link may reach changed.
+  const reachable = [plan?.doc, plan?.workingCopy, ...listed.map((doc) => doc.path)].join("\n");
 
   const content = useMemo(() => {
     if (shown === null) return null;
@@ -227,7 +223,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     const atEnd = (changes?.removedAtEnd ?? []).map((run) => removedBlock(run));
 
     return [...toVNodes(tree.children, sheet), ...atEnd];
-  }, [shown, props.changes, listed, plan]);
+  }, [shown, props.changes, reachable]);
 
   useEffect(() => {
     void sourceOf(props.doc).then((source) => {
@@ -291,6 +287,8 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
 
   // The card the reviewer is on: its passage stands out, and a click brings it into view.
   const focus = focused.value;
+  // A click scrolls once: the effect runs again at each new list of annotations.
+  const revealed = useRef<typeof focus>(null);
 
   useEffect(() => {
     const root = container.current;
@@ -305,7 +303,8 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     box(root, "focused", passages);
     const [first] = passages;
 
-    if (focus?.reveal === true && first !== undefined) {
+    if (focus?.reveal === true && revealed.current !== focus && first !== undefined) {
+      revealed.current = focus;
       blockOf(root, first)?.scrollIntoView({ block: "center" });
     }
 
@@ -382,8 +381,14 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     for (const block of root.querySelectorAll<HTMLElement>(FOCUSABLE_BLOCKS)) {
       if (block.dataset.lines === undefined) continue;
 
-      if (on) block.tabIndex = 0;
-      else block.removeAttribute("tabindex");
+      if (on) {
+        block.tabIndex = 0;
+        continue;
+      }
+
+      // A block that stops being focusable drops the focus to `body`, where `c` flips nothing.
+      if (block === document.activeElement) root.focus({ preventScroll: true });
+      block.removeAttribute("tabindex");
     }
   }, [on, content]);
 
@@ -438,7 +443,9 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       dragging.current = false;
       const range = commenting.peek() ? dragRange(event) : null;
 
-      if (range === null) return;
+      // A press whose release never came (a link or an image dragged, a context menu) leaves
+      // `dragging` set: a selection made elsewhere later is none of the sheet's.
+      if (range === null || !range.intersectsNode(root)) return;
       clampTo(root, range);
       latest.current(root, range, event);
     };

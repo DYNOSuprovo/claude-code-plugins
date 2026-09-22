@@ -68,6 +68,14 @@ describe("a task list", () => {
       "aria-label": "D1 agreed with the team",
     });
   });
+
+  test("a loose item's box is named after its paragraph, an item's box never after its nested list", () => {
+    const [loose] = drawn(draw("- [x] D1 agreed\n\n- [ ] D2 open\n"), "input");
+    const [nesting] = drawn(draw("- [ ] D3 split\n  - [ ] D3a\n"), "input");
+
+    expect(loose?.props).toMatchObject({ "aria-label": "D1 agreed" });
+    expect(nesting?.props).toMatchObject({ "aria-label": "D3 split" });
+  });
 });
 
 describe("what a name reaches", () => {
@@ -82,6 +90,13 @@ describe("what a name reaches", () => {
     const [link] = drawn(draw("See `screens/dialog.html` first."), "a");
 
     expect(link?.props).toMatchObject({ "data-path": `${WIP}screens/dialog.html` });
+    expect(drawn([link], "code")).toHaveLength(1);
+  });
+
+  test("a name in backticks inside a link stays the link's, with no anchor nested", () => {
+    const [link, ...more] = drawn(draw("[`screens/dialog.html`](screens/dialog.html)"), "a");
+
+    expect(more).toHaveLength(0);
     expect(drawn([link], "code")).toHaveLength(1);
   });
 
