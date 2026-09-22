@@ -40,7 +40,7 @@
   --lh-code: 1.55;
   --lh-title: 1.18;
   --mono-optical: 0.92em;
-  --measure: 68ch;
+  --measure: 39.375rem;
   --comments-width: 310px;
   --rail-width: 220px;
 
@@ -87,12 +87,17 @@
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
 body { margin: 0; background: var(--desk); color: var(--ink); font: var(--t-14)/var(--lh-chrome) var(--serif); -webkit-font-smoothing: antialiased; }
-button:focus-visible, textarea:focus-visible { outline: 2px solid var(--redline); outline-offset: 2px; }
+button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px solid var(--redline); outline-offset: 2px; }
+.skip { position: absolute; top: -100px; left: var(--s-3); z-index: 4; padding: var(--s-1) var(--s-2); background: var(--sheet); border: 1px solid var(--edge); border-radius: var(--r-sm); color: var(--ink); font: 650 var(--t-13)/1.2 var(--serif); text-decoration: none; }
+.skip:focus { top: var(--s-2); }
 
 .app { background: var(--sheet); height: 100%; display: flex; flex-direction: column; overflow: hidden; }
-.bar { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--rule); flex-wrap: wrap; position: relative; font-size: var(--t-13); }
+.bar { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--rule); flex-wrap: nowrap; position: relative; font-size: var(--t-13); }
+/* Nothing of the bar shrinks but the title: a pill squeezed wraps, a button squeezed overflows. */
+.bar > * { flex: none; }
+.bar .spacer { flex: 1; }
 .brand { font-weight: 700; letter-spacing: 0.01em; }
-.title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50ch; }
+.title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; min-width: 0; }
 .version { font: var(--t-12)/1.5 var(--mono); color: var(--graphite); border: 1px solid var(--rule); border-radius: var(--r-pill); padding: 0 var(--s-2); }
 .stat { font: var(--t-12)/1 var(--mono); }
 .stat .plus { color: var(--ok); }
@@ -119,27 +124,28 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--redline)
 .rail { width: var(--rail-width); flex: none; border-right: 1px solid var(--rule); padding: var(--s-3) var(--s-2); overflow: auto; display: flex; flex-direction: column; gap: 2px; background: var(--tint); transition: margin-left var(--transition); }
 .rail.folded { margin-left: calc(var(--rail-width) * -1); }
 .rail button { font: 500 var(--t-13)/1.4 var(--serif); background: transparent; border: 0; color: var(--ink); cursor: pointer; text-align: left; padding: var(--s-1) var(--s-2); border-radius: var(--r-sm); display: flex; align-items: center; gap: var(--s-2); transition: background var(--transition); }
-.rail button:hover:not([aria-selected="true"]) { background: var(--sheet); }
+.rail button:hover:not([aria-current]) { background: var(--sheet); }
 .rail button .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--mono-optical); }
-.rail button[aria-selected="true"] { background: var(--ink); color: var(--sheet); }
+.rail button[aria-current] { background: var(--ink); color: var(--sheet); }
 .rail .empty { font-size: var(--t-13); color: var(--graphite); padding: var(--s-1) var(--s-2); }
 .rail h5 { font: 650 var(--t-12)/1 var(--serif); color: var(--graphite); margin: var(--s-4) var(--s-2) var(--s-1); display: flex; align-items: center; gap: var(--s-2); }
 .rail h5::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
 .rail h5:first-child { margin-top: 0; }
 .rail h5 .n { font-family: var(--mono); font-weight: 400; }
 .rail .dir { font-family: var(--mono); font-size: var(--t-12); color: var(--graphite); max-width: 11ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; }
-.rail button[aria-selected="true"] .dir { color: inherit; opacity: 0.75; }
+.rail button[aria-current] .dir { color: inherit; opacity: 0.75; }
 .rail .away { flex: 1 0 auto; margin: var(--s-3) calc(var(--s-2) * -1) calc(var(--s-3) * -1); padding: var(--s-1) var(--s-2) 0; background: var(--desk); border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: 2px; }
 .rail .away h5 { margin-top: var(--s-2); }
 .rail .away h5::after { background: color-mix(in oklab, var(--rule) 65%, transparent); }
 .rail .plate { width: 100%; align-items: baseline; background: var(--sheet); border: 1px solid var(--rule); box-shadow: inset 3px 0 0 var(--ink); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3); margin-bottom: var(--s-1); }
 .rail .plate .lead { font: 650 var(--t-14)/1.2 var(--serif); flex: 1; }
 .rail .plate .ver { font-family: var(--mono); font-size: var(--t-12); color: var(--graphite); }
-.rail .plate:hover:not([aria-selected="true"]) { background: color-mix(in oklab, var(--desk) 20%, var(--sheet)); }
-.rail .plate[aria-selected="true"] { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
-.rail .plate[aria-selected="true"] .ver { color: inherit; opacity: 0.75; }
+.rail .plate:hover:not([aria-current]) { background: color-mix(in oklab, var(--desk) 20%, var(--sheet)); }
+.rail .plate[aria-current] { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
+.rail .plate[aria-current] .ver { color: inherit; opacity: 0.75; }
 kbd { font: 600 var(--t-12)/1.4 var(--mono); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: var(--r-sm); padding: 0 var(--s-1); background: var(--sheet); color: var(--ink); }
 .badge { display: inline-block; min-width: 1.5em; padding: 0 var(--s-2); border-radius: var(--r-pill); background: var(--redline); color: var(--sheet); font: 650 var(--t-12)/1.5 var(--serif); text-align: center; }
+.btn .badge { line-height: 1.2; }
 .btn.send .badge { background: var(--sheet); color: var(--redline); }
 .chevron { width: 1em; height: 1em; transition: transform var(--transition); }
 
@@ -149,7 +155,7 @@ kbd { font: 600 var(--t-12)/1.4 var(--mono); border: 1px solid var(--rule); bord
 .edited { font: 650 var(--t-12)/1.6 var(--serif); background: color-mix(in oklab, var(--marker) 45%, var(--sheet)); color: color-mix(in oklab, var(--ink) 80%, var(--marker)); border-radius: var(--r-pill); padding: 1px var(--s-2); white-space: nowrap; }
 .toggle { display: inline-flex; align-items: center; gap: var(--s-2); cursor: pointer; }
 .tools:empty { display: none; }
-.tools { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-1) var(--s-3); border-bottom: 1px solid var(--rule); font-size: var(--t-13); color: var(--graphite); background: var(--tint); }
+.tools { display: flex; align-items: center; gap: var(--s-2); min-height: calc(var(--s-8) + 2px); padding: var(--s-1) var(--s-3); border-bottom: 1px solid var(--rule); font-size: var(--t-13); color: var(--graphite); background: var(--tint); }
 .switch { display: inline-flex; align-items: center; gap: var(--s-2); border: 0; background: none; padding: 2px 0; font: 600 var(--t-13)/1.4 var(--serif); color: var(--graphite); cursor: pointer; }
 .switch .track { width: calc(var(--s-6) + var(--s-1)); height: var(--s-4); border-radius: var(--r-pill); background: var(--rule); position: relative; transition: background var(--transition); }
 .switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: var(--s-3); height: var(--s-3); border-radius: 50%; background: var(--sheet); transition: left var(--transition); }
@@ -157,15 +163,17 @@ kbd { font: 600 var(--t-12)/1.4 var(--mono); border: 1px solid var(--rule); bord
 .switch[aria-checked="true"] .track { background: var(--redline); }
 .switch[aria-checked="true"] .track::after { left: calc(100% - var(--s-3) - 2px); }
 .sep { width: 1px; align-self: stretch; background: var(--rule); }
-.panes { flex: 1; min-height: 0; display: flex; }
+/* The gutter: the panes, their scrollbars, a mockup's frame and the fillets stop before the handles, which sit in it. */
+.panes { flex: 1; min-height: 0; display: flex; padding-inline: var(--s-6); }
 .pane { flex: 1; min-width: 0; overflow: auto; position: relative; }
 .pane + .pane { border-left: 1px solid var(--rule); }
+.pane:has(.grill-doc) { scroll-padding-bottom: calc(var(--s-10) * 3 + var(--s-3)); }
 iframe { border: 0; width: 100%; height: 100%; display: block; background: var(--field); }
 .image { padding: var(--s-6); }
 .image img { max-width: 100%; display: block; }
 .waiting { padding: var(--s-10); color: var(--graphite); }
 .editor { flex: 1; display: flex; }
-.editor textarea { flex: 1; border: 0; border-radius: 0; resize: none; padding: var(--s-4) var(--s-6); font: var(--t-14)/var(--lh-code) var(--mono); background: var(--field); }
+.editor textarea { flex: 1; max-width: 100ch; margin-inline: auto; border: 0; border-radius: 0; resize: none; padding: var(--s-4) var(--s-6); font: var(--t-14)/var(--lh-code) var(--mono); background: var(--field); }
 .editor textarea:focus-visible { outline-offset: -2px; }
 .rail[inert]:not(.folded), .comments[inert]:not(.folded) { opacity: 0.45; }
 
@@ -173,7 +181,8 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .plan h1 { font: 650 var(--t-31)/var(--lh-title) var(--serif); letter-spacing: -0.015em; margin: 0 0 var(--s-3); }
 .plan h2 { font: 650 var(--t-25)/var(--lh-title) var(--serif); letter-spacing: -0.01em; margin: var(--s-6) 0 var(--s-2); }
 .plan h3 { font: 650 var(--t-20)/1.2 var(--serif); margin: var(--s-4) 0 var(--s-1); }
-.plan p, .plan ul, .plan ol { margin: 0 0 var(--s-3); max-width: var(--measure); }
+.plan h1, .plan h2, .plan h3, .plan p, .plan ul, .plan ol { max-width: var(--measure); }
+.plan p, .plan ul, .plan ol { margin: 0 0 var(--s-3); }
 .plan ul, .plan ol { padding-left: 1.2em; }
 .plan a { color: var(--ink); text-decoration-color: var(--redline); text-underline-offset: 3px; cursor: pointer; }
 .plan code { font-family: var(--mono); font-size: var(--mono-optical); background: var(--tint); padding: 0.1em 0.35em; border-radius: var(--r-sm); }
@@ -207,6 +216,8 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .plan .marked, .plan tr.marked > :first-child { position: relative; }
 .plan .marked::after, .plan tr.marked > :first-child::after { content: ""; position: absolute; top: 0.15em; bottom: 0.15em; left: calc(var(--s-6) * -1 + var(--s-2)); width: 2px; background: var(--redline); border-radius: var(--r-sm); }
 .plan li.marked::after, .plan li > .marked::after { left: calc(-1.2em - var(--s-6) + var(--s-2)); }
+.plan li li.marked::after, .plan li li > .marked::after { left: calc(-2.4em - var(--s-6) + var(--s-2)); }
+.plan li li li.marked::after, .plan li li li > .marked::after { left: calc(-3.6em - var(--s-6) + var(--s-2)); }
 .plan blockquote > .marked::after { left: calc(-3px - var(--s-3) - var(--s-6) + var(--s-2)); }
 /* A quote is marked for the blank line between two commented paragraphs: its fillet joins theirs, measured from inside its border. */
 .plan blockquote.marked::after { left: calc(-3px - var(--s-6) + var(--s-2)); }
@@ -217,6 +228,7 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 /* An item's lines stop before its nested list, its box does not: the list masks the fillet beside it, as it masks the added bar. */
 .plan li.marked > ul, .plan li.marked > ol { position: relative; }
 .plan li.marked > ul::before, .plan li.marked > ol::before { content: ""; position: absolute; z-index: 1; top: 0; bottom: 0; left: calc(-1.2em - var(--s-6) + var(--s-2) - 1px); width: 4px; background: var(--sheet); }
+.plan li li.marked > ul::before, .plan li li.marked > ol::before { left: calc(-2.4em - var(--s-6) + var(--s-2) - 1px); }
 .plan li.added.marked > ul::before, .plan li.added.marked > ol::before { left: calc(var(--s-6) * -1 + var(--s-2) * 2 + 3px - 1px); }
 .plan details.removed { border-left: 3px solid var(--redline); background: color-mix(in oklab, var(--redline) 7%, var(--sheet)); margin: var(--s-1) 0 var(--s-1) calc(var(--s-2) * -1 - 3px); padding: 2px var(--s-2); font: var(--t-13)/var(--lh-chrome) var(--serif); max-width: var(--measure); user-select: none; }
 .plan li > details.removed, .plan blockquote > details.removed { margin-left: 0; }

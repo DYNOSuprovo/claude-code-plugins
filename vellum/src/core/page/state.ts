@@ -79,7 +79,8 @@ export const planDoc = computed<GroupedDoc | null>(() => {
     : { path: plan.doc, mediaType: "text/markdown", modified: 0, group: "plan" };
 });
 
-const planText = computed(() => edited.value?.text ?? review.value?.plan?.text ?? null);
+/** The plan's text as shown: the reviewer's unsent edit of it, else the version's. */
+export const planText = computed(() => edited.value?.text ?? review.value?.plan?.text ?? null);
 
 const previousText = computed(() => review.value?.plan?.previous?.text ?? null);
 

@@ -1,4 +1,5 @@
 import type { DocGroup, DocRef, GroupedDoc } from "../protocol.ts";
+import type { ProjectPath } from "../server/domain/paths.ts";
 import { Badge, Handle } from "./kit.tsx";
 import { dirOf, planLabel } from "./rail.ts";
 import { annotations, currentDoc, docs, editing, railOpen, review, select } from "./state.ts";
@@ -16,6 +17,20 @@ function inGroup(list: readonly GroupedDoc[], group: DocGroup): readonly Grouped
 }
 
 /**
+ * When the rail last unfolded. The handle rides the rail's edge, so the second click of a double
+ * click on it lands on whatever line slid under the pointer: a line ignores a click that arrives
+ * within a double click's delay of the unfolding.
+ */
+let unfoldedAt = 0;
+
+const DOUBLE_CLICK_MS = 300;
+
+function chooseDoc(path: ProjectPath): void {
+  if (performance.now() - unfoldedAt < DOUBLE_CLICK_MS) return;
+  select(path);
+}
+
+/**
  * The fold control, on the rail's edge, which it follows. Folded, the rail hides each document's
  * count and any document Claude writes meanwhile; the handle carries no badge all the same, since
  * the rail opens at every load and only the reviewer folds it.
@@ -29,6 +44,8 @@ export function RailHandle(): preact.JSX.Element {
       name="Documents"
       onToggle={() => {
         railOpen.value = !railOpen.value;
+
+        if (railOpen.value) unfoldedAt = performance.now();
       }}
     />
   );
@@ -48,8 +65,8 @@ export function DocList(): preact.JSX.Element {
         type="button"
         key={doc.path}
         title={doc.path}
-        aria-selected={currentDoc.value?.path === doc.path}
-        onClick={() => select(doc.path)}
+        aria-current={currentDoc.value?.path === doc.path ? "page" : undefined}
+        onClick={() => chooseDoc(doc.path)}
       >
         <span class="name">{nameOf(doc)}</span>
         {dir !== "" && <span class="dir">{dir}</span>}
@@ -69,8 +86,8 @@ export function DocList(): preact.JSX.Element {
         <button
           type="button"
           class="plate"
-          aria-selected={currentDoc.value?.path === plan.path}
-          onClick={() => select(plan.path)}
+          aria-current={currentDoc.value?.path === plan.path ? "page" : undefined}
+          onClick={() => chooseDoc(plan.path)}
         >
           <span class="lead">Plan</span>
           <span class="ver">{planLabel(workspace)}</span>

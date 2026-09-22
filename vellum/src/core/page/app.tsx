@@ -80,32 +80,32 @@ function Panes(): preact.JSX.Element {
   // Before the empty state: an open editor keeps its Cancel whatever the document list became.
   if (session !== null) {
     return (
-      <div class="docs">
+      <main id="doc" class="docs">
         {head}
         <Editor session={session} />
-      </div>
+      </main>
     );
   }
 
   if (doc === null) {
     return (
-      <div class="docs">
+      <main id="doc" class="docs">
         <div class="waiting">Nothing to show yet. The working directory's files appear here.</div>
-      </div>
+      </main>
     );
   }
 
   const startEdit = (): void => openEditor(panes.current === null ? 1 : lineAtTop(panes.current));
 
   return (
-    <div class="docs">
+    <main id="doc" class="docs">
       {head}
       <Tools onEdit={startEdit} comments={takesComments()} />
       <div class="panes" ref={panes}>
         {beside && split.value && plan !== null && <Doc doc={plan} />}
         <Doc doc={doc} />
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -142,6 +142,9 @@ function App(): preact.JSX.Element {
 
   return (
     <div class="app">
+      <a class="skip" href="#doc">
+        Skip to document
+      </a>
       <DecisionBar actions={actions} />
       <div class="body">
         <DocList />

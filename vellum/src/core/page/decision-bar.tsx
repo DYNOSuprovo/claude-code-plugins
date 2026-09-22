@@ -13,6 +13,7 @@ import {
   error,
   locked,
   planChanges,
+  planText,
   review,
 } from "./state.ts";
 
@@ -66,7 +67,7 @@ function noticeOf(workspace: PlanWorkspace): Notice | null {
   }
 }
 
-function titleOf(plan: string | undefined): string {
+function titleOf(plan: string | null): string {
   return /^#\s+(.+?)\s*$/mu.exec(plan ?? "")?.[1] ?? "Plan";
 }
 
@@ -206,6 +207,12 @@ export function DecisionBar(props: BarProps): preact.JSX.Element {
   const changed = planChanges.value === null ? null : countChanges(planChanges.value);
   const [popover, setPopover] = useState<BarPopover>(CLOSED);
   const close = (): void => setPopover(CLOSED);
+  const title = titleOf(planText.value);
+
+  useEffect(() => {
+    document.title = `${title} · Vellum`;
+  }, [title]);
+
   const frozen = locked.value || editing.value !== null;
   const hold = view?.held ?? null;
   // After a failed rename the first attempt's files stand: "Retry approval" is the one approve left.
@@ -237,9 +244,11 @@ export function DecisionBar(props: BarProps): preact.JSX.Element {
 
   return (
     <>
-      <div class="bar">
+      <header class="bar">
         <span class="brand">Vellum</span>
-        <span class="title">{titleOf(view?.plan?.text)}</span>
+        <span class="title" title={title}>
+          {title}
+        </span>
         {workspace !== undefined && workspace.kind !== "drafting" && (
           <span class="version">v{workspace.version}</span>
         )}
@@ -289,7 +298,7 @@ export function DecisionBar(props: BarProps): preact.JSX.Element {
             onCancel={() => setPopover(popover.next.kind === "noted" ? popover.next.notes : CLOSED)}
           />
         )}
-      </div>
+      </header>
       {connection.value === "down" && <ConnectionLost />}
       {notice !== null && (
         <Banner kind={notice.tone}>
