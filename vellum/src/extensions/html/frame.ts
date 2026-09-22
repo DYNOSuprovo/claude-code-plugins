@@ -124,8 +124,7 @@ function clickPick(element: Element): Pick {
   return { element, range, text: clickText(element) };
 }
 
-function boxFor(of: Element | Range, kind: string, label: string | null): HTMLElement {
-  const rect = of.getBoundingClientRect();
+function boxAt(rect: DOMRect, kind: string, label: string | null): HTMLElement {
   const box = document.createElement("div");
   box.className = `box ${kind}`;
   box.style.cssText = `top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;height:${rect.height}px`;
@@ -138,6 +137,18 @@ function boxFor(of: Element | Range, kind: string, label: string | null): HTMLEl
   }
 
   return box;
+}
+
+function boxFor(of: Element | Range, kind: string, label: string | null): HTMLElement {
+  return boxAt(of.getBoundingClientRect(), kind, label);
+}
+
+/** A commented element takes one box; the words dragged in one take a box per line, as the sheet paints them. */
+function markOf(place: Element | Range): HTMLElement[] {
+  const rects =
+    place instanceof Range ? [...place.getClientRects()] : [place.getBoundingClientRect()];
+
+  return rects.filter((rect) => rect.width > 0).map((rect) => boxAt(rect, "comment", null));
 }
 
 /** `text` as it was quoted, found again in `element` whatever its whitespace became; `null` once it is gone. */
@@ -195,7 +206,7 @@ function draw(): void {
   const adding = holding && chosen.length > 0;
 
   layer.replaceChildren(
-    ...commentedPlaces().map((place) => boxFor(place, "comment", null)),
+    ...commentedPlaces().flatMap((place) => markOf(place)),
     ...chosen.map((pick) => boxFor(pick.range, "chosen", null)),
     ...(hovered === null
       ? []

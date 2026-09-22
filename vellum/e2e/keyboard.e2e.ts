@@ -168,20 +168,20 @@ test.describe("a drag past the sheet", () => {
   }) => {
     await reviewV1(page, vellum);
     await commentOn(page);
-    const cell = page.locator("article.plan table tbody tr:nth-child(1) td:nth-child(5)");
-    await cell.scrollIntoViewIfNeeded();
-    const box = await boxOf(cell);
-    const y = box.y + box.height / 2;
-    await page.mouse.move(box.x + 14, y);
+    // From a paragraph, not the table: a drag out of a table that scrolls sideways scrolls it instead.
+    const paragraph = page.locator("article.plan > p").first();
+    const box = await boxOf(paragraph);
+    const y = box.y + 10;
+    await page.mouse.move(box.x + 40, y);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width - 8, y, { steps: 8 });
-    const panel = await boxOf(page.locator("#comments header"));
+    const panel = await boxOf(page.locator("#comments"));
     await page.mouse.move(panel.x + 40, y, { steps: 8 });
     await page.mouse.up();
 
     const quote = page.locator(".popover .quote");
     await expect(quote).toHaveCount(1);
-    await expect(quote).toContainText("synchronous");
+    await expect(quote).toContainText("lose the network in basements");
     await expect(quote).not.toContainText("No comments yet");
     expect(await page.evaluate(() => document.getSelection()?.toString() ?? "")).toBe("");
   });
@@ -196,7 +196,7 @@ test.describe("in a mockup", () => {
     await commentOn(page);
     const paragraph = frame.locator("section:nth-of-type(2) p");
     const box = await boxOf(paragraph);
-    const pointer = { x: box.x + 400, y: box.y + 10 };
+    const pointer = { x: box.x + box.width / 2, y: box.y + 10 };
     await page.mouse.move(pointer.x, pointer.y, { steps: 5 });
     await expect
       .poll(async () => (await overlay(frame)).find((b) => b.kind.includes("wash"))?.label)
@@ -252,19 +252,26 @@ test.describe("a comment in a mockup", () => {
     await commentOn(page);
     const paragraph = frame.locator("p.offline");
     const box = await boxOf(paragraph);
-    await page.mouse.move(box.x + 150, box.y + box.height / 2);
+    // On the first line, over a few words: at a narrow pane the text wraps, and a drag between two lines takes it whole.
+    await page.mouse.move(box.x + 150, box.y + 18);
     await page.mouse.down();
-    await page.mouse.move(box.x + 470, box.y + box.height / 2, { steps: 10 });
+    await page.mouse.move(box.x + 300, box.y + 18, { steps: 10 });
     await page.mouse.up();
     await expect(page.locator(".popover textarea")).toBeFocused();
+    await expect(page.locator(".popover .quote")).not.toContainText("network returns");
     await page.keyboard.type("Say when it was last synced.");
     await page.keyboard.press("Control+Enter");
     await expect(page.locator(".comments .card")).toHaveCount(1);
 
+    // One box per line of the drag, and none as wide as the paragraph: the words, not the element.
     await expect
-      .poll(
-        async () => (await overlay(frame)).find((b) => b.kind.includes("comment"))?.rect.width ?? 0,
-      )
-      .toBeLessThan(box.width - 100);
+      .poll(async () => {
+        const marks = (await overlay(frame)).filter((b) => b.kind.includes("comment"));
+
+        return marks.length === 0
+          ? "no mark"
+          : marks.every((mark) => mark.rect.width < box.width - 100);
+      })
+      .toBe(true);
   });
 });

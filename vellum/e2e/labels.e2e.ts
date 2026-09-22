@@ -72,7 +72,10 @@ test.describe("what a card says", () => {
     await commentOn(page);
     const frame = page.frameLocator(".pane iframe").last();
     await frame.locator("h1").click();
-    await frame.locator("label[for=notes]").click({ modifiers: ["Control"] });
+    // Control held first: the composer lets the pointer through before the click is checked.
+    await page.keyboard.down("Control");
+    await frame.locator("label[for=notes]").click();
+    await page.keyboard.up("Control");
     await expect(page.locator(".popover .quote")).toHaveCount(2);
     await page.keyboard.type("Name the two the same way.");
     await page.keyboard.press("Control+Enter");
