@@ -164,6 +164,8 @@ export function DecisionBar(props: BarProps): preact.JSX.Element {
   const since = view?.plan?.previous?.version;
   const changed = planChanges.value === null ? null : countChanges(planChanges.value);
   const [popover, setPopover] = useState<BarPopover>(CLOSED);
+  /** A decision in flight: the notes popover stays open and its Approve waits, so nothing is sent twice. */
+  const [sending, setSending] = useState(false);
   const close = (): void => setPopover(CLOSED);
   const title = titleOf(planText.value);
 
@@ -185,10 +187,17 @@ export function DecisionBar(props: BarProps): preact.JSX.Element {
 
   /** The notes popover closes on success alone: a failure leaves the note where it was typed. */
   const approve = (notes: string): void => {
+    if (sending) return;
+    setSending(true);
+
     void decide({ kind: "approve", edit: edited.value, notes }).then((taken) => {
+      setSending(false);
+
       if (taken) close();
     });
   };
+
+  const notesLive = { disabled: live.notes.disabled || sending, title: live.notes.title };
 
   const proceed = (next: Next): void => {
     if (next.kind === "feedback") {
@@ -282,10 +291,10 @@ export function DecisionBar(props: BarProps): preact.JSX.Element {
       {popover.kind === "notes" && editing.value === null && (
         <ApprovalNotes
           text={popover.text}
-          disabled={live.notes.disabled}
+          disabled={notesLive.disabled}
           onInput={(text) => setPopover({ ...popover, text })}
           onApprove={() => {
-            if (!live.notes.disabled) ask({ kind: "noted", notes: popover });
+            if (!notesLive.disabled) ask({ kind: "noted", notes: popover });
           }}
           onCancel={close}
         />
