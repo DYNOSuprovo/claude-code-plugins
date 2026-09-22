@@ -6,7 +6,7 @@ import { axe, boxOf, expect, openVellum, readFixture, reviewV1, test } from "./h
 /**
  * The shell: the handles keep a gutter of their own, the bar holds one line and names the plan,
  * the page has its landmarks, the rail says which document shows, the comments panel loads folded
- * under 900px, and nothing jumps.
+ * at 900px, and nothing jumps.
  */
 
 async function addGeneralComment(page: Page, text: string): Promise<void> {
@@ -315,15 +315,40 @@ test.describe("the rail's handle", () => {
   });
 });
 
-test.describe("in a window under 900px", () => {
-  test.use({ viewport: { width: 800, height: 600 } });
+/**
+ * Records, from before the page's scripts run, each class `#comments` takes, in order, joined
+ * by ` | ` in the root's `data-comments-seen`.
+ */
+async function recordCommentsClass(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const seen: string[] = [];
 
-  test("the comments panel loads folded", async ({ page, vellum }) => {
+    const observer = new MutationObserver(() => {
+      const now = document.querySelector("#comments")?.className;
+
+      if (now === undefined || now === seen.at(-1)) return;
+      seen.push(now);
+      document.documentElement.dataset["commentsSeen"] = seen.join(" | ");
+    });
+
+    observer.observe(document, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  });
+}
+
+test.describe("in a window 900px wide", () => {
+  test.use({ viewport: { width: 900, height: 600 } });
+
+  test("the comments panel is folded from its first render", async ({ page, vellum }, info) => {
+    test.skip(info.project.name !== "light-1440", "the window is the test's own at every project");
+    await recordCommentsClass(page);
     await reviewV1(page, vellum);
-    const panel = page.locator("#comments");
-
-    await expect(panel).toContainClass("folded");
-    await expect(panel).toHaveAttribute("inert", "");
+    await expect(page.locator("#comments")).toHaveAttribute("inert", "");
+    await expect(page.locator("html")).toHaveAttribute("data-comments-seen", "comments folded");
   });
 });
 

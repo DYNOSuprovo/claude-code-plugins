@@ -123,10 +123,9 @@ no build step, so what the page imports costs nothing at `cli start`.
   scripts are exempt, since a browser runs them for what they do at that scope:
   `app.tsx` and `html/frame.ts`. `app.tsx` calls `readWindow` before the first render, never from
   `start`: `Comments` draws `commentsOpen` at that render and `start` runs in an effect after it,
-  so under 900px the panel would paint open, then fold through its width transition. The browser
-  suite holds that the call is made: `shell.e2e.ts` loads the page in an 800px window and finds
-  the panel folded; a call moved after the first render ends folded too, so only a live page
-  shows the transition. The rest is held by
+  so under 900px the panel would paint open, then fold through its width transition. `shell.e2e.ts`
+  holds that call: in a 900px window it records each class `#comments` takes from before the
+  page's scripts run, and finds the panel folded from the first render. The rest is held by
   `src/boundaries.spec.ts`, which imports every other module in a process with no `window` and
   names the file that throws.
 - `start` is the page's one way in, and its order is the rule: the saved draft into the signals,
