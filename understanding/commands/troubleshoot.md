@@ -25,12 +25,7 @@ You are in **diagnostic mode**. Find the root cause of the issue. Leave implemen
    - Ask clarifying questions if the problem description is vague
    - Identify what's broken vs what's expected
 
-2. **Investigate systematically:**
-   - Read relevant files to understand current implementation
-   - Check git history for recent changes: `git log --oneline -20`, `git diff`
-   - Search for error messages, function definitions, and related code
-   - Trace data flow and execution paths
-   - Check for type errors, missing dependencies, configuration issues
+2. **Investigate:** include recent history (`git log --oneline -20`, `git diff`) alongside the code.
 
 3. **Add console.log statements when helpful:**
    - Use Edit tool to add strategic `console.log()` statements

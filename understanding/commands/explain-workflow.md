@@ -18,7 +18,7 @@ allowed-tools:
 
 Trace the complete execution flow of the target and produce ASCII workflow diagrams showing every step from user input to final output.
 
-This is NOT a concept explanation. Do NOT explain what the target "is" or "why it exists." Instead, trace what HAPPENS -- step by step -- when it executes.
+What the target is and why it exists are out of scope: the trace shows what happens, step by step, when it executes.
 
 ## Step 1: Resolve the Target
 
@@ -166,10 +166,8 @@ Include `file:line` references for every step so the user can navigate to the so
 | path/to/file | [what it does] |
 ```
 
-## Anti-Patterns
+## Scope
 
-- Do NOT explain what the component "is" conceptually -- trace what it DOES
-- Do NOT include architecture diagrams -- only execution flow
-- Do NOT skip sub-agent tracing -- follow delegations to their source files
-- Do NOT invent steps not present in the code -- trace only what exists
-- Do NOT produce a wall of text -- the diagram is the primary output
+- The diagrams show execution flow, not architecture.
+- Every step in the trace cites the file that drives it; a step no file shows stays out.
+- The diagrams carry the trace; the walkthrough annotates them.
