@@ -25,7 +25,7 @@ These words have special meaning in Mermaid and can cause issues if used as node
 flowchart LR
     start --> end
 
-%% ✅ GOOD - Use different ID or quote it
+%% ✅ GOOD - Use a different ID; "end" can still be a label
 flowchart LR
     start --> finish
     start2["start"] --> finish2["end"]
