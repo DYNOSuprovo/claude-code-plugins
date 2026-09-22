@@ -57,16 +57,6 @@ function fillets(page: Page): Promise<string[]> {
     .evaluateAll((blocks) => blocks.map((block) => block.dataset.lines ?? ""));
 }
 
-function focusedText(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const element = document.activeElement;
-
-    return element === null || element === document.body
-      ? "BODY"
-      : `${element.tagName} ${element.textContent?.trim() ?? ""}`;
-  });
-}
-
 test.describe("a comment on a text the edit removes", () => {
   test("says so on its card and in the feedback, keeps its lines, and marks no block", async ({
     page,
@@ -142,7 +132,9 @@ test.describe("closing the editor", () => {
     await page.getByRole("button", { name: "Done" }).click();
 
     await expect(page.locator(".editor textarea")).toHaveCount(0);
-    expect(await focusedText(page)).toBe("BUTTON Edit");
+    await expect(
+      page.locator(".tools").getByRole("button", { name: "Edit", exact: true }),
+    ).toBeFocused();
     await expect
       .poll(() => pane.evaluate((element) => element.scrollTop))
       .toBeGreaterThan(before - 60);
@@ -160,7 +152,9 @@ test.describe("closing the editor", () => {
     await openEditor(page);
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
 
-    expect(await focusedText(page)).toBe("BUTTON Edit");
+    await expect(
+      page.locator(".tools").getByRole("button", { name: "Edit", exact: true }),
+    ).toBeFocused();
     await expect
       .poll(() => pane.evaluate((element) => element.scrollTop))
       .toBeGreaterThan(before - 60);
