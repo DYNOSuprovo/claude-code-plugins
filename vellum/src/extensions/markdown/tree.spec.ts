@@ -5,11 +5,12 @@ import type { Root, RootContent } from "hast";
 import { parseLines } from "../../core/page/anchoring.ts";
 import { toTree } from "./tree.ts";
 
-function linesOf(text: string, tag: string): unknown[] {
+/** The property `name` of every `tag` element of the tree, in document order. */
+function propertyOf(text: string, tag: string, name: string): unknown[] {
   const found: unknown[] = [];
 
   const walk = (node: Root | RootContent): void => {
-    if (node.type === "element" && node.tagName === tag) found.push(node.properties.dataLines);
+    if (node.type === "element" && node.tagName === tag) found.push(node.properties[name]);
 
     if ("children" in node) for (const child of node.children) walk(child);
   };
@@ -18,41 +19,23 @@ function linesOf(text: string, tag: string): unknown[] {
 
   return found;
 }
+
+const linesOf = (text: string, tag: string): unknown[] => propertyOf(text, tag, "dataLines");
 
 /** The class of every span the highlighter adds inside the code. */
-function spanClasses(text: string): unknown[] {
-  const found: unknown[] = [];
+const spanClasses = (text: string): unknown[] => propertyOf(text, "span", "className");
 
-  const walk = (node: Root | RootContent): void => {
-    if (node.type === "element" && node.tagName === "span") found.push(node.properties.className);
-
-    if ("children" in node) for (const child of node.children) walk(child);
-  };
-
-  walk(toTree(text));
-
-  return found;
-}
-
-function fencedOf(text: string): unknown[] {
-  const found: unknown[] = [];
-
-  const walk = (node: Root | RootContent): void => {
-    if (node.type === "element" && node.tagName === "pre") found.push(node.properties.dataFenced);
-
-    if ("children" in node) for (const child of node.children) walk(child);
-  };
-
-  walk(toTree(text));
-
-  return found;
-}
+const fencedOf = (text: string): unknown[] => propertyOf(text, "pre", "dataFenced");
 
 describe("toTree", () => {
   test("a code block opened by a fence is marked fenced, an indented one is not", () => {
     const text = "```ts\na\n```\n\n> ~~~\n> b\n> ~~~\n\n    ```\n    c\n";
 
     expect(fencedOf(text)).toEqual([true, true, undefined]);
+  });
+
+  test("a lone carriage return ends a line, as the parser counts it", () => {
+    expect(fencedOf("a\rb\n\n```\nx\n```\n")).toEqual([true]);
   });
 
   test("what it writes in `data-lines` is what `parseLines` reads", () => {

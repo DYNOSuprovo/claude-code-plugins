@@ -78,6 +78,21 @@ function add<T>(to: Map<Element, T[]>, anchor: Element, item: T): void {
   to.set(anchor, [...(to.get(anchor) ?? []), item]);
 }
 
+/**
+ * A fence may be closed by the end of its quote, its item or the file rather than by a fence
+ * line, so a fenced block's last code line is counted, not read off `data-lines`. The text of a
+ * non-empty code block ends with a newline (mdast-util-to-hast adds it), so it holds one per line.
+ */
+function newlinesIn(node: Element): number {
+  return node.children.reduce(
+    (count, child) =>
+      count +
+      (child.type === "text" ? child.value.split(/\r\n|\r|\n/u).length - 1 : 0) +
+      (child.type === "element" ? newlinesIn(child) : 0),
+    0,
+  );
+}
+
 export function changesOf(tree: Root, diff: LineDiff): Changes {
   const blocks = blocksOf(tree, null);
   const marked = new Set<Element>();
@@ -95,10 +110,11 @@ export function changesOf(tree: Root, diff: LineDiff): Changes {
         marked.add(innermost.marks);
 
         if (innermost.element.tagName === "pre") {
-          const fence = innermost.element.properties.dataFenced === true ? 1 : 0;
-          const first = innermost.start + fence;
+          const fenced = innermost.element.properties.dataFenced === true;
+          const first = fenced ? innermost.start + 1 : innermost.start;
+          const last = fenced ? first + newlinesIn(innermost.element) - 1 : innermost.end;
 
-          if (line >= first && line <= innermost.end - fence) {
+          if (line >= first && line <= last) {
             add(addedLines, innermost.element, line - first);
           }
         }

@@ -141,6 +141,12 @@ describe("changesOf, the lines of a code block", () => {
     expect(addedLines(text, diff)).toEqual(["pre 3-5: 0, 1, 2"]);
   });
 
+  test("a fence closed by its quote or by the end of the file has code on its last line", () => {
+    const diff: LineDiff = [{ kind: "added", after: 1, count: 3 }];
+    expect(addedLines("> ```\n> a\n> b\n\nNext.\n", diff)).toEqual(["pre 1-3: 0, 1"]);
+    expect(addedLines("```\na\nb", diff)).toEqual(["pre 1-3: 0, 1"]);
+  });
+
   test("an added paragraph names no line", () => {
     const diff: LineDiff = [{ kind: "added", after: 1, count: 1 }];
     expect(addedLines("One.\n", diff)).toEqual([]);

@@ -21,17 +21,17 @@ function endLine(element: Element, start: number, end: number): number {
 
 /**
  * Every block element keeps its source lines as `data-lines="start-end"`, and a code block
- * opened by a fence says so as `data-fenced`: its first and last lines are then no code.
+ * opened by a fence says so as `data-fenced`: its first line is then no code.
  */
 function addLines(node: Root | RootContent, source: readonly string[]): void {
   if (node.type === "element" && node.position !== undefined) {
     const { start, end } = node.position;
     node.properties.dataLines = `${start.line}-${endLine(node, start.line, end.line)}`;
 
-    const opening = source[start.line - 1]?.slice(start.column - 1) ?? "";
+    if (node.tagName === "pre") {
+      const opening = source[start.line - 1]?.slice(start.column - 1) ?? "";
 
-    if (node.tagName === "pre" && (opening.startsWith("```") || opening.startsWith("~~~"))) {
-      node.properties.dataFenced = true;
+      if (opening.startsWith("```") || opening.startsWith("~~~")) node.properties.dataFenced = true;
     }
   }
 
@@ -47,7 +47,7 @@ const processor = unified()
 /** The Markdown `text` as hast, every element carrying its source lines. */
 export function toTree(text: string): Root {
   const tree = processor.runSync(processor.parse(text));
-  addLines(tree, text.split("\n"));
+  addLines(tree, text.split(/\r\n|\r|\n/u));
 
   return tree;
 }
