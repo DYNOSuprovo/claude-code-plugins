@@ -175,6 +175,18 @@ describe("tool.check", () => {
     expect(await checked(), "no rule: the engine's allow stands").toEqual({ decision: "allow" });
   });
 
+  test("a PowerShell command a settings rule approved goes back to the person", async ($, on) => {
+    world(on);
+    on("tool.check", () => ({ decision: "allow", rule: "PowerShell(Set-Content:*)" }));
+    await $.skill.prompt(START_PROMPT);
+    const input = { command: "Set-Content README.md x" };
+
+    expect(await $.tool.check({ tool: "PowerShell", input })).toEqual({
+      decision: "ask",
+      rule: "PowerShell(Set-Content:*)",
+    });
+  });
+
   test("a session directory the engine refuses fails the lock closed", async ($, on) => {
     const seen = world(on);
     on("tool.check", () => ENGINE);
