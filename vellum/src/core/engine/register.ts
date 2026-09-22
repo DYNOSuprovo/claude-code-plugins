@@ -30,7 +30,7 @@ const STOP_SKILL = "vellum:stop";
 const SUBMIT = {
   name: "submit",
   description:
-    "Submit plan.md from the vellum working directory for review in the browser, before the turn ends; the turn's end submits it anyway. Refused, with the reason, when plan.md is missing, when the plan is approved, or while a grill is open.",
+    "Submit plan.md from the vellum working directory for review in the browser, before the turn ends. The turn's end submits it anyway, but only when its text changed; after changes were requested, this tool also records an unchanged plan.md as the next version. Answers with the version under review. Refused, with the reason, outside a vellum planning session (entered by /vellum:start), when plan.md is missing, when the plan is approved, or while a grill is open.",
   inputSchema: { type: "object" },
 };
 
