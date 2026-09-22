@@ -43,6 +43,9 @@ and is tested (`extensions.md` names the ones to copy), never a snippet kept in 
 bun install --cwd vellum                                            # once; Claude Code does it at the plugin's cache
 bun test vellum                                                     # the server's and the page's `*.spec.ts` suites
 bun test vellum/src/core/server/domain/slug.spec.ts                 # one suite; `-t <pattern>` filters by test name
+bun run --cwd vellum e2e                                            # the browser suite, `e2e/*.e2e.ts`, at the five windows of `e2e/playwright.config.ts`
+bun run --cwd vellum e2e -- kit.e2e.ts --project=light-1440         # one suite, one window
+bun run --cwd vellum e2e:install                                    # Chromium, once per machine and per pinned Playwright
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test vellum       # the hooks module's `*.test.ts` (core/engine, extensions/<id>), through the engine's kit
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate vellum   # what the hooks module hooks and calls
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 command claude --permission-mode default --plugin-dir vellum   # a live session from source

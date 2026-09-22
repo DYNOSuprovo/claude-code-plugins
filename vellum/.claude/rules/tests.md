@@ -2,16 +2,27 @@
 paths:
   - "**/*.test.ts"
   - "**/*.spec.ts"
+  - "e2e/**"
 ---
 
 # Tests
 
-- Two suffixes, two runners: `*.spec.ts` for the server's and the page's `bun:test` suites,
+- Three suffixes, three runners: `*.spec.ts` for the server's and the page's `bun:test` suites,
   `*.test.ts` for the hooks module's kit tests, in `src/core/engine/` and, for an engine half,
-  `src/extensions/<id>/engine.test.ts`. `claude plugin
+  `src/extensions/<id>/engine.test.ts`, and `*.e2e.ts` for the browser suite in `e2e/`, which
+  Playwright runs (`bun run --cwd vellum e2e`) and neither of the other two collects. `claude plugin
   test` collects every `*.test.ts` under the plugin root and loads the module
   `<root>/hooks/hooks.json` names, so a `bun:test` suite named `*.test.ts` anywhere in the
   plugin fails its run.
+- The browser suite measures what no fake DOM sees: geometry, contrast, focus, a scrollbar. Its
+  harness is `e2e/harness.ts`: the `vellum` fixture starts `preview.ts` on a copy of the fixture
+  `test.use({ fixture })` names (`rich` by default), one server per test, and drives it through
+  the API as the hooks module does (`gate`, `grill.*`); `axe` and `contrast` are its two measures.
+  `e2e/playwright.config.ts` runs every suite at the audit's five windows. A test ends with the
+  page in a state the fixture documents, never with a screenshot compared to a golden file: a
+  pixel diff says that something moved, an assertion says what. Chromium is installed once per
+  machine and per pinned version (`bun run --cwd vellum e2e:install`); CI runs the suite in its
+  own job, and no hook does, since it takes seconds per file.
 - One behaviour per test, under fifteen lines, data in view: helpers hide the plumbing; the
   version, the path, the text the case turns on stay in the test.
 - Before the code of a slice, its tests are listed one line each and agreed, written first,

@@ -9,6 +9,9 @@ plans/
 # Node/Bun
 node_modules/
 
+# Playwright's traces of failed e2e tests
+vellum/test-results/
+
 # Python
 __pycache__/
 *.py[cod]

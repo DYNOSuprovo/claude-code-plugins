@@ -16,3 +16,5 @@ The checks run as a ladder, from each edit to CI: the Claude Code post-edit fixe
 ## CI
 
 Triggers on `pull_request` to `main`/`dev` and on `push` to `dev` and `main`. `main` is in the push list as a backstop: a ref update reaching it outside the release path still gets validated. The guard checks that `main` is an ancestor of `dev` (`git merge-base --is-ancestor`): `main` must always be a fast-forward prefix of `dev`.
+
+Two jobs. `validate` is the ladder above, and the one `scripts/check-lint-config.ts` reads for parity. `e2e` runs vellum's browser suite (`bun run --cwd vellum e2e`) after Playwright installs its Chromium with the runner's system libraries (`playwright install --with-deps`, which wants root: locally, `bun run --cwd vellum e2e:install` installs the browser alone). No hook runs the suite: it takes seconds per file, and `pre-push` already runs every gate.

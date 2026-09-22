@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Conflict dialog</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: rgba(20,24,33,.55); }
+  .dialog { background: #fff; width: min(640px, 92vw); border-radius: 12px; padding: 24px; box-shadow: 0 12px 40px rgba(0,0,0,.3); }
+  h2 { margin: 0 0 8px; font-size: 18px; }
+  p { margin: 0 0 16px; color: #4a5263; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px; border-bottom: 1px solid #e3e6ec; vertical-align: top; }
+  .pick { display: flex; gap: 8px; }
+  .pick button { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #c7ccd6; background: #fff; cursor: pointer; }
+  .pick button[aria-pressed="true"] { border-color: #2451d6; background: #eaf0ff; }
+  .foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+  .foot button { padding: 8px 16px; border-radius: 6px; border: 1px solid #1d2330; background: #fff; }
+  .foot .primary { background: #2451d6; color: #fff; border-color: #2451d6; }
+</style>
+</head>
+<body>
+<div class="dialog" role="dialog" aria-labelledby="t">
+  <h2 id="t">Two versions of this report</h2>
+  <p>The office changed 2 fields while you were offline. Pick which value to keep for each.</p>
+  <table>
+    <thead><tr><th>Field</th><th>Yours</th><th>Office (M. Duval, 10:42)</th></tr></thead>
+    <tbody>
+      <tr><td>Roof condition</td><td>Needs repair</td><td>Unsafe</td></tr>
+      <tr><td>Notes</td><td>Two cracked tiles above the north stairwell.</td><td>Two cracked tiles; scaffolding required before any access.</td></tr>
+    </tbody>
+  </table>
+  <div class="foot"><button>Decide later</button><button class="primary" disabled>Keep my choices</button></div>
+</div>
+</body>
+</html>

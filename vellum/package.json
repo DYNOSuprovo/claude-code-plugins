@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "description": "Runtime dependencies of the vellum review server and its browser page",
+  "scripts": {
+    "e2e": "bunx --bun playwright test --config e2e/playwright.config.ts",
+    "e2e:install": "bunx --bun playwright install chromium"
+  },
   "dependencies": {
     "@preact/signals": "2.11.2",
     "diff": "9.0.0",
@@ -13,5 +17,9 @@
     "remark-parse": "11.0.0",
     "remark-rehype": "11.1.2",
     "unified": "11.0.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "axe-core": "4.13.0"
   }
 }
