@@ -15,7 +15,12 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: process.env.CI !== undefined,
   reporter: "list",
-  use: { browserName: "chromium", trace: "retain-on-failure" },
+  // Scrollbars drawn, as Chrome on Linux draws them: the one thing a fold handle can cover.
+  use: {
+    browserName: "chromium",
+    trace: "retain-on-failure",
+    launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] },
+  },
   projects: WINDOWS.map(({ name, width, height, colorScheme }) => ({
     name,
     use: { viewport: { width, height }, colorScheme },
