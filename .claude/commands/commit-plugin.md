@@ -57,25 +57,7 @@ jq -r '.version' <plugin-name>/.claude-plugin/plugin.json
 
 ### 4. Recommend Version Bump
 
-Based on the analysis, recommend a version bump using AskUserQuestion:
-
-**Recommend MAJOR when:**
-- Commands were removed or renamed
-- Breaking changes to command arguments/behavior
-- Major architectural rewrites
-
-**Recommend MINOR when:**
-- New commands added
-- New skills or agents added
-- Significant new functionality
-
-**Recommend PATCH when:**
-- Bug fixes
-- Documentation updates
-- Small improvements or refactoring
-- No new user-facing features
-
-Present the options with your recommendation first (marked as recommended) and explain why.
+Recommend the bump the table in step 2 gives, using AskUserQuestion: present the options with your recommendation first (marked as recommended) and explain why.
 
 ### 5. Bump Version
 
@@ -89,7 +71,7 @@ Update the version in plugin.json:
 jq --arg v "<new-version>" '.version = $v' <plugin-name>/.claude-plugin/plugin.json > tmp.json && mv tmp.json <plugin-name>/.claude-plugin/plugin.json
 ```
 
-> **Note:** `plugin.json` is the single source of truth for the version and for the description. The `sync-versions` pre-commit hook propagates both to `.claude-plugin/marketplace.json` and the `README.md` table and re-stages them automatically. Do **not** edit those two files by hand. `validate-marketplace` then runs as a safety net.
+> **Note:** `plugin.json` is the single source of truth for the version and for the description. The `sync-versions` pre-commit hook propagates both to the plugin's existing entry in `.claude-plugin/marketplace.json` and its row in the `README.md` table, and re-stages them automatically, so do not edit them by hand. A new plugin has neither yet: add both by hand, since no check catches their absence. `validate-marketplace` then runs as a safety net.
 
 ### 6. Stage and Commit
 
