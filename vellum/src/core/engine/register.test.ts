@@ -639,6 +639,8 @@ describe("the band above the prompt", () => {
     world(on);
     await $.skill.prompt(START_PROMPT);
     const drawn = await band($);
+
+    expect(await drawn.text()).toBe("vellum │ Review page ↗");
     await $.skill.prompt(STOP_PROMPT);
 
     expect([await drawn.text(), await drawn.href()]).toEqual(["", undefined]);
@@ -891,6 +893,17 @@ describe("the decision comes back as a prompt", () => {
 
     expect(seen.paths.slice(from), "the new poll still runs").toContain("/api/pending");
     expect(seen.store.has(`session:${OTHER_ID}`)).toBe(true);
+  });
+
+  test("an answer in the shape before the workspace fails the poll and says so", async ($, on) => {
+    const seen = world(on, { routes: { "/api/pending": () => reply(200, approved(1)) } });
+    await $.skill.prompt(START_PROMPT);
+    await tick(seen);
+
+    expect(seen.prompts).toEqual([]);
+    expect(seen.logs.at(-1)).toContain(
+      "GET /api/pending answered a shape this module does not read",
+    );
   });
 
   test("a dropped prompt keeps the poll alive; the next tick retries", async ($, on) => {

@@ -57,8 +57,9 @@ export type EngineExtension = {
   readonly closing?: (context: EngineContext) => Promise<void>;
   /**
    * What the band above the prompt says for this extension while live, after the plan and
-   * before the link; `null` says nothing. Asked again after each poll: it answers from what its
-   * `tick` read, never from the server.
+   * before the link; `null` says nothing. Asked after each poll and each transition of the mode,
+   * never at a draw: it answers from what its `tick` read, never from the server. A throw leaves
+   * it out of the band, logged once per mode.
    */
   readonly segment?: (context: EngineContext) => string | null;
 };

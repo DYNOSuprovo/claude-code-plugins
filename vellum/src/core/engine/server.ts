@@ -47,6 +47,11 @@ export type ReviewServer = {
   extension: (id: string) => ExtensionApi;
 };
 
+/** The page's address on `hostname`: the server listens on 127.0.0.1, which `localhost` reaches too. */
+export function pageUrl(info: ServerInfo, hostname: "127.0.0.1" | "localhost"): string {
+  return `http://${hostname}:${info.port}/t/${info.token}/`;
+}
+
 function api(host: Host, info: ServerInfo, path: string, init?: HttpInit): Promise<HttpResponse> {
   return host.fetch(`http://127.0.0.1:${info.port}${path}`, {
     ...init,
@@ -65,7 +70,7 @@ export function reach(host: Host, info: ServerInfo): ReviewServer {
 
   return {
     info,
-    url: `http://127.0.0.1:${info.port}/t/${info.token}/`,
+    url: pageUrl(info, "127.0.0.1"),
     alive: () =>
       api(host, info, "/api/review").then(
         (response) => response.ok,

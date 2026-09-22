@@ -72,7 +72,7 @@ export type Settle = (host: Host, from: State) => Promise<void>;
  * What a poll that did not approve hands on, after the core's relay: where the plan stands, for
  * the band, then the extensions' part. `register.ts` owns the band and the registry.
  */
-export type Ticks = (host: Host, live: Live, stage: StageWire | null) => Promise<void>;
+export type Ticks = (host: Host, live: Live, stage: StageWire) => Promise<void>;
 
 /** A mode whose server stopped answering: `register.ts` swaps in the revived one, or `lost`. */
 export type Revive = (host: Host, from: State) => Promise<void>;

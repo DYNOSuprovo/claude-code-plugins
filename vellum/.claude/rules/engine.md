@@ -132,13 +132,16 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
 - Where the plan stands is the server's: the poll's answer carries the workspace, `parse.ts`
   reads its kind and version, and `register.ts` keeps the last one per `Live`, so a new way in
   draws none until its first poll. An extension adds its own segment through `segment`, asked
-  in registry order after the plan's. `redraw` compares the band with the one last asked for
-  and calls `$.ui.invalidate("ui.render")` only when it changed: after each transition of
-  `state` and after each poll's `tick`s.
-- The link is `http://localhost:<port>/t/<token>/` (`pageHref` in `band.ts`): a `Link` to
-  `http://127.0.0.1` refuses the whole tree, and `localhost` reaches the server, which listens
-  on 127.0.0.1 only ([Hook runtime](../../../docs/plugin-testing/hook-runtime.md) § Drawing).
-  `/vellum:start` still prints the 127.0.0.1 address `reach` builds.
+  in registry order after the plan's; one that throws is left out and logged once per mode.
+  Every write of `state` goes through `become`, which calls `redraw`, as each poll's `tick`s
+  do: `redraw` computes the band `ui.render` draws and calls `$.ui.invalidate("ui.render")`
+  only when it changed. A draw computes nothing, so `segment` runs at a poll or a transition.
+- A poll answer the module does not read throws in `parsePoll`, the shape of another server
+  version included, and the poll logs it: read as nothing pending, it would drop the
+  reviewer's decisions without a word.
+- The link is `http://localhost:<port>/t/<token>/` (`pageUrl` in `server.ts`, which also
+  builds the printed 127.0.0.1 address): a `Link` to `http://127.0.0.1` refuses the whole
+  tree, and `localhost` reaches the server, which listens on 127.0.0.1 only ([Hook runtime](../../../docs/plugin-testing/hook-runtime.md) § Drawing).
 - An extension never calls `on(...)`: the engine takes one hooks module per plugin and one
   unmatched hook per event. `register.ts` keeps every event and hands it to the engine halves in
   registry order, each with an `EngineContext` (`Host`, `Live`, its own routes on the server),

@@ -18,7 +18,7 @@ export type Relayed = {
 export type Ticked = {
   readonly relayed: Relayed;
   readonly approved: boolean;
-  readonly stage: StageWire | null;
+  readonly stage: StageWire;
 };
 
 export function relayedKey(id: SessionId): string {

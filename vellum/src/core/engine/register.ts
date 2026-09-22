@@ -91,12 +91,18 @@ async function handed(
   }
 }
 
-/** A segment that throws is logged and left out: no extension may take the band away. */
+/** The extensions whose `segment` threw in a mode: a failure is logged once per mode, not at each poll. */
+const segmentFailures = new WeakMap<Live, Set<string>>();
+
+/** A segment that throws is left out: no extension may take the band away. */
 function segmentOf(host: Host, live: Live, extension: EngineExtension): string | null {
   try {
     return extension.segment?.(contextOf(host, live, extension)) ?? null;
   } catch (cause) {
-    host.log(`${extension.id} failed on segment: ${String(cause)}`);
+    const failed = segmentFailures.get(live) ?? new Set<string>();
+
+    if (!failed.has(extension.id)) host.log(`${extension.id} failed on segment: ${String(cause)}`);
+    segmentFailures.set(live, failed.add(extension.id));
 
     return null;
   }
@@ -120,22 +126,27 @@ export const register: Register = (on) => {
     return liveBand(live.session.server, stages.get(live) ?? null, segments);
   }
 
-  // The band as last asked for, so a poll that changed nothing redraws nothing.
-  let shown = JSON.stringify(null);
+  // What `ui.render` draws; `redraw` alone writes it, so a poll that changed nothing redraws nothing.
+  let band: Band | null = null;
 
   function redraw(host: Host): void {
-    const band = JSON.stringify(bandOf(host));
+    const next = bandOf(host);
 
-    if (band === shown) return;
-    shown = band;
+    if (JSON.stringify(next) === JSON.stringify(band)) return;
+    band = next;
     host.invalidate();
+  }
+
+  /** Every write of `state`: the band follows it, from one place. */
+  function become(host: Host, next: State): void {
+    state = next;
+    redraw(host);
   }
 
   const settle: Settle = async (host, from) => {
     if (state !== from) return;
     turns = NO_TURN;
-    state = await close(host, from);
-    redraw(host);
+    become(host, await close(host, from));
   };
 
   const revive: Revive = async (host, from) => {
@@ -144,12 +155,11 @@ export const register: Register = (on) => {
 
     if (next === null) return;
     turns = NO_TURN;
-    state = next;
-    redraw(host);
+    become(host, next);
   };
 
   const ticks: Ticks = async (host, live, stage) => {
-    if (stage !== null) stages.set(live, stage);
+    stages.set(live, stage);
     await handed(host, live, "tick", (extension, context) => extension.tick?.(context));
     redraw(host);
   };
@@ -171,16 +181,14 @@ export const register: Register = (on) => {
     }
 
     const host = hostOf($);
-    state = await restore(host, state, wiring);
-    redraw(host);
+    become(host, await restore(host, state, wiring));
 
     return next(e);
   });
 
   on("skill.prompt", { skill: START_SKILL }, async ($, e, next) => {
     const host = hostOf($);
-    state = await connect(host, state, wiring);
-    redraw(host);
+    become(host, await connect(host, state, wiring));
     const result = await next(e);
 
     if (state.kind !== "live") return result;
@@ -213,8 +221,7 @@ export const register: Register = (on) => {
     }
 
     turns = NO_TURN;
-    state = await close(host, state);
-    redraw(host);
+    become(host, await close(host, state));
     const result = await next(e);
 
     return { text: `${result.text}\n\n${line}` };
@@ -233,8 +240,7 @@ export const register: Register = (on) => {
 
     if (!left) return result;
     turns = NO_TURN;
-    state = suspend(host, state);
-    redraw(host);
+    become(host, suspend(host, state));
 
     return result;
   });
@@ -242,8 +248,6 @@ export const register: Register = (on) => {
   // The mode's one place in the terminal: the status line keeps a failure alone. A survey holds
   // the band over any plugin, and the person may collapse it.
   on("ui.render", { component: "AbovePrompt" }, ($, e, next) => {
-    const band = bandOf(hostOf($));
-
     if (band === null || e.props.hasSurvey) return next(e);
     const { Box, Text, Link } = $.ui.resolve(e);
     const separator = () => Text({ dimColor: true, children: SEPARATOR });

@@ -334,8 +334,12 @@ describe("parsePoll", () => {
   test("an approval whose notes are missing or no string is nothing to relay", () => {
     const { notes: _, ...bare } = approved(3);
 
-    expect(parsePoll(JSON.stringify({ pending: bare })).pending).toEqual({ kind: "none" });
-    expect(parsePoll(JSON.stringify({ pending: { ...bare, notes: 3 } })).pending).toEqual({
+    expect(parsePoll(JSON.stringify({ pending: bare, workspace: DRAFTING })).pending).toEqual({
+      kind: "none",
+    });
+    expect(
+      parsePoll(JSON.stringify({ pending: { ...bare, notes: 3 }, workspace: DRAFTING })).pending,
+    ).toEqual({
       kind: "none",
     });
   });
@@ -347,7 +351,15 @@ describe("parsePoll", () => {
       kind: "changesRequested",
       version: 2,
     });
-    expect(stageOf('{"kind":"inReview"}'), "no version").toBeNull();
-    expect(stageOf('{"kind":"elsewhere","version":2}'), "a kind the band does not know").toBeNull();
+  });
+
+  test("an answer the module does not read is an error, never nothing pending", () => {
+    const unread = "GET /api/pending answered a shape this module does not read";
+
+    expect(() => parsePoll(JSON.stringify(approved(1))), "the shape before the workspace").toThrow(
+      unread,
+    );
+    expect(() => stageOf('{"kind":"inReview"}'), "no version").toThrow(unread);
+    expect(() => stageOf('{"kind":"elsewhere","version":2}'), "an unknown kind").toThrow(unread);
   });
 });

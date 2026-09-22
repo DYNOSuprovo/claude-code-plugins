@@ -51,8 +51,8 @@ type StageOf<W> = W extends { readonly kind: infer K; readonly version: infer V 
 /** Where the plan stands, as much of the workspace as the band draws. */
 export type StageWire = StageOf<WorkspaceWire>;
 
-/** What one poll reads: what to relay, and where the plan stands; `null` when the answer says nothing the band reads. */
-export type PollWire = { readonly pending: PendingWire; readonly stage: StageWire | null };
+/** What one poll reads: what to relay, and where the plan stands. */
+export type PollWire = { readonly pending: PendingWire; readonly stage: StageWire };
 
 /** What `POST /api/gate` answers: the version the browser shows, or why it shows none. */
 export type GateWire = Json<GateAnswer>;
@@ -184,12 +184,21 @@ function parseStage(value: unknown): StageWire | null {
   return null;
 }
 
+/**
+ * Throws on an answer it does not read, the shape of another version of the server included:
+ * read as nothing pending, it would drop every decision of the reviewer without a word.
+ */
 export function parsePoll(text: string): PollWire {
   const value = parseJson(text);
+  const stage = isRecord(value) ? parseStage(value.workspace) : null;
 
-  return isRecord(value)
-    ? { pending: parsePending(value.pending), stage: parseStage(value.workspace) }
-    : { pending: { kind: "none" }, stage: null };
+  if (!isRecord(value) || !("pending" in value) || stage === null) {
+    throw new Error(
+      `GET /api/pending answered a shape this module does not read: ${text.slice(0, 200)}`,
+    );
+  }
+
+  return { pending: parsePending(value.pending), stage };
 }
 
 export function parseGate(response: HttpResponse): GateWire {

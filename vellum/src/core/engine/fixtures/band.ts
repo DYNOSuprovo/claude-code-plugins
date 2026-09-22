@@ -25,13 +25,13 @@ export function engineBand(on: On): void {
 }
 
 /** The band as last drawn: its whole text, and where its link goes. */
-export type Band = {
+export type DrawnBand = {
   readonly text: () => Promise<string>;
   readonly href: () => Promise<string | undefined>;
 };
 
 /** The band above the prompt, mounted as the terminal shows it; `hasSurvey` when a survey holds it. */
-export async function band($: Engine, hasSurvey = false): Promise<Band> {
+export async function band($: Engine, hasSurvey = false): Promise<DrawnBand> {
   const ui = await $.ui.mount({ ...ABOVE_PROMPT, props: { ...ABOVE_PROMPT.props, hasSurvey } });
 
   return {

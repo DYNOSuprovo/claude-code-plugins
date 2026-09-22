@@ -1,15 +1,13 @@
 import type { ServerInfo } from "./mode.ts";
 import type { StageWire } from "./parse.ts";
+import { pageUrl } from "./server.ts";
 
 /** What the band above the prompt draws after vellum's name, in order: the segments, then the page's link. */
 export type Band = { readonly segments: readonly string[]; readonly href: string };
 
-/**
- * `LinkProps.href` takes `https:` or `http://localhost` alone and refuses the whole tree over
- * anything else, `http://127.0.0.1` included; `localhost` reaches the server that listens there.
- */
-export function pageHref(info: ServerInfo): string {
-  return `http://localhost:${info.port}/t/${info.token}/`;
+/** `LinkProps.href` takes `https:` or `http://localhost` alone, and refuses the whole tree over `http://127.0.0.1`. */
+function pageHref(info: ServerInfo): string {
+  return pageUrl(info, "localhost");
 }
 
 function planSegment(stage: StageWire): string {
