@@ -193,9 +193,9 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .plan ul, .plan ol { padding-left: 1.2em; }
 .plan a { color: var(--ink); text-decoration-color: var(--redline); text-underline-offset: 3px; cursor: pointer; }
 .plan code { font-family: var(--mono); font-size: var(--mono-optical); font-variant-ligatures: none; background: var(--tint); padding: 0.1em 0.35em; border-radius: var(--r-sm); }
-.plan pre { position: relative; background: var(--tint); color: var(--ink); padding: var(--s-3); border-radius: var(--r-md); overflow: auto; font: var(--t-14)/var(--lh-code) var(--mono); font-variant-ligatures: none; }
+.plan pre { position: relative; isolation: isolate; background: var(--tint); color: var(--ink); padding: var(--s-3); border-radius: var(--r-md); overflow: auto; font: var(--t-14)/var(--lh-code) var(--mono); font-variant-ligatures: none; }
 .plan pre code { background: none; padding: 0; font-size: inherit; }
-.plan pre .line-added { position: absolute; left: 0; right: 0; top: calc(var(--s-3) + var(--line) * var(--lh-code) * var(--t-14)); height: calc(var(--lh-code) * var(--t-14)); background: var(--wash-ok); pointer-events: none; }
+.plan pre .line-added { position: absolute; z-index: -1; left: 0; right: 0; top: calc(var(--s-3) + var(--line) * var(--lh-code) * var(--t-14)); height: calc(var(--lh-code) * var(--t-14)); background: var(--wash-ok); pointer-events: none; }
 .plan .hljs-comment, .plan .hljs-quote { color: var(--code-comment); font-style: italic; }
 .plan .hljs-keyword, .plan .hljs-literal, .plan .hljs-type, .plan .hljs-meta { color: var(--code-keyword); }
 .plan .hljs-string, .plan .hljs-attr, .plan .hljs-symbol { color: var(--code-string); }

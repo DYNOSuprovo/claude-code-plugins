@@ -248,6 +248,14 @@ test.describe("Changes since, in a code block", () => {
       ).toBe(true);
     }
 
+    // Under the text, not over it: a band paints below the block's content, inside its own stacking context.
+    const layering = await pre.evaluate((element) => ({
+      isolation: getComputedStyle(element).isolation,
+      band: getComputedStyle(element.querySelector(".line-added") ?? element).zIndex,
+    }));
+
+    expect(layering).toEqual({ isolation: "isolate", band: "-1" });
+
     const removed = page.locator(".plan details.removed").filter({
       has: page.locator('div[data-source*="app.tsx"]'),
     });
