@@ -1,7 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import type { Vellum } from "./harness.ts";
-import { axe, contrast, expect, openVellum, readFixture, test } from "./harness.ts";
+import { axe, contrast, expect, openVellum, readFixture, reviewV1, test } from "./harness.ts";
 
 /**
  * The palette: every pair `style.css` draws, resolved by the browser and composited on a canvas,
@@ -134,12 +133,6 @@ function colorOf(
     },
     [property, pseudo] as const,
   );
-}
-
-async function reviewV1(page: Page, vellum: Vellum): Promise<void> {
-  await vellum.gate();
-  await openVellum(page, vellum);
-  await expect(page.locator(".plan h1")).toBeVisible();
 }
 
 test("every pair of the palette holds its ratio", async ({ page, vellum }) => {

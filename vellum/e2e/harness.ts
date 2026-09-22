@@ -5,8 +5,8 @@ import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable } from "node:stream";
 
-import type { Page } from "@playwright/test";
-import { test as base } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { expect, test as base } from "@playwright/test";
 
 import type { CloseReason, QuestionTriple } from "../src/extensions/grill/protocol.ts";
 
@@ -171,6 +171,71 @@ export function readFixture(name: string, file: string): string {
 export async function openVellum(page: Page, vellum: Vellum): Promise<void> {
   await page.goto(vellum.url);
   await page.locator(".bar .brand").waitFor();
+}
+
+/** Records `plan.md` as v1 and opens the page on it, drawn. */
+export async function reviewV1(page: Page, vellum: Vellum): Promise<void> {
+  await vellum.gate();
+  await openVellum(page, vellum);
+  await expect(page.locator(".plan h1")).toBeVisible();
+}
+
+/** Turns the Comment switch on. */
+export async function commentOn(page: Page): Promise<void> {
+  const commentSwitch = page.locator(".tools [role=switch]", { hasText: "Comment" });
+  await commentSwitch.click();
+  await expect(commentSwitch).toHaveAttribute("aria-checked", "true");
+}
+
+export type Box = {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+};
+
+export async function boxOf(locator: Locator): Promise<Box> {
+  const box = await locator.boundingBox();
+
+  if (box === null) throw new Error("no box");
+
+  return box;
+}
+
+/** Selects, by a real drag, the characters `from` to `to` of the first text node of `locator`. */
+export async function dragText(
+  page: Page,
+  locator: Locator,
+  from: number,
+  to: number,
+): Promise<void> {
+  const [start, end] = await locator.evaluate(
+    (element, [first, last]) => {
+      const node = document.createTreeWalker(element, NodeFilter.SHOW_TEXT).nextNode();
+
+      if (node === null) throw new Error("no text node");
+
+      const at = (offset: number) => {
+        const range = document.createRange();
+        range.setStart(node, offset);
+        range.setEnd(node, offset + 1);
+        const rect = range.getClientRects()[0];
+
+        if (rect === undefined) throw new Error("no rect");
+
+        return { x: rect.left + 1, y: rect.top + rect.height / 2 };
+      };
+
+      return [at(first), at(last)];
+    },
+    [from, to] as const,
+  );
+
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move((start.x + end.x) / 2, end.y, { steps: 6 });
+  await page.mouse.move(end.x, end.y, { steps: 6 });
+  await page.mouse.up();
 }
 
 /** A server per test, on the fixture `test.use({ fixture })` names, `rich` by default, stopped after. */

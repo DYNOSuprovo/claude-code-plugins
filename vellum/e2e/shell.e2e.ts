@@ -1,33 +1,12 @@
 import type { Locator, Page } from "@playwright/test";
 
-import type { Vellum } from "./harness.ts";
-import { axe, expect, openVellum, readFixture, test } from "./harness.ts";
+import type { Box } from "./harness.ts";
+import { axe, boxOf, expect, openVellum, readFixture, reviewV1, test } from "./harness.ts";
 
 /**
  * The shell: the handles keep a gutter of their own, the bar holds one line and names the plan,
  * the page has its landmarks, the rail says which document shows, and nothing jumps.
  */
-
-type Box = {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-};
-
-async function boxOf(locator: Locator): Promise<Box> {
-  const box = await locator.boundingBox();
-
-  if (box === null) throw new Error("no box");
-
-  return box;
-}
-
-async function reviewV1(page: Page, vellum: Vellum): Promise<void> {
-  await vellum.gate();
-  await openVellum(page, vellum);
-  await expect(page.locator(".plan h1")).toBeVisible();
-}
 
 async function addGeneralComment(page: Page, text: string): Promise<void> {
   await page.locator("#global").fill(text);

@@ -1,42 +1,13 @@
-import type { Locator, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
-import type { Vellum } from "./harness.ts";
-import { expect, openVellum, test } from "./harness.ts";
+import type { Box, Vellum } from "./harness.ts";
+import { boxOf, commentOn, dragText, expect, reviewV1, test } from "./harness.ts";
 
 /**
  * The kit's popover and its placement: the composer stays inside its pane, above the target when
  * the room below is short, follows a mockup's scroll, takes Escape and Ctrl+Enter, hands the
  * focus back; a label is a comment by itself.
  */
-
-type Box = {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-};
-
-async function reviewV1(page: Page, vellum: Vellum): Promise<void> {
-  await vellum.gate();
-  await openVellum(page, vellum);
-  await expect(page.locator(".plan h1")).toBeVisible();
-}
-
-async function commentOn(page: Page): Promise<void> {
-  await page.locator(".tools [role=switch]", { hasText: "Comment" }).click();
-  await expect(page.locator(".tools [role=switch]", { hasText: "Comment" })).toHaveAttribute(
-    "aria-checked",
-    "true",
-  );
-}
-
-async function boxOf(locator: Locator): Promise<Box> {
-  const box = await locator.boundingBox();
-
-  if (box === null) throw new Error("no box");
-
-  return box;
-}
 
 /** The pane's visible window, in viewport coordinates, and its scroll. */
 function paneWindow(page: Page): Promise<Box & { readonly scrollTop: number }> {
@@ -54,37 +25,6 @@ function paneWindow(page: Page): Promise<Box & { readonly scrollTop: number }> {
         scrollTop: pane.scrollTop,
       };
     });
-}
-
-/** Selects, by a real drag, the characters `from` to `to` of the first text node of `locator`. */
-async function dragText(page: Page, locator: Locator, from: number, to: number): Promise<void> {
-  const [start, end] = await locator.evaluate(
-    (element, [first, last]) => {
-      const node = document.createTreeWalker(element, NodeFilter.SHOW_TEXT).nextNode();
-
-      if (node === null) throw new Error("no text node");
-
-      const at = (offset: number) => {
-        const range = document.createRange();
-        range.setStart(node, offset);
-        range.setEnd(node, offset + 1);
-        const rect = range.getClientRects()[0];
-
-        if (rect === undefined) throw new Error("no rect");
-
-        return { x: rect.left + 1, y: rect.top + rect.height / 2 };
-      };
-
-      return [at(first), at(last)];
-    },
-    [from, to] as const,
-  );
-
-  await page.mouse.move(start.x, start.y);
-  await page.mouse.down();
-  await page.mouse.move((start.x + end.x) / 2, end.y, { steps: 6 });
-  await page.mouse.move(end.x, end.y, { steps: 6 });
-  await page.mouse.up();
 }
 
 /** Where the focus is: the tag and text of the active element, `BODY` when nothing holds it. */
@@ -248,14 +188,14 @@ test.describe("a label is a comment by itself", () => {
   });
 });
 
-test.describe("the bar's popovers", () => {
-  async function withOneComment(page: Page, vellum: Vellum): Promise<void> {
-    await reviewV1(page, vellum);
-    await page.locator("#global").fill("One general remark.");
-    await page.getByRole("button", { name: "Add comment" }).click();
-    await expect(page.locator(".comments .card")).toHaveCount(1);
-  }
+async function withOneComment(page: Page, vellum: Vellum): Promise<void> {
+  await reviewV1(page, vellum);
+  await page.locator("#global").fill("One general remark.");
+  await page.getByRole("button", { name: "Add comment" }).click();
+  await expect(page.locator(".comments .card")).toHaveCount(1);
+}
 
+test.describe("the bar's popovers", () => {
   test("the warning takes the focus, and Escape closes it and gives the focus back", async ({
     page,
     vellum,
