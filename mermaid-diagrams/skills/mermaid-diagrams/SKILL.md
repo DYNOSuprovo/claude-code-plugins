@@ -32,17 +32,8 @@ This skill supports all major Mermaid diagram types for software engineering:
 </diagram_types>
 
 <references>
-**Parallel Loading:** When creating diagrams, read `references/gotchas.md` AND the relevant syntax reference file simultaneously. Load multiple template files in parallel when creating complex diagrams.
+Before writing or fixing a diagram, read `references/gotchas.md` (common errors, special characters, reserved keywords) and the syntax reference for its type:
 
-### Quick Reference Priority
-
-When creating or editing diagrams, consult references in this order:
-
-**For all diagrams first:**
-1. **`references/gotchas.md`** - Common errors, special characters, reserved keywords
-2. **`references/styling.md`** - Themes, colors, formatting
-
-**Then consult the specific syntax reference:**
 - `references/syntax-flowchart.md`
 - `references/syntax-sequence.md`
 - `references/syntax-class.md`
@@ -51,30 +42,10 @@ When creating or editing diagrams, consult references in this order:
 - `references/syntax-c4.md`
 - `references/syntax-git.md`
 
-**For architectural patterns:**
-- `references/patterns.md` - Common software architecture patterns
+Read on demand:
 
-### When to Load References
-
-**Always load gotchas.md when:**
-- Creating complex diagrams
-- Fixing syntax errors
-- Dealing with special characters or reserved words
-
-**Load styling.md when:**
-- User requests specific colors or themes
-- Creating presentation-quality diagrams
-- Need to emphasize specific elements
-
-**Load specific syntax reference when:**
-- Creating a diagram type for the first time
-- User asks about specific features
-- Need to verify correct syntax
-
-**Load patterns.md when:**
-- Visualizing software architecture
-- User mentions specific patterns (microservices, hexagonal, CQRS, etc.)
-- Creating system design diagrams
+- `references/styling.md` - themes and colors, when the user asks for a look or the diagram needs emphasized elements
+- `references/patterns.md` - architecture patterns (microservices, hexagonal, CQRS, etc.), when the diagram shows a system design
 </references>
 
 <templates>
@@ -162,49 +133,6 @@ Before finalizing any diagram, check:
 - [ ] Consistent quote style throughout
 </best_practices>
 
-<workflow>
-
-### Step 1: Understand Requirements
-- What concept needs visualization?
-- Which diagram type is most appropriate?
-- What's the target audience?
-
-### Step 2: Choose Diagram Type
-- **Process/Algorithm** → Flowchart
-- **Time-based interactions** → Sequence diagram
-- **Object relationships** → Class diagram
-- **Data model** → ER diagram
-- **State management** → State diagram
-- **System architecture** → C4 diagrams
-- **Git workflow** → Git graph
-
-### Step 3: Start Simple
-Begin with basic structure:
-```mermaid
-flowchart LR
-    A --> B
-    B --> C
-```
-
-### Step 4: Add Details Incrementally
-- Add more nodes/relationships
-- Add labels and descriptions
-- Group into subgraphs if needed
-- Add comments for clarity
-
-### Step 5: Apply Styling (Optional)
-- Choose appropriate theme
-- Add colors for semantic meaning
-- Highlight important elements
-- Ensure accessibility
-
-### Step 6: Review and Refine
-- Test the diagram renders correctly
-- Check for syntax errors
-- Verify it communicates the intended message
-- Add comments for future maintainability
-</workflow>
-
 <syntax_reference>
 
 ### Escaping Special Characters
@@ -236,52 +164,6 @@ C[getData#40;#41;]  %% getData()
 - `||--o{` one-to-many
 - `}o--o{` many-to-many
 </syntax_reference>
-
-<use_cases>
-
-### API Documentation
-Use sequence diagrams to show request/response flows:
-```mermaid
-sequenceDiagram
-    Client->>API: POST /users
-    API->>Database: INSERT user
-    Database-->>API: User created
-    API-->>Client: 201 Created
-```
-
-### Database Schema
-Use ER diagrams with full attribute details:
-```mermaid
-erDiagram
-    USER {
-        uuid id PK
-        string email UK
-    }
-    ORDER {
-        uuid id PK
-        uuid user_id FK
-    }
-    USER ||--o{ ORDER : places
-```
-
-### System Architecture
-Use C4 diagrams for different abstraction levels:
-```mermaid
-C4Context
-    Person(user, "User")
-    System(sys, "System")
-    Rel(user, sys, "Uses")
-```
-
-### Process Documentation
-Use flowcharts with clear decision points:
-```mermaid
-flowchart TB
-    Start --> Check{Valid?}
-    Check -->|Yes| Process
-    Check -->|No| Error
-```
-</use_cases>
 
 <troubleshooting>
 
@@ -325,18 +207,6 @@ When creating new diagrams:
 5. Consider maintainability
 </editing_tips>
 
-<integration>
-
-Mermaid diagrams work great in:
-- **Documentation** - README.md, docs/ folder
-- **PRs/Issues** - Visualize changes or problems
-- **ADRs** - Architecture Decision Records
-- **Wikis** - Team knowledge base
-- **Presentations** - Export as images
-
-They can be version controlled, reviewed, and updated like code!
-</integration>
-
 <summary>
 
 - **Start simple** - Add complexity incrementally
@@ -345,10 +215,4 @@ They can be version controlled, reviewed, and updated like code!
 - **Use templates** - Don't reinvent the wheel
 - **Consult gotchas** - Avoid common errors
 - **Stay organized** - Group and section your diagrams
-
-The goal is to create diagrams that are:
-- **Clear** - Communicate effectively
-- **Maintainable** - Easy to update later
-- **Navigable** - Easy to understand the code
-- **Correct** - Render without errors
 </summary>

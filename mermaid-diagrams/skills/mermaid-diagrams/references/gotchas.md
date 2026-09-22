@@ -28,7 +28,7 @@ flowchart LR
 %% ✅ GOOD - Use different ID or quote it
 flowchart LR
     start --> finish
-    start2["start"] --> end["end"]
+    start2["start"] --> finish2["end"]
 ```
 
 ## Special Characters and Escaping
