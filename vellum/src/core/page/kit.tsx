@@ -83,7 +83,7 @@ export type PopoverProps = {
   readonly class?: string | undefined;
   /** The popover's element, for a caller that measures it. */
   readonly box?: RefObject<HTMLDivElement>;
-  /** Escape, or a pointer down outside the popover. The focus goes back to the element that held it at the opening. */
+  /** Escape anywhere in the page, or a pointer down outside the popover. The focus goes back to the element that held it at the opening. */
   readonly onClose: () => void;
   /** Ctrl+Enter or ⌘+Enter, from any field of the popover. */
   readonly onSubmit?: () => void;
@@ -111,12 +111,15 @@ export function Popover(props: PopoverProps): JSX.Element {
       element.querySelector<HTMLElement>(FOCUSABLE)
     )?.focus({ preventScroll: true });
 
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        latest.current.onClose();
-      }
+    // Escape is heard on the document: the focus may have left the popover, for a click on the
+    // sheet or a Tab past its last button, and the dialog must still close from the keyboard.
+    const onEscape = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      latest.current.onClose();
+    };
 
+    const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) latest.current.onSubmit?.();
     };
 
@@ -129,10 +132,12 @@ export function Popover(props: PopoverProps): JSX.Element {
     };
 
     element.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onEscape, true);
     document.addEventListener("pointerdown", onPointerDown, true);
 
     return () => {
       element.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onEscape, true);
       document.removeEventListener("pointerdown", onPointerDown, true);
       const active = document.activeElement;
       const left = active === null || active === document.body || element.contains(active);

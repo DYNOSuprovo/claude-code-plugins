@@ -188,6 +188,20 @@ test.describe("the composer takes keys and hands the focus back", () => {
     expect(await focusInSheet(page)).toBe(true);
   });
 
+  test("Escape closes it from anywhere in the page, once the focus left it", async ({
+    page,
+    vellum,
+  }) => {
+    await reviewV1(page, vellum);
+    await commentOn(page);
+    await dragText(page, page.locator("article.plan > p").first(), 4, 60);
+    await expect(page.locator(".popover textarea")).toBeFocused();
+    await page.locator("#global").focus();
+    await page.keyboard.press("Escape");
+
+    await expect(page.locator(".popover")).toHaveCount(0);
+  });
+
   test("Ctrl+Enter adds the comment, and the focus lands on the passage", async ({
     page,
     vellum,
@@ -311,6 +325,20 @@ test.describe("in a mockup", () => {
     const pop = await boxOf(popover);
 
     expect(pop.x + pop.width).toBeLessThanOrEqual(pane.x + pane.width);
+  });
+
+  test("Escape pressed inside the mockup closes the composer", async ({ page, vellum }) => {
+    await reviewV1(page, vellum);
+    await choose(page, "mockup.html");
+    await commentOn(page);
+    const frame = page.frameLocator(".pane iframe").last();
+    await frame.locator("h1").click();
+    await expect(page.locator(".popover textarea")).toBeFocused();
+    await frame.locator("body").click({ position: { x: 4, y: 4 }, modifiers: ["Control"] });
+    await expect(page.locator(".popover")).toHaveCount(1);
+    await page.keyboard.press("Escape");
+
+    await expect(page.locator(".popover")).toHaveCount(0);
   });
 
   test.describe("that is tall", () => {
