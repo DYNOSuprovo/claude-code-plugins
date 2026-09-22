@@ -60,31 +60,33 @@ export function toggled<T extends { readonly range: Range }>(
 }
 
 /**
- * What a primary-button drag leaves selected, as a copy the clearing of the selection keeps, or
- * `null` for a click and any other button. The last range: a Firefox Ctrl+drag adds one to a
- * selection that holds one already.
+ * What is selected, as a copy the clearing of the selection keeps, or `null` for nothing. The
+ * last range: a Firefox Ctrl+drag adds one to a selection that holds one already.
  */
-export function dragRange(event: MouseEvent): Range | null {
+export function selectedRange(): Range | null {
   const selection = document.getSelection();
 
   // `getRangeAt` throws on a selection with no range: the guard comes first.
-  if (
-    event.button !== 0 ||
-    selection === null ||
-    selection.rangeCount === 0 ||
-    selection.isCollapsed
-  ) {
-    return null;
-  }
+  if (selection === null || selection.rangeCount === 0 || selection.isCollapsed) return null;
 
   return selection.getRangeAt(selection.rangeCount - 1).cloneRange();
 }
 
+/** What a primary-button drag leaves selected; `null` for a click and any other button. */
+export function dragRange(event: MouseEvent): Range | null {
+  return event.button === 0 ? selectedRange() : null;
+}
+
+/** Where a key comes from: the Markdown sheet, a mockup's frame, or anywhere else in the page. */
+export type KeyOrigin = "sheet" | "frame" | "elsewhere";
+
 export type KeyPress = Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey" | "repeat"> & {
   /** The key went to a field: `input`, `textarea`, `select` or editable content. */
   readonly typing: boolean;
+  readonly from: KeyOrigin;
 };
 
+/** `c` flips the switch from a document that takes comments alone: the sheet, or a mockup's frame. */
 export function isSwitchKey(press: KeyPress): boolean {
   return (
     (press.key === "c" || press.key === "C") &&
@@ -92,15 +94,21 @@ export function isSwitchKey(press: KeyPress): boolean {
     !press.metaKey &&
     !press.altKey &&
     !press.repeat &&
-    !press.typing
+    !press.typing &&
+    press.from !== "elsewhere"
   );
 }
 
-/** Field by field: a spread copies none of a KeyboardEvent's fields, which are getters. */
+/**
+ * Field by field: a spread copies none of a KeyboardEvent's fields, which are getters. `from` is
+ * read off the path: through the sheet's `article`, or up to the window of a framed document.
+ */
 export function keyPressOf(event: KeyboardEvent): KeyPress {
   // The path's first node, not `target`: an open shadow root retargets a key typed in its input
   // to its host.
-  const [origin] = event.composedPath();
+  const path = event.composedPath();
+  const [origin] = path;
+  const inSheet = path.some((node) => node instanceof Element && node.matches("article.plan"));
 
   return {
     key: event.key,
@@ -111,5 +119,6 @@ export function keyPressOf(event: KeyboardEvent): KeyPress {
     typing:
       origin instanceof HTMLElement &&
       (origin.isContentEditable || origin.matches("input, textarea, select")),
+    from: inSheet ? "sheet" : window.parent === window ? "elsewhere" : "frame",
   };
 }

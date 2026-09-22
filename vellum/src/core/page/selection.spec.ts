@@ -78,11 +78,17 @@ describe("isSwitchKey", () => {
     altKey: false,
     repeat: false,
     typing: false,
+    from: "sheet",
   };
 
   test("c and C flip the switch", () => {
     expect(isSwitchKey(c)).toBe(true);
     expect(isSwitchKey({ ...c, key: "C" })).toBe(true);
+  });
+
+  test("from the sheet or a mockup's frame it flips; from anywhere else in the page it does not", () => {
+    expect(isSwitchKey({ ...c, from: "frame" })).toBe(true);
+    expect(isSwitchKey({ ...c, from: "elsewhere" })).toBe(false);
   });
 
   test("another letter flips nothing", () => {

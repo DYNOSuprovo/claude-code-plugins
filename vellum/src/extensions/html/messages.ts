@@ -32,9 +32,14 @@ export type FrameTheme = {
   readonly outline: string;
 };
 
+/** A commented place: the element's selector, and the text chosen in it, which the mark boxes when it is still there. */
+export type CommentedPlace = { readonly selector: string; readonly text: string };
+
+/** `vellum:leave` is the pointer leaving the iframe, which the frame's document never hears. */
 export type PageToFrame =
   | { readonly type: "vellum:commenting"; readonly on: boolean }
   | { readonly type: "vellum:holding"; readonly holding: boolean }
-  | { readonly type: "vellum:comments"; readonly selectors: readonly string[] }
+  | { readonly type: "vellum:commented"; readonly places: readonly CommentedPlace[] }
   | { readonly type: "vellum:theme"; readonly theme: FrameTheme }
-  | { readonly type: "vellum:clear" };
+  | { readonly type: "vellum:clear" }
+  | { readonly type: "vellum:leave" };

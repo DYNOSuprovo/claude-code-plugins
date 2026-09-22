@@ -8,7 +8,7 @@ import type { Rect } from "../../core/page/place.ts";
 import { windowOf } from "../../core/page/place.ts";
 import { commenting, dark, flipCommentSwitch, holding } from "../../core/page/state.ts";
 import type { ElementRef } from "../../core/protocol.ts";
-import type { FrameTheme, PageToFrame, PickBox } from "./messages.ts";
+import type { CommentedPlace, FrameTheme, PageToFrame, PickBox } from "./messages.ts";
 import { parseFrameToPage } from "./parse.ts";
 
 type Draft = {
@@ -53,9 +53,9 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
   const held = holding.value;
   const night = dark.value;
 
-  const selectors = props.annotations.flatMap((annotation) =>
+  const places: readonly CommentedPlace[] = props.annotations.flatMap((annotation) =>
     annotation.anchor.kind === "element"
-      ? annotation.anchor.elements.map((element) => element.selector)
+      ? annotation.anchor.elements.map(({ selector, text }) => ({ selector, text }))
       : [],
   );
 
@@ -73,8 +73,8 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
   useEffect(() => post({ type: "vellum:theme", theme: themeOf() }), [night]);
 
   useEffect(
-    () => post({ type: "vellum:comments", selectors }),
-    [selectors.join("|"), props.doc.path],
+    () => post({ type: "vellum:commented", places }),
+    [places.map((place) => `${place.selector}|${place.text}`).join("\n"), props.doc.path],
   );
 
   useEffect(() => {
@@ -122,8 +122,9 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
         onLoad={() => {
           post({ type: "vellum:theme", theme: themeOf() });
           post({ type: "vellum:commenting", on });
-          post({ type: "vellum:comments", selectors });
+          post({ type: "vellum:commented", places });
         }}
+        onPointerLeave={() => post({ type: "vellum:leave" })}
       />
       {draft !== null && at !== null && (
         <Composer

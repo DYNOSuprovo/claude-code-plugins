@@ -1,6 +1,6 @@
 import { dragRange, isSwitchKey, keyPressOf, toggled } from "../../core/page/selection.ts";
 import type { ElementRef } from "../../core/protocol.ts";
-import type { FrameToPage, PageToFrame } from "./messages.ts";
+import type { CommentedPlace, FrameToPage, PageToFrame } from "./messages.ts";
 import type { Step } from "./pick.ts";
 import { labelOf, selectorOf, targetIndex } from "./pick.ts";
 
@@ -16,16 +16,20 @@ import { labelOf, selectorOf, targetIndex } from "./pick.ts";
  */
 const TEXT_LIMIT = 120;
 
-/** The colours are the page's tokens, posted resolved with `vellum:theme` and set on the layer; a commented mark is two-toned, the marker inside an outline, so it holds on a surface of any theme. */
+/** The colours are the page's tokens, posted resolved with `vellum:theme` and set on the layer; a commented mark is two-toned, the marker inside an outline, so it holds on a surface of any theme; the hover's outline shows on a coloured surface its wash does not. */
 const STYLE = `
 .box { position: absolute; box-sizing: border-box; }
-.wash { background: color-mix(in srgb, var(--redline) 10%, transparent); }
+.wash { background: color-mix(in srgb, var(--redline) 10%, transparent); outline: 1px solid var(--redline); outline-offset: -1px; }
 .adding { border: 2px dashed var(--redline); }
 .chosen { border: 2px solid var(--redline); background: color-mix(in srgb, var(--redline) 6%, transparent); }
 .comment { border: 2px solid var(--marker); box-shadow: 0 0 0 1px var(--outline); background: color-mix(in srgb, var(--marker) 25%, transparent); }
 .label { position: absolute; left: -2px; top: -20px; padding: 3px 6px; border-radius: 3px;
   font: 600 11px/1 ui-monospace, Menlo, monospace; background: var(--redline); color: var(--sheet); white-space: nowrap; }
+.label.below { top: 100%; }
 `;
+
+/** The label's height above its box: an element closer to the frame's top carries it below. */
+const LABEL_HEIGHT = 20;
 
 /** The element a comment names, and what of it was chosen: all of it on a click, the text on a drag. */
 type Pick = { readonly element: Element; readonly range: Range; readonly text: string };
@@ -38,7 +42,10 @@ let hovered: Element | null = null;
 
 let holding = false;
 
-let commented: readonly string[] = [];
+let commented: readonly CommentedPlace[] = [];
+
+/** Where the pointer last was over the frame, for the hover a scroll must move; `null` once it left. */
+let pointer: { readonly x: number; readonly y: number } | null = null;
 
 // The click that ends a drag, which picks nothing whether the drag made a place or not.
 let swallow = false;
@@ -48,7 +55,7 @@ const layer = document.createElement("div");
 function mount(): void {
   const host = document.createElement("div");
   host.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:2147483647";
-  const shadow = host.attachShadow({ mode: "closed" });
+  const shadow = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
   style.textContent = STYLE;
   shadow.append(style, layer);
@@ -102,13 +109,19 @@ function refOf(pick: Pick): ElementRef {
   return { selector: selectorOf(steps), text: pick.text, label: labelOf(stepOf(pick.element)) };
 }
 
+/** What a click quotes of `element`: its shown text, up to the limit. */
+function clickText(element: Element): string {
+  const shown = element instanceof HTMLElement ? element.innerText : (element.textContent ?? "");
+
+  return quoted(shown).slice(0, TEXT_LIMIT);
+}
+
 /** A click picks the whole element: its range holds any drag inside it, so the two overlap. */
 function clickPick(element: Element): Pick {
   const range = document.createRange();
   range.selectNode(element);
-  const shown = element instanceof HTMLElement ? element.innerText : (element.textContent ?? "");
 
-  return { element, range, text: quoted(shown).slice(0, TEXT_LIMIT) };
+  return { element, range, text: clickText(element) };
 }
 
 function boxFor(of: Element | Range, kind: string, label: string | null): HTMLElement {
@@ -119,7 +132,7 @@ function boxFor(of: Element | Range, kind: string, label: string | null): HTMLEl
 
   if (label !== null) {
     const tag = document.createElement("span");
-    tag.className = "label";
+    tag.className = rect.top < LABEL_HEIGHT ? "label below" : "label";
     tag.textContent = label;
     box.append(tag);
   }
@@ -127,11 +140,51 @@ function boxFor(of: Element | Range, kind: string, label: string | null): HTMLEl
   return box;
 }
 
-/** A selector crosses `postMessage` and may no longer match the document; the overlay survives it. */
-function commentedElements(): readonly Element[] {
-  return commented.flatMap((selector) => {
+/** `text` as it was quoted, found again in `element` whatever its whitespace became; `null` once it is gone. */
+function rangeOfText(element: Element, text: string): Range | null {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  const nodes: { readonly node: Text; readonly start: number }[] = [];
+  let raw = "";
+
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    if (!(node instanceof Text)) continue;
+    nodes.push({ node, start: raw.length });
+    raw += node.data;
+  }
+
+  const words = text.split(" ").map((word) => word.replaceAll(/[$()*+.?[\\\]^{|}]/gu, "\\$&"));
+  const match = new RegExp(words.join("\\s+"), "u").exec(raw);
+
+  if (match === null) return null;
+
+  const at = (offset: number): [Text, number] | null => {
+    const holder = nodes.findLast(({ start }) => start <= offset);
+
+    return holder === undefined ? null : [holder.node, offset - holder.start];
+  };
+
+  const start = at(match.index);
+  const end = at(match.index + match[0].length);
+
+  if (start === null || end === null) return null;
+  const range = document.createRange();
+  range.setStart(...start);
+  range.setEnd(...end);
+
+  return range;
+}
+
+/**
+ * What each commented place boxes: the words that were dragged while they are still there,
+ * the whole element for a click or once the words are gone. A selector crosses `postMessage`
+ * and may no longer match the document; the overlay survives it.
+ */
+function commentedPlaces(): readonly (Element | Range)[] {
+  return commented.flatMap(({ selector, text }) => {
     try {
-      return [...document.querySelectorAll(selector)];
+      return [...document.querySelectorAll(selector)].map((element) =>
+        text === clickText(element) ? element : (rangeOfText(element, text) ?? element),
+      );
     } catch {
       return [];
     }
@@ -142,7 +195,7 @@ function draw(): void {
   const adding = holding && chosen.length > 0;
 
   layer.replaceChildren(
-    ...commentedElements().map((element) => boxFor(element, "comment", null)),
+    ...commentedPlaces().map((place) => boxFor(place, "comment", null)),
     ...chosen.map((pick) => boxFor(pick.range, "chosen", null)),
     ...(hovered === null
       ? []
@@ -192,12 +245,15 @@ function choose(one: Pick, event: MouseEvent): void {
   draw();
 }
 
-function onMove(event: PointerEvent): void {
-  const target = commenting && event.buttons === 0 ? targetFrom(event.target) : null;
-
+function hover(target: Element | null): void {
   if (target === hovered) return;
   hovered = target;
   draw();
+}
+
+function onMove(event: PointerEvent): void {
+  pointer = { x: event.clientX, y: event.clientY };
+  hover(commenting && event.buttons === 0 ? targetFrom(event.target) : null);
 }
 
 /** A drag picks the innermost element that holds the whole selection, with the dragged text. */
@@ -264,7 +320,12 @@ function onMessage(event: MessageEvent): void {
 
   if (message.type === "vellum:holding") setHolding(message.holding);
 
-  if (message.type === "vellum:comments") commented = message.selectors;
+  if (message.type === "vellum:commented") commented = message.places;
+
+  if (message.type === "vellum:leave") {
+    pointer = null;
+    hovered = null;
+  }
 
   if (message.type === "vellum:theme") {
     for (const [name, value] of Object.entries(message.theme)) {
@@ -279,11 +340,6 @@ function onMessage(event: MessageEvent): void {
 mount();
 
 document.addEventListener("pointermove", onMove, true);
-
-document.addEventListener("pointerleave", () => {
-  hovered = null;
-  draw();
-});
 
 // A drag that no click follows would otherwise swallow the next real click.
 document.addEventListener(
@@ -310,8 +366,13 @@ window.addEventListener("blur", () => hold(false));
 let resend = 0;
 
 // The page places its composer from the box of a pick: a scroll or a reflow moves the box, so it
-// is sent again, once per frame, since a wheel gesture fires many scroll events a frame.
+// is sent again, once per frame, since a wheel gesture fires many scroll events a frame. The
+// hover is taken again under the pointer, which the scroll moved other text under.
 function moved(): void {
+  if (commenting && pointer !== null) {
+    hovered = targetFrom(document.elementFromPoint(pointer.x, pointer.y));
+  }
+
   draw();
 
   if (chosen.length === 0 || resend !== 0) return;

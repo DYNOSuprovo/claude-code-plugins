@@ -7,7 +7,7 @@ import { Composer } from "../../core/page/composer.tsx";
 import { paint } from "../../core/page/highlights.ts";
 import type { Rect } from "../../core/page/place.ts";
 import { windowOf } from "../../core/page/place.ts";
-import { dragRange, toggled } from "../../core/page/selection.ts";
+import { dragRange, selectedRange, toggled } from "../../core/page/selection.ts";
 import {
   commenting,
   dark,
@@ -26,7 +26,7 @@ import { linkedDoc } from "./links.ts";
 import { markedIndices } from "./marked.ts";
 import { drawDiagrams } from "./mermaid.ts";
 import type { Target } from "./pinpoint.ts";
-import { boxOf, diagramPassage, targetAt, targetRange } from "./pinpoint.ts";
+import { boxOf, diagramPassage, targetAt, targetOf, targetRange } from "./pinpoint.ts";
 import { waitingText } from "./sheet.ts";
 import { toTree } from "./tree.ts";
 import { removedBlock, toVNodes } from "./vnode.ts";
@@ -78,8 +78,31 @@ function focusPassage(root: HTMLElement, passage: Passage): void {
     );
 
   if (block === undefined || block === null) return;
-  block.tabIndex = -1;
+
+  if (!block.hasAttribute("tabindex")) block.tabIndex = -1;
   block.focus({ preventScroll: true });
+}
+
+/** The blocks Tab stops on while the switch is on, each a target Enter picks whole: what a click on it picks. */
+const FOCUSABLE_BLOCKS =
+  "p, li, h1, h2, h3, h4, h5, h6, pre, figure.mermaid, blockquote, tr, td, th";
+
+/** A key or a button: whether the place adds to the chosen ones, as Ctrl+click does. */
+type Modifiers = { readonly ctrlKey: boolean; readonly metaKey: boolean };
+
+/** `range`, cut to what `root` holds of it: a drag released past the sheet selected the page after it too. */
+function clampTo(root: HTMLElement, range: Range): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const first = walker.nextNode();
+  let last = first;
+
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) last = node;
+
+  if (first === null || last === null) return;
+
+  if (!root.contains(range.startContainer)) range.setStart(first, 0);
+
+  if (!root.contains(range.endContainer)) range.setEnd(last, last.textContent?.length ?? 0);
 }
 
 function linesAt(block: HTMLElement): readonly [number, number] {
@@ -152,6 +175,8 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const container = useRef<HTMLElement>(null);
   // The click that ends a drag, which picks nothing whether the drag made a place or not.
   const swallow = useRef(false);
+  // A drag that began in the sheet: its release is heard on the document, wherever it lands.
+  const dragging = useRef(false);
 
   const shown = props.source ?? text;
   const listed = docs.value;
@@ -294,7 +319,21 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
     setWash(null);
   }, [on]);
 
-  const choose = (root: HTMLElement, one: Chosen, event: MouseEvent): void => {
+  // On, every block is a Tab stop; off, none is, and the sheet itself takes a click's focus.
+  useEffect(() => {
+    const root = container.current;
+
+    if (root === null || content === null) return;
+
+    for (const block of root.querySelectorAll<HTMLElement>(FOCUSABLE_BLOCKS)) {
+      if (block.dataset.lines === undefined) continue;
+
+      if (on) block.tabIndex = 0;
+      else block.removeAttribute("tabindex");
+    }
+  }, [on, content]);
+
+  const choose = (root: HTMLElement, one: Chosen, event: Modifiers): void => {
     const adding = (event.ctrlKey || event.metaKey) && draft !== null;
     const [first, ...rest] = adding && draft !== null ? toggled(draft.chosen, one) : [one];
     const last = rest.at(-1) ?? first;
@@ -308,18 +347,78 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
 
   const onPointerDown = (): void => {
     swallow.current = false;
+    dragging.current = true;
+  };
+
+  /** A range the reviewer selected, in the sheet or clamped to it, chosen as a place. */
+  const pick = (root: HTMLElement, range: Range, event: Modifiers): void => {
+    const passage = passageFromRange(root, range);
+
+    if (passage === null) return;
+    document.getSelection()?.removeAllRanges();
+    choose(root, { range, passage }, event);
   };
 
   const onMouseUp = (event: MouseEvent): void => {
     const root = container.current;
     const range = root === null || !commenting.value ? null : dragRange(event);
+    dragging.current = false;
 
     if (root === null || range === null) return;
     swallow.current = true;
-    const passage = passageFromRange(root, range);
+    pick(root, range, event);
+  };
 
-    if (passage === null) return;
-    document.getSelection()?.removeAllRanges();
+  const latest = useRef(pick);
+  latest.current = pick;
+
+  // A drag released past the sheet, and a selection made with the keyboard, released with Shift:
+  // both are heard on the document, since neither ends on the sheet.
+  useEffect(() => {
+    const root = container.current;
+
+    if (root === null || content === null) return;
+
+    const onDocumentMouseUp = (event: MouseEvent): void => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      const range = commenting.peek() ? dragRange(event) : null;
+
+      if (range === null) return;
+      clampTo(root, range);
+      latest.current(root, range, event);
+    };
+
+    const onKeyUp = (event: KeyboardEvent): void => {
+      const range = event.key === "Shift" && commenting.peek() ? selectedRange() : null;
+
+      if (range === null || !root.contains(range.commonAncestorContainer)) return;
+      latest.current(root, range, event);
+    };
+
+    document.addEventListener("mouseup", onDocumentMouseUp);
+    document.addEventListener("keyup", onKeyUp);
+
+    return () => {
+      document.removeEventListener("mouseup", onDocumentMouseUp);
+      document.removeEventListener("keyup", onKeyUp);
+    };
+  }, [content === null]);
+
+  /** Enter on a focused block picks it whole, Ctrl+Enter adds it, as a click and a Ctrl+click do. */
+  const onKeyDown = (event: KeyboardEvent): void => {
+    const root = container.current;
+    const block = event.target instanceof HTMLElement ? event.target : null;
+
+    if (root === null || !commenting.value || event.key !== "Enter" || block === null) return;
+
+    if (!block.hasAttribute("tabindex") || block.dataset.lines === undefined) return;
+    event.preventDefault();
+    const target = targetOf(root, block);
+    const range = target === null ? null : targetRange(target);
+    const passage = target === null || range === null ? null : passageOf(root, target, range);
+
+    if (range === null || passage === null) return;
     choose(root, { range, passage }, event);
   };
 
@@ -386,9 +485,11 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       <article
         class={adding ? "plan adding" : "plan"}
         ref={container}
+        tabIndex={-1}
         onMouseUp={onMouseUp}
         onClick={onClick}
         onClickCapture={onClickCapture}
+        onKeyDown={onKeyDown}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerLeave={() => setWash(null)}

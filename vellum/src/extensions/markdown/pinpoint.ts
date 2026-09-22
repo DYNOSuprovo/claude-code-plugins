@@ -104,20 +104,22 @@ function labelOf(element: HTMLElement): string {
   return tag === "table" ? "table" : (INLINES.get(tag) ?? BLOCKS.get(tag) ?? "");
 }
 
-/** The target under the pointer at `x`, `y`: `from` is the event's element, `root` the article. */
-export function targetAt(root: HTMLElement, from: Element, x: number, y: number): Target | null {
-  if (!root.contains(from)) return null;
+/** The elements from `from` up to `root`, innermost first, `root` excluded; empty when `from` is outside. */
+function pathTo(root: HTMLElement, from: Element): HTMLElement[] {
+  if (!root.contains(from)) return [];
   const path: HTMLElement[] = [];
 
   for (let at: Element | null = from; at !== null && at !== root; at = at.parentElement) {
     if (at instanceof HTMLElement) path.push(at);
   }
 
-  const table = path.find((element) => element instanceof HTMLTableElement);
+  return path;
+}
 
+function targetOn(path: readonly HTMLElement[], edge: TableEdge): Target | null {
   const pick = pickTarget(
     path.map((element) => element.tagName.toLowerCase()),
-    table === undefined ? "inside" : tableEdge(x, y, table.getBoundingClientRect()),
+    edge,
   );
 
   const element = pick === null ? undefined : path[pick.index];
@@ -125,6 +127,22 @@ export function targetAt(root: HTMLElement, from: Element, x: number, y: number)
   return pick === null || element === undefined
     ? null
     : { element, kind: pick.kind, label: labelOf(element) };
+}
+
+/** The target under the pointer at `x`, `y`: `from` is the event's element, `root` the article. */
+export function targetAt(root: HTMLElement, from: Element, x: number, y: number): Target | null {
+  const path = pathTo(root, from);
+  const table = path.find((element) => element instanceof HTMLTableElement);
+
+  return targetOn(
+    path,
+    table === undefined ? "inside" : tableEdge(x, y, table.getBoundingClientRect()),
+  );
+}
+
+/** The target a focused block stands for, with no pointer: a row is taken by its side, a cell from inside. */
+export function targetOf(root: HTMLElement, block: Element): Target | null {
+  return targetOn(pathTo(root, block), block instanceof HTMLTableRowElement ? "side" : "inside");
 }
 
 /** The box of `target` on screen; a list item's box widens over its marker, which sits in the list's padding. */
