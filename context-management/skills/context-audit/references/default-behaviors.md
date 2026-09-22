@@ -52,7 +52,7 @@ The specific version tells Claude something it can't infer. The generic version 
 
 | Pattern | Why redundant | Keep if... |
 |---------|---------------|------------|
-| "Be concise" | System prompt says this | Never |
+| "Be concise" | The active output style sets response length | The file sets a length or register the output style does not |
 | "Explain your reasoning" | Verbosity is controlled by harness settings | Never: not controllable from context files |
 | "Ask clarifying questions when uncertain" | Default behavior | Never |
 | "Don't make assumptions" | Default behavior | You have a specific assumption-prone area |
