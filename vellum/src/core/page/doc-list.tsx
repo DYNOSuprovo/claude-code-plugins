@@ -1,8 +1,7 @@
 import type { DocGroup, GroupedDoc } from "../protocol.ts";
 import type { ProjectPath } from "../server/domain/paths.ts";
 import { Badge, Handle } from "./kit.tsx";
-import type { DocLabel } from "./labels.ts";
-import { groupLabels, nameParts, planLabel } from "./labels.ts";
+import { docLabeller, nameParts, planLabel } from "./labels.ts";
 import { annotations, currentDoc, docs, editing, railOpen, review, select } from "./state.ts";
 
 function count(path: string): number {
@@ -66,16 +65,16 @@ export function RailHandle(): preact.JSX.Element {
 }
 
 export function DocList(): preact.JSX.Element {
-  const view = review.value;
-  const workspace = view?.workspace;
+  const workspace = review.value?.workspace;
   const plan = docs.value.find((doc) => doc.group === "plan");
   const artifacts = inGroup(docs.value, "artifact");
   const cited = inGroup(docs.value, "cited");
-  const artifactLabels = view === null ? null : groupLabels(artifacts, view);
-  const citedLabels = view === null ? null : groupLabels(cited, view);
+  const view = review.value;
+  const labelOf = view === null ? null : docLabeller(view);
 
   // The name's stem alone is cut when the room is short: the extension says what the line opens.
-  const item = (doc: GroupedDoc, label: DocLabel | null): preact.JSX.Element => {
+  const item = (doc: GroupedDoc): preact.JSX.Element => {
+    const label = labelOf === null ? null : labelOf(doc);
     const { stem, ext } = nameParts(label?.name ?? doc.path);
 
     return (
@@ -123,13 +122,13 @@ export function DocList(): preact.JSX.Element {
         Artifacts <span class="n">{artifacts.length}</span>
       </h5>
       {artifacts.length === 0 && <div class="empty">No files yet</div>}
-      {artifacts.map((doc) => item(doc, artifactLabels?.get(doc.path) ?? null))}
+      {artifacts.map((doc) => item(doc))}
       {cited.length > 0 && (
         <div class="away">
           <h5>
             Cited in the plan <span class="n">{cited.length}</span>
           </h5>
-          {cited.map((doc) => item(doc, citedLabels?.get(doc.path) ?? null))}
+          {cited.map((doc) => item(doc))}
         </div>
       )}
     </nav>
