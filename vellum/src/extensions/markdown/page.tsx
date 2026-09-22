@@ -498,7 +498,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   if (waiting !== null) return <div class="waiting">{waiting}</div>;
   const adding = holding.value && draft !== null;
   const holder = container.current?.parentElement ?? null;
-  const pane = holder === null ? null : windowOf(holder);
+  const pane = draft === null || holder === null ? null : windowOf(holder);
 
   const leave = (): void => {
     const root = container.current;
