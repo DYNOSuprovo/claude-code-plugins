@@ -51,8 +51,18 @@ export function discard(project: string, dir: WipDir | FinalDir): void {
   removeIfEmpty(join(project, "plans"));
 }
 
+/** Two previews on one project stop together: the other one may empty or remove the folder first. */
 function removeIfEmpty(path: string): void {
-  if (existsSync(path) && readdirSync(path).length === 0) rmdirSync(path);
+  try {
+    if (readdirSync(path).length === 0) rmdirSync(path);
+  } catch (cause) {
+    if (!isErrnoException(cause) || !["ENOENT", "ENOTEMPTY"].includes(cause.code ?? ""))
+      throw cause;
+  }
+}
+
+function isErrnoException(cause: unknown): cause is NodeJS.ErrnoException {
+  return cause instanceof Error && "code" in cause;
 }
 
 if (import.meta.main) {
