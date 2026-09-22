@@ -42,8 +42,8 @@ function holds(root: string, file: string): boolean {
  * While vellum plans, the files a call may write are the working directory's, and it writes
  * them outright, since the directory is vellum's own and the page shows every file in it.
  * A file outside the project is no change to the codebase, so the session's own flow decides
- * it, as it does for `Bash`: the scratchpad passes there without a prompt, and a write to a
- * home or system file still asks. Every other tool goes to that flow too, so reads are
+ * it: the scratchpad passes there without a prompt, and a write to a home or system file still
+ * asks. Every other tool goes to that flow too, so reads are
  * untouched.
  *
  * The verdict compares where the paths land, so a symbolic link, a `..` or a platform's other
@@ -87,15 +87,18 @@ export function lockFailed(kind: HookFailure["kind"]): ResultOf["tool.check"] {
 
 /**
  * The tools that run a shell command. The engine offers `PowerShell` beside `Bash`, by default
- * on Windows, and its docs tell a hook that inspects shell commands to match `Bash|PowerShell`.
+ * on Windows, and its docs tell a hook that inspects shell commands to match `Bash|PowerShell`;
+ * `Monitor` runs its command through the shell, under Bash's rules.
  */
-const SHELLS: ReadonlySet<string> = new Set(["Bash", "PowerShell"]);
+const SHELLS: ReadonlySet<string> = new Set(["Bash", "PowerShell", "Monitor"]);
 
 /**
  * A settings allow rule (`Bash(mkdir:*)`, `PowerShell(Set-Content:*)`) would let a
- * file-modifying shell command past the lock, as the native plan mode never does: the person
- * decides it instead. The built-in read-only set carries no rule, so `git log` and `ls` still
- * pass.
+ * file-modifying shell command past the lock, as the native plan mode never does: the lock
+ * answers `ask` instead, which the engine puts to the mode's decider, a prompt in the manual
+ * mode. An allow with no rule is the mode's own and stands: the built-in read-only set (`git
+ * log`, `ls`), and in `acceptEdits` the filesystem commands that mode approves (`mkdir`, `mv`,
+ * `Set-Content`), which still write into the project while vellum plans.
  */
 export function checkVerdict(tool: string, engine: ResultOf["tool.check"]): ResultOf["tool.check"] {
   return SHELLS.has(tool) && engine.decision === "allow" && engine.rule !== undefined

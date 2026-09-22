@@ -159,7 +159,7 @@ describe("tool.check", () => {
     ).toEqual({ decision: "allow" });
   });
 
-  test("a command a settings rule approved goes back to the person, one the mode allowed does not", async ($, on) => {
+  test("a command a settings rule approved asks instead, one the mode allowed does not", async ($, on) => {
     const ruled = { decision: "allow", rule: "Bash(mkdir:*)" } as const;
     const answers = [ruled, { decision: "allow" } as const];
     world(on);
@@ -167,7 +167,7 @@ describe("tool.check", () => {
     await $.skill.prompt(START_PROMPT);
     const checked = () => $.tool.check({ tool: "Bash", input: { command: "mkdir -p out" } });
 
-    expect(await checked(), "the rule decided, so the person does").toEqual({
+    expect(await checked(), "the rule decided, so the lock asks").toEqual({
       decision: "ask",
       rule: "Bash(mkdir:*)",
     });
@@ -175,15 +175,32 @@ describe("tool.check", () => {
     expect(await checked(), "no rule: the engine's allow stands").toEqual({ decision: "allow" });
   });
 
-  test("a PowerShell command a settings rule approved goes back to the person", async ($, on) => {
+  test("a PowerShell command a settings rule approved asks instead, one the mode allowed does not", async ($, on) => {
+    const ruled = { decision: "allow", rule: "PowerShell(Set-Content:*)" } as const;
+    const answers = [ruled, { decision: "allow" } as const];
     world(on);
-    on("tool.check", () => ({ decision: "allow", rule: "PowerShell(Set-Content:*)" }));
+    on("tool.check", () => answers.shift() ?? ruled);
     await $.skill.prompt(START_PROMPT);
     const input = { command: "Set-Content README.md x" };
+    const checked = () => $.tool.check({ tool: "PowerShell", input });
 
-    expect(await $.tool.check({ tool: "PowerShell", input })).toEqual({
+    expect(await checked(), "the rule decided, so the lock asks").toEqual({
+      ...ruled,
       decision: "ask",
-      rule: "PowerShell(Set-Content:*)",
+    });
+
+    expect(await checked(), "no rule: the engine's allow stands").toEqual({ decision: "allow" });
+  });
+
+  test("a Monitor command a Bash rule approved asks instead: Monitor runs it through the shell", async ($, on) => {
+    world(on);
+    on("tool.check", () => ({ decision: "allow", rule: "Bash(sed -i *)" }));
+    await $.skill.prompt(START_PROMPT);
+    const input = { description: "rewrite", timeout_ms: 1000, command: "sed -i s/a/b/ src/cli.ts" };
+
+    expect(await $.tool.check({ tool: "Monitor", input })).toEqual({
+      decision: "ask",
+      rule: "Bash(sed -i *)",
     });
   });
 

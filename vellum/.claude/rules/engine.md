@@ -60,7 +60,10 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
   permission mode, and under the project and outside the working directory are denied with the
   reason the model reads. A path outside the project is no change to the codebase, so it
   follows the session's own permission flow: the scratchpad passes there without a prompt, a
-  home or system file still asks. Every other tool passes on.
+  home or system file still asks. Every other tool passes on, but for one downgrade:
+  `checkVerdict` turns an engine `allow` that carries a settings `rule` on a shell tool
+  (`Bash`, `PowerShell`, `Monitor`, the set `SHELLS`) into `ask`; an allow the mode gives on
+  its own, with no rule, stands.
   `lockVerdict` decides as a pure function, the hook applies.
 - The lock compares where paths land, never how they are spelled. `placed` asks
   `$.fs.stat(path, { resolve: true })` for `realPath`, which the engine's types name the robust
