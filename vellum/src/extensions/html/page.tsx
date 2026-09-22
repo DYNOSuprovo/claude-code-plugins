@@ -55,7 +55,11 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
 
   const places: readonly CommentedPlace[] = props.annotations.flatMap((annotation) =>
     annotation.anchor.kind === "element"
-      ? annotation.anchor.elements.map(({ selector, text }) => ({ selector, text }))
+      ? annotation.anchor.elements.map(({ selector, text, context }) => ({
+          selector,
+          text,
+          context,
+        }))
       : [],
   );
 
@@ -74,7 +78,7 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
 
   useEffect(
     () => post({ type: "vellum:commented", places }),
-    [places.map((place) => `${place.selector}|${place.text}`).join("\n"), props.doc.path],
+    [JSON.stringify(places), props.doc.path],
   );
 
   useEffect(() => {
@@ -130,7 +134,7 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
         <Composer
           doc={props.doc.path}
           picks={draft.elements.map((element) => ({
-            key: `${element.selector}-${element.text}`,
+            key: JSON.stringify(element),
             element,
           }))}
           through={adding}

@@ -1,12 +1,14 @@
 /* oxlint-disable anti-slop/require-safety-comment-for-type-assertion -- fixtures and expectations here are branded values (Version, ProjectPath, WipDir) written as literals: the brand is the parser's to grant, and the test is what checks the parser. */
 import { expect, test } from "bun:test";
 
-import type { Annotation } from "./feedback.ts";
+import type { Annotation, WordsContext } from "./feedback.ts";
 import { formatFeedback, formatNotes } from "./feedback.ts";
 
 const DOC = "plans/2026-09-15/wip-4c2a9d93/.review/v2.md" as never;
 
 const V2 = { kind: "review", version: 2 as never, editedFrom: null } as const;
+
+const CLICKED = { prefix: "", suffix: "", repeated: false } as const;
 
 const PASSAGE = {
   quote: "persist per user",
@@ -120,6 +122,7 @@ test("formatFeedback names the selector, the label and the text of an element an
           selector: "section#pricing > div.card:nth-of-type(2)",
           text: "Pro — $29/mo",
           label: "div.card",
+          context: CLICKED,
         },
       ],
     },
@@ -148,8 +151,14 @@ test("formatFeedback gives each element of a comment its own bullet", () => {
           selector: "#pricing > div.card:nth-of-type(1)",
           text: "Starter $9/mo",
           label: "div.card",
+          context: CLICKED,
         },
-        { selector: "#pricing > div.card:nth-of-type(2)", text: "Pro $29/mo", label: "div.card" },
+        {
+          selector: "#pricing > div.card:nth-of-type(2)",
+          text: "Pro $29/mo",
+          label: "div.card",
+          context: CLICKED,
+        },
       ],
     },
     mark: { kind: "comment", body: "The price must stand out on both cards." },
@@ -280,4 +289,42 @@ test("formatNotes with an edit and a note gives the edit line, then the note", (
   expect(formatNotes(3 as never, 2 as never, "Slice 1 only.")).toBe(
     `${NOTES_TITLE}\n\n${READ_AGAIN}\n\nSlice 1 only.\n`,
   );
+});
+
+function onHint(context: WordsContext): Annotation {
+  return {
+    id: "a",
+    doc: DOC,
+    anchor: {
+      kind: "element",
+      elements: [{ selector: "body > main > p.hint", text: "Save", label: "p.hint", context }],
+    },
+    mark: { kind: "comment", body: "Rename this button." },
+  };
+}
+
+test("formatFeedback says which word a drag took, when the element holds it more than once", () => {
+  const context = {
+    prefix: "draft on this device. ",
+    suffix: " again after each edit.",
+    repeated: true,
+  };
+
+  expect(formatFeedback([onHint(context)], V2)).toContain(
+    'element `body > main > p.hint` (p.hint): "Save" (after "draft on this device. ")\n',
+  );
+});
+
+test("formatFeedback names what follows a repeated word the element starts with", () => {
+  const context = { prefix: "", suffix: " keeps a draft on this device.", repeated: true };
+
+  expect(formatFeedback([onHint(context)], V2)).toContain(
+    '(p.hint): "Save" (before " keeps a draft on this device.")\n',
+  );
+});
+
+test("formatFeedback gives no context for a word the element holds once", () => {
+  const context = { prefix: "draft on this device. ", suffix: " again.", repeated: false };
+
+  expect(formatFeedback([onHint(context)], V2)).toContain('(p.hint): "Save"\n');
 });

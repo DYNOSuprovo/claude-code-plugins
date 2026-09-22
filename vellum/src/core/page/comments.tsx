@@ -41,7 +41,7 @@ function quotesOf(anchor: Anchor): readonly Quote[] {
   }
 
   return anchor.elements.map((element) => ({
-    key: element.selector,
+    key: JSON.stringify(element),
     text: element.text,
     mono: false,
     removed: false,

@@ -13,6 +13,8 @@ import {
   whereOf,
 } from "./labels.ts";
 
+const CLICKED = { prefix: "", suffix: "", repeated: false };
+
 const WIP = "plans/2026-09-15/wip-4c2a9d93/";
 
 const IN_REVIEW: PlanWorkspace = {
@@ -176,8 +178,8 @@ describe("whereOf", () => {
       whereOf({
         kind: "element",
         elements: [
-          { selector: "body > main > h1", text: "Roof", label: "h1" },
-          { selector: "label:nth-of-type(2)", text: "Notes", label: "label" },
+          { selector: "body > main > h1", text: "Roof", label: "h1", context: CLICKED },
+          { selector: "label:nth-of-type(2)", text: "Notes", label: "label", context: CLICKED },
         ],
       }),
     ).toBe("h1, label");

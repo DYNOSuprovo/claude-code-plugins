@@ -16,11 +16,22 @@ export type Passage = {
   readonly removed: boolean;
 };
 
+/**
+ * Where dragged words sit in their element: the characters around them, whitespace collapsed as
+ * in the quote, and whether the element holds the same words elsewhere. Empty for a click.
+ */
+export type WordsContext = {
+  readonly prefix: string;
+  readonly suffix: string;
+  readonly repeated: boolean;
+};
+
 /** One element of a rendered document: where it sits, what it shows, what to call it. */
 export type ElementRef = {
   readonly selector: string;
   readonly text: string;
   readonly label: string;
+  readonly context: WordsContext;
 };
 
 /** Where a comment points: the document as a whole, passages of it, or elements of it. */
@@ -107,6 +118,13 @@ function linesOf(passage: Passage, heading: FeedbackHeading): string {
   return `${lines}${from === null ? "" : ` of v${from}`} (removed by the reviewer's edit)`;
 }
 
+/** Which of the same words a drag took, told only where the element holds them more than once. */
+function whichOf(context: WordsContext): string {
+  if (!context.repeated) return "";
+
+  return context.prefix === "" ? ` (before "${context.suffix}")` : ` (after "${context.prefix}")`;
+}
+
 /** Where each anchored place is, one string each; a global anchor has none. */
 function placesOf(anchor: Anchor, heading: FeedbackHeading): readonly string[] {
   if (anchor.kind === "global") return [];
@@ -116,7 +134,8 @@ function placesOf(anchor: Anchor, heading: FeedbackHeading): readonly string[] {
   }
 
   return anchor.elements.map(
-    (element) => `element \`${element.selector}\` (${element.label}): "${element.text}"`,
+    (element) =>
+      `element \`${element.selector}\` (${element.label}): "${element.text}"${whichOf(element.context)}`,
   );
 }
 

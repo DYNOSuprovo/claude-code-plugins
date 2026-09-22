@@ -24,10 +24,17 @@ const BIGGER = { kind: "comment", body: "bigger" };
 
 const APPROVE = { kind: "approve", edit: null, notes: "" };
 
-const CARD = {
-  kind: "element",
-  elements: [{ selector: "#pricing > div.card", text: "Pro", label: "div.card" }],
+const PRO = {
+  selector: "#pricing > div.card",
+  text: "Pro",
+  label: "div.card",
+  context: { prefix: "", suffix: "", repeated: false },
 };
+
+const CARD = { kind: "element", elements: [PRO] };
+
+/** An element as a draft written before the context of its words had a field. */
+const PRO_WITHOUT_CONTEXT = { selector: PRO.selector, text: PRO.text, label: PRO.label };
 
 const ON_MOCKUP = { id: "a", doc: `${WIP}mockup.html`, anchor: CARD, mark: BIGGER };
 
@@ -290,6 +297,12 @@ describe("routes", () => {
     expect((await send({ anchor: unnamed, mark: BIGGER })).status).toBe(400);
   });
 
+  test("an element without the context of its words is refused", async () => {
+    const { send } = drafting();
+    const anchor = { kind: "element", elements: [PRO_WITHOUT_CONTEXT] };
+    expect((await send({ anchor, mark: BIGGER })).status).toBe(400);
+  });
+
   test("a decision with a label mark round-trips to the feedback file, its sentence alone", async () => {
     const { dir, send } = drafting();
     const mark = { kind: "label", label: "verify", body: "Bun.serve or the watcher?" };
@@ -410,6 +423,16 @@ describe("routes", () => {
     expect(await read.json()).toEqual({ error: UNREADABLE_DRAFT });
     writeFileSync(join(dir, DRAFT_PATH), "not json");
     expect((await getDraft()).status).toBe(409);
+  });
+
+  test("a saved draft whose mockup comment has no context for its words is refused on read", async () => {
+    const { dir, getDraft } = drafting();
+    const anchor = { kind: "element", elements: [PRO_WITHOUT_CONTEXT] };
+    const draft = { ...DRAFT, annotations: [{ ...ON_MOCKUP, anchor }] };
+    writeFileSync(join(dir, DRAFT_PATH), JSON.stringify(draft));
+    const read = await getDraft();
+    expect(read.status).toBe(409);
+    expect(await read.json()).toEqual({ error: UNREADABLE_DRAFT });
   });
 
   test("an empty draft deletes the file", async () => {

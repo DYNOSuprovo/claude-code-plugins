@@ -1,8 +1,10 @@
+import { offsetIn } from "../../core/page/anchoring.ts";
 import { dragRange, isSwitchKey, keyPressOf, toggled } from "../../core/page/selection.ts";
-import type { ElementRef } from "../../core/protocol.ts";
+import type { ElementRef, WordsContext } from "../../core/protocol.ts";
 import type { CommentedPlace, FrameToPage, PageToFrame } from "./messages.ts";
 import type { Step } from "./pick.ts";
 import { labelOf, selectorOf, targetIndex } from "./pick.ts";
+import { CLICK_CONTEXT, contextOf, quoted, wordsIn } from "./words.ts";
 
 /**
  * Injected into every HTML file the server serves, so it runs inside the sandboxed mockup:
@@ -31,8 +33,13 @@ const STYLE = `
 /** The label's height above its box: an element closer to the frame's top carries it below. */
 const LABEL_HEIGHT = 20;
 
-/** The element a comment names, and what of it was chosen: all of it on a click, the text on a drag. */
-type Pick = { readonly element: Element; readonly range: Range; readonly text: string };
+/** The element a comment names, and what of it was chosen: all of it on a click, the text and where it sits on a drag. */
+type Pick = {
+  readonly element: Element;
+  readonly range: Range;
+  readonly text: string;
+  readonly context: WordsContext;
+};
 
 let commenting = false;
 
@@ -96,17 +103,18 @@ function stepOf(element: Element): Step {
   };
 }
 
-function quoted(text: string): string {
-  return text.replaceAll(/\s+/gu, " ").trim();
-}
-
 function refOf(pick: Pick): ElementRef {
   const steps = chainOf(pick.element)
     .filter((one) => one !== document.body && one !== document.documentElement)
     .toReversed()
     .map((one) => stepOf(one));
 
-  return { selector: selectorOf(steps), text: pick.text, label: labelOf(stepOf(pick.element)) };
+  return {
+    selector: selectorOf(steps),
+    text: pick.text,
+    label: labelOf(stepOf(pick.element)),
+    context: pick.context,
+  };
 }
 
 /** What a click quotes of `element`: its shown text, up to the limit. */
@@ -121,7 +129,7 @@ function clickPick(element: Element): Pick {
   const range = document.createRange();
   range.selectNode(element);
 
-  return { element, range, text: clickText(element) };
+  return { element, range, text: clickText(element), context: CLICK_CONTEXT };
 }
 
 function boxAt(rect: DOMRect, kind: string, label: string | null): HTMLElement {
@@ -151,8 +159,8 @@ function markOf(place: Element | Range): HTMLElement[] {
   return rects.filter((rect) => rect.width > 0).map((rect) => boxAt(rect, "comment", null));
 }
 
-/** `text` as it was quoted, found again in `element` whatever its whitespace became; `null` once it is gone. */
-function rangeOfText(element: Element, text: string): Range | null {
+/** `text` as it was quoted, found again in `element` where its context fits best; `null` once it is gone. */
+function rangeOfText(element: Element, text: string, context: WordsContext): Range | null {
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
   const nodes: { readonly node: Text; readonly start: number }[] = [];
   let raw = "";
@@ -163,10 +171,9 @@ function rangeOfText(element: Element, text: string): Range | null {
     raw += node.data;
   }
 
-  const words = text.split(" ").map((word) => word.replaceAll(/[$()*+.?[\\\]^{|}]/gu, "\\$&"));
-  const match = new RegExp(words.join("\\s+"), "u").exec(raw);
+  const found = wordsIn(raw, text, context);
 
-  if (match === null) return null;
+  if (found === null) return null;
 
   const at = (offset: number): [Text, number] | null => {
     const holder = nodes.findLast(({ start }) => start <= offset);
@@ -174,8 +181,8 @@ function rangeOfText(element: Element, text: string): Range | null {
     return holder === undefined ? null : [holder.node, offset - holder.start];
   };
 
-  const start = at(match.index);
-  const end = at(match.index + match[0].length);
+  const start = at(found[0]);
+  const end = at(found[1]);
 
   if (start === null || end === null) return null;
   const range = document.createRange();
@@ -191,10 +198,10 @@ function rangeOfText(element: Element, text: string): Range | null {
  * and may no longer match the document; the overlay survives it.
  */
 function commentedPlaces(): readonly (Element | Range)[] {
-  return commented.flatMap(({ selector, text }) => {
+  return commented.flatMap(({ selector, text, context }) => {
     try {
       return [...document.querySelectorAll(selector)].map((element) =>
-        text === clickText(element) ? element : (rangeOfText(element, text) ?? element),
+        text === clickText(element) ? element : (rangeOfText(element, text, context) ?? element),
       );
     } catch {
       return [];
@@ -279,8 +286,10 @@ function onMouseUp(event: MouseEvent): void {
   const text = quoted(range.toString());
 
   if (element === null || text === "") return;
+  const start = offsetIn(element, range.startContainer, range.startOffset);
+  const context = contextOf(element.textContent ?? "", start, start + range.toString().length);
   document.getSelection()?.removeAllRanges();
-  choose({ element, range, text }, event);
+  choose({ element, range, text, context }, event);
 }
 
 /**

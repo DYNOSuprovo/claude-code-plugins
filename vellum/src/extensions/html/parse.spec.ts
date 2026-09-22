@@ -3,7 +3,12 @@ import { describe, expect, test } from "bun:test";
 import type { FrameToPage } from "./messages.ts";
 import { parseFrameToPage } from "./parse.ts";
 
-const CARD = { selector: "section#pricing > div.card", text: "Pro, 12 € a month", label: "div" };
+const CARD = {
+  selector: "section#pricing > div.card",
+  text: "Pro, 12 € a month",
+  label: "div",
+  context: { prefix: "", suffix: "", repeated: false },
+};
 
 const BOX = { top: 40, left: 8, width: 320, height: 96 };
 
@@ -15,7 +20,9 @@ describe("parseFrameToPage", () => {
   });
 
   test("a field the contract does not name is left behind", () => {
-    const pick = { type: "vellum:pick", elements: [{ ...CARD, html: "<b>" }], box: BOX, by: "x" };
+    const context = { ...CARD.context, offset: 4 };
+    const element = { ...CARD, html: "<b>", context };
+    const pick = { type: "vellum:pick", elements: [element], box: BOX, by: "x" };
 
     expect(parseFrameToPage(pick)).toEqual({ type: "vellum:pick", elements: [CARD], box: BOX });
   });
@@ -26,9 +33,23 @@ describe("parseFrameToPage", () => {
   });
 
   test("one unreadable element refuses the whole pick, never half of it", () => {
-    const elements = [CARD, { selector: "div.card", text: 12, label: "div" }];
+    const elements = [CARD, { ...CARD, text: 12 }];
 
     expect(parseFrameToPage({ type: "vellum:pick", elements, box: BOX })).toBeNull();
+  });
+
+  test("an element needs the context of its words: the characters around them, and whether they repeat", () => {
+    const { context, ...bare } = CARD;
+
+    const unreadable = [
+      bare,
+      { ...CARD, context: { ...context, repeated: "no" } },
+      { ...CARD, context: { ...context, prefix: 3 } },
+    ];
+
+    for (const element of unreadable) {
+      expect(parseFrameToPage({ type: "vellum:pick", elements: [element], box: BOX })).toBeNull();
+    }
   });
 
   test("a box needs its four finite numbers", () => {

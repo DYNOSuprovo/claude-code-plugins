@@ -32,8 +32,8 @@ export type FrameTheme = {
   readonly outline: string;
 };
 
-/** A commented place: the element's selector, and the text chosen in it, which the mark boxes when it is still there. */
-export type CommentedPlace = { readonly selector: string; readonly text: string };
+/** A commented place: the element's selector, the text chosen in it and its context, which the mark boxes where the context fits best while the text is there. */
+export type CommentedPlace = Pick<ElementRef, "selector" | "text" | "context">;
 
 /** `vellum:leave` is the pointer leaving the iframe, which the frame's document never hears. */
 export type PageToFrame =

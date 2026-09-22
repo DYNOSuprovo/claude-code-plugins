@@ -25,6 +25,7 @@ export type {
   Passage,
   PassageKind,
   QuickLabel,
+  WordsContext,
 } from "./server/domain/feedback.ts";
 
 export { DELETE_SENTENCE, QUICK_LABELS } from "./server/domain/feedback.ts";

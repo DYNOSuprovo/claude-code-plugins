@@ -15,6 +15,7 @@ import type {
   PassageKind,
   PlanWorkspace,
   Typed,
+  WordsContext,
 } from "../../../protocol.ts";
 import type { GateOptions, Review } from "../../app/review.ts";
 import { isQuickLabel } from "../../domain/feedback.ts";
@@ -75,9 +76,25 @@ function parseAnchor(value: unknown): Anchor | null {
   return first === undefined ? null : { kind: "text", passages: [first, ...rest] };
 }
 
-function parseElementRef(value: unknown): ElementRef | null {
+function parseWordsContext(value: unknown): WordsContext | null {
   if (
     !isRecord(value) ||
+    typeof value.prefix !== "string" ||
+    typeof value.suffix !== "string" ||
+    typeof value.repeated !== "boolean"
+  ) {
+    return null;
+  }
+
+  return { prefix: value.prefix, suffix: value.suffix, repeated: value.repeated };
+}
+
+function parseElementRef(value: unknown): ElementRef | null {
+  const context = isRecord(value) ? parseWordsContext(value.context) : null;
+
+  if (
+    !isRecord(value) ||
+    context === null ||
     typeof value.selector !== "string" ||
     value.selector === "" ||
     typeof value.text !== "string" ||
@@ -86,7 +103,7 @@ function parseElementRef(value: unknown): ElementRef | null {
     return null;
   }
 
-  return { selector: value.selector, text: value.text, label: value.label };
+  return { selector: value.selector, text: value.text, label: value.label, context };
 }
 
 function parsePassageKind(value: unknown): PassageKind | null {

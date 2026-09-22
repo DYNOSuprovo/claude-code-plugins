@@ -219,8 +219,9 @@ no build step, so what the page imports costs nothing at `cli start`.
   lines by their index, which `markdown/vnode.ts` draws as bands over the block.
 - An HTML file is served with a sandboxed CSP, so the page cannot reach into it: `html/frame.ts`
   runs inside the mockup and owns the selection there, the page only sends it whether the page
-  comments, the Ctrl state, the places already commented (a selector and the text chosen in it,
-  which the mark boxes while the text is there, the whole element otherwise), the pointer
+  comments, the Ctrl state, the places already commented (a selector, the text chosen in it and
+  the characters around that text, which the mark boxes where they fit best while the text is
+  there, the whole element otherwise), the pointer
   leaving the iframe, and the theme, five tokens resolved to sRGB since its shadow root reads
   none of the page's properties. The root is open: the mockup's own scripts could remove the
   host anyway, and the browser suite reads the overlay through it. `html/messages.ts` is the

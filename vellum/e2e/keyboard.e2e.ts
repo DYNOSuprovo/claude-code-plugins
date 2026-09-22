@@ -1,13 +1,13 @@
-import type { FrameLocator, Page } from "@playwright/test";
+import type { FrameLocator, Locator, Page } from "@playwright/test";
 
 import type { Box } from "./harness.ts";
-import { boxOf, commentOn, expect, reviewV1, test } from "./harness.ts";
+import { boxOf, commentOn, dragText, expect, readFixture, reviewV1, test } from "./harness.ts";
 
 /**
  * Commenting from the keyboard, and the mockup's overlay: a block takes the focus and Enter,
  * `c` flips the switch from a document alone, a drag released past the sheet still picks, and
  * in a mockup the hover follows the scroll and the pointer, its label stays in view, and a
- * commented passage is boxed as the words that were dragged.
+ * commented passage is boxed as the words that were dragged, the very ones among the same words.
  */
 
 /** Where the focus is: the tag and `data-lines` of the active element, `BODY` when nothing holds it. */
@@ -70,6 +70,45 @@ function overlay(frame: FrameLocator): Promise<OverlayBox[]> {
         };
       }),
     );
+}
+
+/** Where the commented marks start, in frame coordinates, as offsets from `x`: `[0]` is one mark there. */
+async function marksFrom(frame: FrameLocator, x: number): Promise<number[]> {
+  const marks = (await overlay(frame)).filter((box) => box.kind.includes("comment"));
+
+  return marks.map((mark) => Math.round(mark.rect.x - x));
+}
+
+/** The box of the characters `from` to `to` of the first text node of `locator`, in its frame's coordinates. */
+function charsBox(locator: Locator, from: number, to: number): Promise<Box> {
+  return locator.evaluate(
+    (element, [first, last]) => {
+      const node = document.createTreeWalker(element, NodeFilter.SHOW_TEXT).nextNode();
+
+      if (node === null) throw new Error("no text node");
+      const range = document.createRange();
+      range.setStart(node, first);
+      range.setEnd(node, last);
+      const { x, y, width, height } = range.getBoundingClientRect();
+
+      return { x, y, width, height };
+    },
+    [from, to] as const,
+  );
+}
+
+/** Drags the characters `from` to `to` of `p.offline`, then sends a comment on them. */
+async function commentWords(
+  page: Page,
+  frame: FrameLocator,
+  from: number,
+  to: number,
+): Promise<void> {
+  await dragText(page, frame.locator("p.offline"), from, to);
+  await expect(page.locator(".popover textarea")).toBeFocused();
+  await page.keyboard.type("Say who saves them.");
+  await page.keyboard.press("Control+Enter");
+  await expect(page.locator(".comments .card")).toHaveCount(1);
 }
 
 async function choose(page: Page, name: string): Promise<FrameLocator> {
@@ -273,5 +312,68 @@ test.describe("a comment in a mockup", () => {
           : marks.every((mark) => mark.rect.width < box.width - 100);
       })
       .toBe(true);
+  });
+
+  // `p.offline` reads "You are offline. Your answers are saved on this tablet…": "are" at 4 and at 30.
+  test("a drag on the second of two same words marks the second", async ({ page, vellum }) => {
+    await reviewV1(page, vellum);
+    const frame = await choose(page, "mockup.html");
+    await commentOn(page);
+    await commentWords(page, frame, 30, 33);
+    const second = await charsBox(frame.locator("p.offline"), 30, 33);
+
+    await expect.poll(() => marksFrom(frame, second.x)).toEqual([0]);
+  });
+
+  test("a drag on the first of two same words marks the first", async ({ page, vellum }) => {
+    await reviewV1(page, vellum);
+    const frame = await choose(page, "mockup.html");
+    await commentOn(page);
+    await commentWords(page, frame, 4, 7);
+    const first = await charsBox(frame.locator("p.offline"), 4, 7);
+
+    await expect.poll(() => marksFrom(frame, first.x)).toEqual([0]);
+  });
+
+  test("two same words picked together with Ctrl are two marks, each on its word", async ({
+    page,
+    vellum,
+  }) => {
+    await reviewV1(page, vellum);
+    const frame = await choose(page, "mockup.html");
+    await commentOn(page);
+    const paragraph = frame.locator("p.offline");
+    await dragText(page, paragraph, 4, 7);
+    await page.keyboard.down("Control");
+    await dragText(page, paragraph, 30, 33);
+    await page.keyboard.up("Control");
+    await expect(page.locator(".popover .quote")).toHaveCount(2);
+    await page.keyboard.type("Say who saves them.");
+    await page.keyboard.press("Control+Enter");
+    const [first, second] = [await charsBox(paragraph, 4, 7), await charsBox(paragraph, 30, 33)];
+
+    await expect.poll(() => marksFrom(frame, first.x)).toEqual([0, Math.round(second.x - first.x)]);
+  });
+
+  test("dragged words the mockup no longer holds box their whole element", async ({
+    page,
+    vellum,
+  }) => {
+    await reviewV1(page, vellum);
+    const frame = await choose(page, "mockup.html");
+    await commentOn(page);
+    // "saved on this tablet", which the rewrite below takes away.
+    await commentWords(page, frame, 34, 54);
+    const mockup = readFixture("rich", "mockup.html");
+    vellum.writeFile("mockup.html", mockup.replace("saved on this tablet", "kept here"));
+    const paragraph = await boxOf(frame.locator("p.offline"));
+
+    await expect
+      .poll(async () =>
+        (await overlay(frame))
+          .filter((b) => b.kind.includes("comment"))
+          .map((b) => Math.round(b.rect.width)),
+      )
+      .toEqual([Math.round(paragraph.width)]);
   });
 });

@@ -215,14 +215,18 @@ export async function boxOf(locator: Locator): Promise<Box> {
   return box;
 }
 
-/** Selects, by a real drag, the characters `from` to `to` of the first text node of `locator`. */
+/**
+ * Selects, by a real drag, the characters `from` to `to` of the first text node of `locator`,
+ * in the page or in a mockup's frame: the characters are measured in the locator's own frame,
+ * and the mouse moves in the page's.
+ */
 export async function dragText(
   page: Page,
   locator: Locator,
   from: number,
   to: number,
 ): Promise<void> {
-  const [start, end] = await locator.evaluate(
+  const [start, end, own] = await locator.evaluate(
     (element, [first, last]) => {
       const node = document.createTreeWalker(element, NodeFilter.SHOW_TEXT).nextNode();
 
@@ -239,15 +243,20 @@ export async function dragText(
         return { x: rect.left + 1, y: rect.top + rect.height / 2 };
       };
 
-      return [at(first), at(last)];
+      const { left, top } = element.getBoundingClientRect();
+
+      return [at(first), at(last), { x: left, y: top }];
     },
     [from, to] as const,
   );
 
-  await page.mouse.move(start.x, start.y);
+  const box = await boxOf(locator);
+  const dx = box.x - own.x;
+  const dy = box.y - own.y;
+  await page.mouse.move(start.x + dx, start.y + dy);
   await page.mouse.down();
-  await page.mouse.move((start.x + end.x) / 2, end.y, { steps: 6 });
-  await page.mouse.move(end.x, end.y, { steps: 6 });
+  await page.mouse.move((start.x + end.x) / 2 + dx, end.y + dy, { steps: 6 });
+  await page.mouse.move(end.x + dx, end.y + dy, { steps: 6 });
   await page.mouse.up();
 }
 

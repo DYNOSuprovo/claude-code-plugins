@@ -1,4 +1,4 @@
-import type { ElementRef } from "../../core/protocol.ts";
+import type { ElementRef, WordsContext } from "../../core/protocol.ts";
 import type { FrameToPage, PickBox } from "./messages.ts";
 
 /**
@@ -12,12 +12,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function parseElement(value: unknown): ElementRef | null {
+function parseContext(value: unknown): WordsContext | null {
   return isRecord(value) &&
+    typeof value.prefix === "string" &&
+    typeof value.suffix === "string" &&
+    typeof value.repeated === "boolean"
+    ? { prefix: value.prefix, suffix: value.suffix, repeated: value.repeated }
+    : null;
+}
+
+function parseElement(value: unknown): ElementRef | null {
+  const context = isRecord(value) ? parseContext(value.context) : null;
+
+  return isRecord(value) &&
+    context !== null &&
     typeof value.selector === "string" &&
     typeof value.text === "string" &&
     typeof value.label === "string"
-    ? { selector: value.selector, text: value.text, label: value.label }
+    ? { selector: value.selector, text: value.text, label: value.label, context }
     : null;
 }
 

@@ -1,8 +1,10 @@
 import type { Passage } from "../protocol.ts";
 
-const CONTEXT_CHARS = 32;
+/** The characters kept on each side of a quote, and the most of them an occurrence is scored on. */
+export const CONTEXT_CHARS = 32;
 
-function offsetIn(container: Node, node: Node, offset: number): number {
+/** How many characters of `container`'s text come before the point `node`, `offset`. */
+export function offsetIn(container: Node, node: Node, offset: number): number {
   const range = document.createRange();
   range.selectNodeContents(container);
   range.setEnd(node, offset);
@@ -53,7 +55,11 @@ export function passageFromRange(container: Element, range: Range): Passage | nu
   };
 }
 
-function bestOffset(text: string, passage: Passage): number | null {
+/** Where `quote` sits in `text`, exactly: the occurrence whose context fits best, the first on a tie; `null` once it is gone. */
+export function bestOffset(
+  text: string,
+  passage: Pick<Passage, "quote" | "prefix" | "suffix">,
+): number | null {
   let best: { offset: number; score: number } | null = null;
 
   for (let at = text.indexOf(passage.quote); at !== -1; at = text.indexOf(passage.quote, at + 1)) {
