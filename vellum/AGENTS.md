@@ -33,8 +33,8 @@ zone load with its files, from `.claude/rules/`: `engine.md`, `server.md`, `page
 `extensions.md`, `tests.md`. The drawings, the assessment and where the next phases land: `docs/architecture.md`.
 
 The tree is drawn here and nowhere else: a rule names the files of its own zone, every other
-text points at this section. A fact about Claude Code's engine goes to `docs/plugin-testing.md`
-at the repository root, once, and is pointed at from here. An example is code that compiles
+text points at this section. A fact about Claude Code's engine goes to the relevant page linked from
+[Plugin testing](../docs/plugin-testing.md), once, and is pointed at from here. An example is code that compiles
 and is tested (`extensions.md` names the ones to copy), never a snippet kept in a doc.
 
 ## Commands
@@ -77,8 +77,8 @@ lifetime running out and an approval in the page all take the copy away, under t
 approval renamed it to; `SIGKILL` leaves it, and `find plans/<date>/ -type f -delete` then
 `find plans/<date>/ -depth -type d -empty -delete` finishes the job.
 
-A live session, the browser, and the facts measured on Claude Code: `docs/plugin-testing.md`
-at the repository root, § Testing a hooks module, and `plans/2026-09-15/plan-review-rewrite/`.
+For live hook sessions, read [Hook tests](../docs/plugin-testing/hooks.md).
+For engine observations, read its linked runtime reference and `plans/2026-09-15/plan-review-rewrite/`.
 
 ## Boundaries
 

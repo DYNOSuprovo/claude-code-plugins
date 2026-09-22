@@ -7,7 +7,7 @@
  *   try-plugin.ts <plugin>... [-- args]  the scripted path, no picker
  *   try-plugin.ts --list                 one plugin name per line
  *
- * Why each launch flag is there: docs/plugin-testing.md, "Launch a test session".
+ * Why each launch flag is there: docs/plugin-testing/sessions.md, "Launch a test session".
  */
 
 import { existsSync } from "node:fs";

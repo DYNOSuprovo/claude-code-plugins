@@ -7,7 +7,7 @@ paths:
 
 The model copies a skill's example commands verbatim, so each example must
 pass the permission check as written. Measured cases, details and repro
-recipes in `docs/plugin-testing.md` → Skill mechanics worth knowing.
+recipes in [Skill permissions and prompts](../../docs/plugin-testing/skills.md).
 
 - No environment assignment in front of the executable: an `allow` rule
   stops at `VAR=x cmd` unless `VAR` is on Claude Code's short known-safe

@@ -14,7 +14,7 @@ Do not reinvent plugin patterns. Delegate:
 
 New plugin: add its `marketplace.json` entry and its `README.md` table row by hand; no check catches their absence. Version bumps and description changes: edit `plugin.json` only; pre-commit propagates both to the existing entry and row, and `validate-marketplace` fails on a mismatch either way round. A description holding a `|` is refused, not escaped: no README table cell carries one.
 
-Testing a plugin from source (launch flags, permission modes, transcript checks) and the install/update lifecycle (what a version bump reaches, what it does not): `docs/plugin-testing.md`. What a skill's example commands may contain so they run without a prompt: `.claude/rules/skill-commands.md`, loaded when a `SKILL.md` is edited. The vellum plugin carries its own `AGENTS.md`, loaded when a file under `vellum/` is read, and its own `.claude/rules/`, whose `paths:` are relative to `vellum/` (measured from a session at the repository root).
+For plugin tests, permissions and the catalog lifecycle, start at [Plugin testing](docs/plugin-testing.md) and open only the page for the task. What a skill's example commands may contain so they run without a prompt: `.claude/rules/skill-commands.md`, loaded when a `SKILL.md` is edited. The vellum plugin carries its own `AGENTS.md`, loaded when a file under `vellum/` is read, and its own `.claude/rules/`, whose `paths:` are relative to `vellum/` (measured from a session at the repository root).
 
 ## Commands
 
@@ -34,7 +34,7 @@ bun ./scripts/run-gates.ts                             # every gate, as CI runs 
 
 `vellum/` carries `package.json` + `bun.lock`: `bun install --cwd vellum --frozen-lockfile` before its tests or its server, as Claude Code does at the plugin's cache.
 
-Everything above also runs in `pre-push` and CI; `pre-commit` runs all of it except `bun test`. Job list, order, and argument differences: `docs/repo-ops.md`.
+Everything above also runs in `pre-push` and CI; `pre-commit` runs all of it except `bun test`. Job list, order, and argument differences: [Local checks and CI](docs/repo-ops/checks.md).
 
 ## Code Standards
 
@@ -56,6 +56,7 @@ Carried by nobody, so hold them by hand:
 - Plugins are self-contained. No import crosses a plugin boundary, or reaches into `scripts/` or `.claude/`. Today every relative import stays inside its own top-level directory.
 - Ship sources, never compiled binaries. `bun` is the runtime.
 - Docs name symbols, sections and paths, never line numbers or version numbers: both drift at the next regeneration or release.
+- Keep documentation entry points as task indexes. Put each procedure or reference in its owning page and link to it; do not import the whole tree.
 
 ## Method
 
@@ -80,4 +81,4 @@ Two lanes; the agent judges by scope, the user can override:
 
 Review: agents review each other's PRs; the human reviews contracts and tests at the end of a chantier and before each release. A finding gives the input, the output observed and the cause, so the author can reproduce it; the author reproduces before fixing, and declines a finding with a measurement, never an opinion.
 
-Before any push or release: follow `docs/repo-ops.md`; landing is remote-first.
+Before any push or release: follow [Repo operations](docs/repo-ops.md); landing is remote-first.

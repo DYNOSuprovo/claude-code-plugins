@@ -270,7 +270,7 @@ handlers, imported by value through `../../extensions/engine.ts`, each handed a 
 through the one unmatched `tool.call` hook, which dispatches on `e.tool`. The engine rule of
 `boundaries.spec.ts` allows siblings alone, and that one registry for `register.ts`. No module path may leave the plugin, so no third party ever has an
 engine half: no dynamic loading, no versioned API. The measurements, which hold for every
-plugin: `docs/plugin-testing.md` at the repository root, § Testing a hooks module.
+plugin: [Hook tests](../../docs/plugin-testing/hooks.md).
 
 ### Config: not designed yet
 
