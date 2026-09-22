@@ -267,7 +267,10 @@ test.describe("in a mockup", () => {
     expect(pop.x + pop.width).toBeLessThanOrEqual(pane.x + pane.width);
   });
 
-  test("Escape pressed inside the mockup closes the composer", async ({ page, vellum }) => {
+  test("a pick added with Ctrl gives the focus back to the composer, and Escape closes it", async ({
+    page,
+    vellum,
+  }) => {
     await reviewV1(page, vellum);
     await choose(page, "mockup.html");
     await commentOn(page);
@@ -275,7 +278,8 @@ test.describe("in a mockup", () => {
     await frame.locator("h1").click();
     await expect(page.locator(".popover textarea")).toBeFocused();
     await frame.locator("body").click({ position: { x: 4, y: 4 }, modifiers: ["Control"] });
-    await expect(page.locator(".popover")).toHaveCount(1);
+    await expect(page.locator(".popover .quote")).toHaveCount(2);
+    await expect(page.locator(".popover textarea")).toBeFocused();
     await page.keyboard.press("Escape");
 
     await expect(page.locator(".popover")).toHaveCount(0);
