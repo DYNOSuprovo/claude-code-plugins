@@ -8,7 +8,13 @@ const DOC = "plans/2026-09-15/wip-4c2a9d93/.review/v2.md" as never;
 
 const V2 = { kind: "review", version: 2 as never, editedFrom: null } as const;
 
-const PASSAGE = { quote: "persist per user", prefix: "", suffix: "", lines: [14, 14] } as const;
+const PASSAGE = {
+  quote: "persist per user",
+  prefix: "",
+  suffix: "",
+  lines: [14, 14],
+  removed: false,
+} as const;
 
 test("formatFeedback numbers the comments, quotes text anchors, names general ones", () => {
   const annotations: Annotation[] = [
@@ -41,6 +47,26 @@ test("formatFeedback numbers the comments, quotes text anchors, names general on
   );
 });
 
+test("formatFeedback says which lines the reviewer's edit removed, and of which version", () => {
+  const gone = { ...PASSAGE, removed: true };
+
+  const annotation: Annotation = {
+    id: "a",
+    doc: DOC,
+    anchor: { kind: "text", passages: [gone] },
+    mark: { kind: "comment", body: "Decide this first." },
+  };
+
+  expect(
+    formatFeedback([annotation], { ...V2, version: 3 as never, editedFrom: 2 as never }),
+  ).toContain(
+    `1. \`${DOC}\` lines 14–14 of v2 (removed by the reviewer's edit): "persist per user"`,
+  );
+  expect(formatFeedback([annotation], V2)).toContain(
+    `1. \`${DOC}\` lines 14–14 (removed by the reviewer's edit): "persist per user"`,
+  );
+});
+
 test("formatFeedback lists the passages of a comment that points to several places", () => {
   const annotation: Annotation = {
     id: "a",
@@ -48,8 +74,8 @@ test("formatFeedback lists the passages of a comment that points to several plac
     anchor: {
       kind: "text",
       passages: [
-        { quote: "First item", prefix: "", suffix: "", lines: [5, 5] },
-        { quote: "Nested two", prefix: "", suffix: "", lines: [7, 7] },
+        { quote: "First item", prefix: "", suffix: "", lines: [5, 5], removed: false },
+        { quote: "Nested two", prefix: "", suffix: "", lines: [7, 7], removed: false },
       ],
     },
     mark: { kind: "comment", body: "These two say the same thing." },
@@ -172,7 +198,13 @@ test.each([
 });
 
 test("a mark on several places prints once, under the list of places", () => {
-  const second = { quote: "one boolean", prefix: "", suffix: "", lines: [20, 20] } as const;
+  const second = {
+    quote: "one boolean",
+    prefix: "",
+    suffix: "",
+    lines: [20, 20],
+    removed: false,
+  } as const;
 
   expect(marked({ kind: "delete" }, [PASSAGE, second])).toEndWith(
     [

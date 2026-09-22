@@ -4,7 +4,7 @@ import { h } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import type { RendererProps, PageExtension } from "../../core/extension.ts";
-import { passageFromRange, rangeFor } from "../../core/page/anchoring.ts";
+import { parseLines, passageFromRange, rangeFor } from "../../core/page/anchoring.ts";
 import { docUrl, fileUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { paint } from "../../core/page/highlights.ts";
@@ -18,6 +18,8 @@ import {
   docs,
   fail,
   holding,
+  planDoc,
+  resume,
   review,
   select,
   succeed,
@@ -78,23 +80,48 @@ function mermaidSource(node: HastElement): string | null {
 /**
  * A removed run, folded. Its label and its old source are attributes CSS draws, as the Mermaid
  * figure keeps its source: with no text node it takes no selection and no quote search finds it.
+ * Before a code block or a figure it takes the block's width.
  */
-function removedBlock(run: RemovedRun): ComponentChild {
+function removedBlock(run: RemovedRun, wide = false): ComponentChild {
   return h(
     "details",
-    { key: `removed-${run.before}`, class: "removed" },
+    { key: `removed-${run.before}`, class: wide ? "removed wide" : "removed" },
     h("summary", { "data-label": removedLabel(run.lines.length) }),
     h("div", { "data-source": run.lines.join("\n") }),
   );
 }
 
+/** What is drawn before `node`: its removed runs, as a row of their own before a row. */
+function removedBefore(node: HastElement, runs: readonly RemovedRun[]): ComponentChild[] {
+  if (node.tagName !== "tr") {
+    const wide = node.tagName === "pre" || mermaidSource(node) !== null;
+
+    return runs.map((run) => removedBlock(run, wide));
+  }
+
+  const cells = node.children.filter((child) => child.type === "element").length;
+
+  return [
+    h(
+      "tr",
+      { key: `removed-row-${runs[0]?.before ?? 0}`, class: "removed-row" },
+      h("td", { colSpan: cells }, ...runs.map((run) => removedBlock(run))),
+    ),
+  ];
+}
+
 function toVNodes(nodes: readonly RootContent[], changes: Changes | null): ComponentChild[] {
   return nodes.flatMap((node, index) => [
-    ...(node.type === "element" ? (changes?.removedBefore.get(node) ?? []) : []).map((run) =>
-      removedBlock(run),
-    ),
+    ...(node.type === "element" ? removedBefore(node, changes?.removedBefore.get(node) ?? []) : []),
     toVNode(node, index, changes),
   ]);
+}
+
+/** The bands over a code block's added lines, placed by CSS from the line's index. */
+function addedLineBands(lines: readonly number[]): ComponentChild[] {
+  return lines.map((line) =>
+    h("span", { key: `line-${line}`, class: "line-added", style: `--line: ${line}` }),
+  );
 }
 
 /** hast to preact, by hand: the JSX runtime adapters type against a global JSX namespace this page does not own. */
@@ -135,12 +162,20 @@ function toVNode(node: RootContent, key: number, changes: Changes | null): Compo
   const mark = added ? { class: `${given.class ?? ""} added`.trimStart() } : {};
 
   const inside = (changes?.removedInside.get(node) ?? []).map((run) => removedBlock(run));
+  const children = toVNodes(node.children, changes);
+  const bands = addedLineBands(changes?.addedLines.get(node) ?? []);
+
+  // A task item's removed run follows its checkbox, so the box stays on the bullet's line.
+  const first = node.children[0];
+  const checkbox = first?.type === "element" && first.tagName === "input" ? 1 : 0;
 
   return h(
     node.tagName,
     { key, ...extra, ...given, ...mark },
+    ...children.slice(0, checkbox),
     ...inside,
-    ...toVNodes(node.children, changes),
+    ...children.slice(checkbox),
+    ...bands,
   );
 }
 
@@ -263,6 +298,19 @@ async function drawDiagrams(root: HTMLElement, night: boolean): Promise<void> {
   }
 }
 
+function linesAt(block: HTMLElement): readonly [number, number] {
+  return parseLines(block.dataset.lines) ?? [0, 0];
+}
+
+/** Every diagram drawn and every image decoded, a broken one included: the sheet has its height. */
+async function drawn(root: HTMLElement, night: boolean): Promise<void> {
+  await drawDiagrams(root, night);
+
+  await Promise.all(
+    [...root.querySelectorAll("img")].map((image) => image.decode().catch(() => {})),
+  );
+}
+
 /** A diagram stands for its source block; every other target for the text it shows. */
 function passageOf(root: HTMLElement, target: Target, range: Range): Passage | null {
   return target.kind === "diagram"
@@ -377,8 +425,11 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
       blocks.forEach((block, index) => block.classList.toggle("marked", marked.has(index)));
     };
 
+    // A passage the edit removed has no text to find and no block to mark: the card says so.
     const commented = props.annotations.flatMap((annotation) =>
-      annotation.anchor.kind === "text" ? annotation.anchor.passages : [],
+      annotation.anchor.kind === "text"
+        ? annotation.anchor.passages.filter((passage) => !passage.removed)
+        : [],
     );
 
     const picked = (draft?.chosen ?? []).map((one) => one.passage);
@@ -400,10 +451,29 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
 
   const night = dark.value;
 
+  // Back from the editor: the plan scrolls to the block of the line under the caret, once the
+  // diagrams and the images above it have their size, since each one drawn moves what follows.
+  const isPlan = props.doc.path === planDoc.value?.path;
+
   useEffect(() => {
     const root = container.current;
 
-    if (root !== null) void drawDiagrams(root, night);
+    if (root === null) return;
+
+    void drawn(root, night).then(() => {
+      const line = resume.peek();
+
+      if (line === null || content === null || !isPlan) return;
+      const blocks = [...root.querySelectorAll<HTMLElement>("[data-lines]")];
+
+      const holder = blocks.findLast(
+        (block) => linesAt(block)[0] <= line && line <= linesAt(block)[1],
+      );
+
+      const next = blocks.find((block) => linesAt(block)[0] >= line);
+      resume.value = null;
+      (holder ?? next)?.scrollIntoView({ block: "start" });
+    });
   }, [content, night]);
 
   // A position is taken from a rect once: whatever reflows the sheet (the comments panel folding,

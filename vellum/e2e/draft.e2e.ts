@@ -175,7 +175,7 @@ test.describe("an action that would throw a typed text asks first", () => {
     expect(await firstLine(page)).toBe("Reviewer: a line.");
 
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
-    await page.getByRole("button", { name: "Discard" }).click();
+    await page.getByRole("button", { name: "Discard", exact: true }).click();
     await expect(page.locator(".editor textarea")).toHaveCount(0);
     await openEditor(page);
     expect(await firstLine(page)).toBe(

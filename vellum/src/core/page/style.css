@@ -182,7 +182,7 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .editor { flex: 1; display: flex; }
 .editor textarea { flex: 1; max-width: 100ch; margin-inline: auto; border: 0; border-radius: 0; resize: none; padding: var(--s-4) var(--s-6); font: var(--t-14)/var(--lh-code) var(--mono); background: var(--field); }
 .editor textarea:focus-visible { outline-offset: -2px; }
-.rail[inert]:not(.folded), .comments[inert]:not(.folded) { opacity: 0.45; }
+.rail[inert]:not(.folded) { opacity: 0.45; }
 
 .plan { padding: var(--s-6) var(--s-6) var(--s-10); font: var(--t-16)/var(--lh-prose) var(--serif); }
 .plan h1 { font: 650 var(--t-31)/var(--lh-title) var(--serif); letter-spacing: -0.015em; margin: 0 0 var(--s-3); }
@@ -193,8 +193,9 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .plan ul, .plan ol { padding-left: 1.2em; }
 .plan a { color: var(--ink); text-decoration-color: var(--redline); text-underline-offset: 3px; cursor: pointer; }
 .plan code { font-family: var(--mono); font-size: var(--mono-optical); font-variant-ligatures: none; background: var(--tint); padding: 0.1em 0.35em; border-radius: var(--r-sm); }
-.plan pre { background: var(--tint); color: var(--ink); padding: var(--s-3); border-radius: var(--r-md); overflow: auto; font: var(--t-14)/var(--lh-code) var(--mono); font-variant-ligatures: none; }
+.plan pre { position: relative; background: var(--tint); color: var(--ink); padding: var(--s-3); border-radius: var(--r-md); overflow: auto; font: var(--t-14)/var(--lh-code) var(--mono); font-variant-ligatures: none; }
 .plan pre code { background: none; padding: 0; font-size: inherit; }
+.plan pre .line-added { position: absolute; left: 0; right: 0; top: calc(var(--s-3) + var(--line) * var(--lh-code) * var(--t-14)); height: calc(var(--lh-code) * var(--t-14)); background: var(--wash-ok); pointer-events: none; }
 .plan .hljs-comment, .plan .hljs-quote { color: var(--code-comment); font-style: italic; }
 .plan .hljs-keyword, .plan .hljs-literal, .plan .hljs-type, .plan .hljs-meta { color: var(--code-keyword); }
 .plan .hljs-string, .plan .hljs-attr, .plan .hljs-symbol { color: var(--code-string); }
@@ -239,6 +240,9 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .plan li.added.marked > ul::before, .plan li.added.marked > ol::before { left: calc(var(--s-6) * -1 + var(--s-2) * 2 + 3px - 1px); }
 .plan details.removed { border-left: 3px solid var(--redline); background: color-mix(in oklab, var(--redline) 7%, var(--sheet)); margin: var(--s-1) 0 var(--s-1) calc(var(--s-2) * -1 - 3px); padding: 2px var(--s-2); font: var(--t-13)/var(--lh-chrome) var(--serif); max-width: var(--measure); user-select: none; }
 .plan li > details.removed, .plan blockquote > details.removed { margin-left: 0; }
+.plan details.removed.wide { max-width: none; margin-left: 0; }
+.plan tr.removed-row > td { padding: 0; border-color: var(--rule); }
+.plan tr.removed-row details.removed { margin: 0; max-width: none; }
 .plan details.removed summary { cursor: pointer; color: var(--redline); }
 .plan details.removed summary::after { content: attr(data-label); }
 .plan details.removed div::before { content: attr(data-source); display: block; padding: var(--s-1) 0; white-space: pre-wrap; color: var(--ink); font-family: var(--mono); }

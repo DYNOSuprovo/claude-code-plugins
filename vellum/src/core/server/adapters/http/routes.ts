@@ -96,7 +96,8 @@ function parsePassage(value: unknown): Passage | null {
     typeof value.suffix !== "string" ||
     !Array.isArray(value.lines) ||
     typeof value.lines[0] !== "number" ||
-    typeof value.lines[1] !== "number"
+    typeof value.lines[1] !== "number" ||
+    typeof value.removed !== "boolean"
   ) {
     return null;
   }
@@ -106,6 +107,7 @@ function parsePassage(value: unknown): Passage | null {
     prefix: value.prefix,
     suffix: value.suffix,
     lines: [value.lines[0], value.lines[1]],
+    removed: value.removed,
   };
 }
 

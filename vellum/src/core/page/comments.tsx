@@ -29,17 +29,24 @@ function whereOf(anchor: Anchor): string {
   return anchor.elements.map((element) => element.selector).join(", ");
 }
 
-function quotesOf(anchor: Anchor): readonly { readonly key: string; readonly text: string }[] {
+type Quote = { readonly key: string; readonly text: string; readonly removed: boolean };
+
+function quotesOf(anchor: Anchor): readonly Quote[] {
   if (anchor.kind === "global") return [];
 
   if (anchor.kind === "text") {
     return anchor.passages.map((passage) => ({
       key: `${passage.lines[0]}-${passage.quote}`,
       text: passage.quote,
+      removed: passage.removed,
     }));
   }
 
-  return anchor.elements.map((element) => ({ key: element.selector, text: element.text }));
+  return anchor.elements.map((element) => ({
+    key: element.selector,
+    text: element.text,
+    removed: false,
+  }));
 }
 
 /** The empty panel names the switch only where `Tools` draws it, and the box only where it takes text. */
@@ -68,12 +75,14 @@ function MarkWords(props: { readonly mark: Mark }): preact.JSX.Element {
 
 /**
  * A comment's words, reopened in place: every keystroke goes to the annotation itself, so the
- * text is never held anywhere but in the store; `open` is the one thing the card keeps.
+ * text is never held anywhere but in the store; `open` is the one thing the card keeps. While
+ * the editor is open the actions are off, the card readable.
  */
 function CardWords(props: { readonly annotation: Annotation }): preact.JSX.Element {
   const { annotation } = props;
   const [open, setOpen] = useState(false);
   const { mark } = annotation;
+  const off = editing.value !== null;
 
   if (!open || mark.kind !== "comment") {
     return (
@@ -82,11 +91,11 @@ function CardWords(props: { readonly annotation: Annotation }): preact.JSX.Eleme
         {!locked.value && (
           <div class="actions">
             {mark.kind === "comment" && (
-              <button type="button" onClick={() => setOpen(true)}>
+              <button type="button" disabled={off} onClick={() => setOpen(true)}>
                 Edit
               </button>
             )}
-            <button type="button" onClick={() => removeAnnotation(annotation.id)}>
+            <button type="button" disabled={off} onClick={() => removeAnnotation(annotation.id)}>
               Delete
             </button>
           </div>
@@ -127,7 +136,7 @@ function Card(props: { readonly annotation: Annotation }): preact.JSX.Element {
       </div>
       {quotesOf(annotation.anchor).map((quote) => (
         <div class={annotation.mark.kind === "delete" ? "quote struck" : "quote"} key={quote.key}>
-          “{quote.text}”
+          “{quote.text}”{quote.removed && <Tag>removed by your edit</Tag>}
         </div>
       ))}
       <CardWords annotation={annotation} />
@@ -179,7 +188,7 @@ export function Comments(): preact.JSX.Element {
       id="comments"
       class={commentsOpen.value ? "comments" : "comments folded"}
       aria-label="Comments"
-      inert={editing.value !== null || !commentsOpen.value}
+      inert={!commentsOpen.value}
     >
       <header>
         Comments <span>{list.length}</span>
@@ -196,14 +205,14 @@ export function Comments(): preact.JSX.Element {
           id="global"
           rows={2}
           placeholder="General feedback on this document"
-          disabled={locked.value || doc === null}
+          disabled={locked.value || doc === null || editing.value !== null}
           value={draft}
           onInput={(event) => setTyped({ general: event.currentTarget.value })}
         />
         <div class="row">
           <Button
             size="sm"
-            disabled={locked.value || doc === null || draft.trim() === ""}
+            disabled={locked.value || doc === null || editing.value !== null || draft.trim() === ""}
             onClick={add}
           >
             Add comment

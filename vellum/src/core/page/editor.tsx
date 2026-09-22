@@ -1,27 +1,22 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 
-import { offsetOfLine } from "./caret.ts";
+import { lineOfOffset, offsetOfLine } from "./caret.ts";
 import { Button, Popover } from "./kit.tsx";
 import { staleEditor } from "./notices.ts";
 import type { EditSession } from "./state.ts";
-import { editing, finishEdit, review, setTyped, typed } from "./state.ts";
+import { closeEditor, finishEdit, review, setTyped, typed } from "./state.ts";
 
 /** The session the editor opened on: nothing in it changes while it is open. */
 export type EditorProps = {
   readonly session: EditSession;
 };
 
-/** Cancel: the editor closes and its typing goes, the draft's copy with it. */
-function discard(): void {
-  setTyped({ editor: null });
-  editing.value = null;
-}
-
 /**
- * The plan's Markdown source in place of its rendering: a plain textarea, Cancel and Done.
- * Nothing is sent from here: Done hands the text to the store, and the next decision carries it.
- * The typing goes to the draft as it pauses, and comes back to the next editor on the same
- * version; Cancel over a changed text asks first.
+ * The plan's Markdown source in place of its rendering: a plain textarea, Cancel and Done, which
+ * Ctrl+Enter is too. Nothing is sent from here: Done hands the text to the store, and the next
+ * decision carries it. The typing goes to the draft as it pauses, and comes back to the next
+ * editor on the same version; Cancel over a changed text asks first. Both close the editor on
+ * the line under the caret, where the plan comes back.
  */
 export function Editor({ session }: EditorProps): preact.JSX.Element {
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -43,9 +38,23 @@ export function Editor({ session }: EditorProps): preact.JSX.Element {
 
   const text = (): string => textarea.current?.value ?? session.base;
 
+  const caretLine = (): number => lineOfOffset(text(), textarea.current?.selectionStart ?? 0);
+
+  const discard = (): void => {
+    setTyped({ editor: null });
+    closeEditor(caretLine());
+  };
+
   const cancel = (): void => {
     if (text() === session.base) discard();
     else setAsking(true);
+  };
+
+  const done = (): void => {
+    if (stale !== null) return;
+    setTyped({ editor: null });
+    finishEdit(session, text());
+    closeEditor(caretLine());
   };
 
   return (
@@ -61,12 +70,9 @@ export function Editor({ session }: EditorProps): preact.JSX.Element {
           variant="send"
           disabled={stale !== null}
           title={stale ?? undefined}
-          onClick={() => {
-            setTyped({ editor: null });
-            finishEdit(session, text());
-          }}
+          onClick={done}
         >
-          Done
+          Done <kbd>Ctrl</kbd> <kbd>↵</kbd>
         </Button>
         {asking && (
           <Popover
@@ -99,6 +105,9 @@ export function Editor({ session }: EditorProps): preact.JSX.Element {
               setTyped({
                 editor: value === session.base ? null : { version: session.version, text: value },
               });
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) done();
             }}
           />
         </div>

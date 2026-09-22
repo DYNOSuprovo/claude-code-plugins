@@ -120,7 +120,7 @@ test.describe("Discard edit", () => {
     expect(await fillets(page)).not.toEqual(before);
 
     await page.getByRole("button", { name: "Discard edit" }).click();
-    await page.getByRole("button", { name: "Discard" }).click();
+    await page.getByRole("button", { name: "Discard", exact: true }).click();
     await expect(page.locator(".doc-head .edited")).toHaveCount(0);
     await expect(page.locator(".bar .stat")).toHaveText("+12 −15");
     expect(await fillets(page)).toEqual(before);
@@ -130,10 +130,12 @@ test.describe("Discard edit", () => {
 test.describe("closing the editor", () => {
   test("Done gives back the place and the focus to Edit", async ({ page, vellum }) => {
     await reviewV1(page, vellum);
-    const slices = page.locator("article.plan h2", { hasText: "Slices" });
-    await slices.evaluate((heading) => heading.scrollIntoView({ block: "start" }));
     const pane = page.locator(".pane").first();
-    expect(await pane.evaluate((element) => element.scrollTop)).toBeGreaterThan(500);
+    await page.locator("article.plan h2", { hasText: "Slices" }).evaluate((heading) => {
+      heading.scrollIntoView({ block: "start" });
+    });
+    const before = await pane.evaluate((element) => element.scrollTop);
+    expect(before).toBeGreaterThan(500);
 
     await openEditor(page);
     await page.keyboard.type("Persist ");
@@ -141,23 +143,28 @@ test.describe("closing the editor", () => {
 
     await expect(page.locator(".editor textarea")).toHaveCount(0);
     expect(await focusedText(page)).toBe("BUTTON Edit");
-    const [heading, window] = [await boxOf(slices), await boxOf(pane)];
-    expect(heading.y).toBeGreaterThanOrEqual(window.y);
-    expect(heading.y).toBeLessThan(window.y + window.height / 2);
+    await expect
+      .poll(() => pane.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(before - 60);
+    expect(await pane.evaluate((element) => element.scrollTop)).toBeLessThan(before + 60);
   });
 
   test("Cancel gives back the place too", async ({ page, vellum }) => {
     await reviewV1(page, vellum);
-    const flow = page.locator("article.plan h2", { hasText: "Flow" });
-    await flow.evaluate((heading) => heading.scrollIntoView({ block: "start" }));
+    const pane = page.locator(".pane").first();
+    await page.locator("article.plan h2", { hasText: "Flow" }).evaluate((heading) => {
+      heading.scrollIntoView({ block: "start" });
+    });
+    const before = await pane.evaluate((element) => element.scrollTop);
 
     await openEditor(page);
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
 
     expect(await focusedText(page)).toBe("BUTTON Edit");
-    const [heading, window] = [await boxOf(flow), await boxOf(page.locator(".pane").first())];
-    expect(heading.y).toBeGreaterThanOrEqual(window.y);
-    expect(heading.y).toBeLessThan(window.y + window.height / 2);
+    await expect
+      .poll(() => pane.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(before - 60);
+    expect(await pane.evaluate((element) => element.scrollTop)).toBeLessThan(before + 60);
   });
 
   test("Ctrl+Enter is Done, and the button says so", async ({ page, vellum }) => {

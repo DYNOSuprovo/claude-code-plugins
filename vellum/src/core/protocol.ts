@@ -9,7 +9,12 @@ import type { PlanWorkspace } from "./server/domain/workspace.ts";
 
 export type { DiffRun, LineDiff } from "./server/domain/diff.ts";
 
-export { countChanges, lineDiff, shiftAnnotations } from "./server/domain/diff.ts";
+export {
+  countChanges,
+  lineDiff,
+  shiftAnnotations,
+  unshiftAnnotations,
+} from "./server/domain/diff.ts";
 
 export type {
   Anchor,

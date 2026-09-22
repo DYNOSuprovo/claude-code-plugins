@@ -2,7 +2,13 @@
 import { describe, expect, test } from "bun:test";
 
 import type { LineDiff } from "./diff.ts";
-import { countChanges, lineDiff, shiftAnnotations, shiftLines } from "./diff.ts";
+import {
+  countChanges,
+  lineDiff,
+  shiftAnnotations,
+  shiftLines,
+  unshiftAnnotations,
+} from "./diff.ts";
 import type { Annotation } from "./feedback.ts";
 
 describe("lineDiff", () => {
@@ -73,16 +79,46 @@ const PLAN = "plans/2026-09-15/wip-4c2a9d93/.review/v2.md" as never;
 
 const ARTIFACT = "plans/2026-09-15/wip-4c2a9d93/notes.md" as never;
 
-function deleteAt(doc: Annotation["doc"], lines: readonly [number, number]): Annotation {
-  const passage = { quote: "fast enough", prefix: "", suffix: "", lines };
+function deleteAt(
+  doc: Annotation["doc"],
+  lines: readonly [number, number],
+  removed = false,
+): Annotation {
+  const passage = { quote: "fast enough", prefix: "", suffix: "", lines, removed };
 
   return { id: "a", doc, anchor: { kind: "text", passages: [passage] }, mark: { kind: "delete" } };
 }
+
+/** Line 11 of the text before is gone, and two lines were added above. */
+const ONE_REMOVED: LineDiff = [
+  ...TWO_ABOVE.slice(0, 1),
+  { kind: "same", before: 1, after: 3, count: 10 },
+  { kind: "removed", before: 11, at: 13, lines: ["gone"] },
+  { kind: "same", before: 12, after: 13, count: 5 },
+];
 
 describe("shiftAnnotations", () => {
   test("the document's passages move, and the mark rides along", () => {
     expect(shiftAnnotations([deleteAt(PLAN, [41, 41])], PLAN, TWO_ABOVE)).toEqual([
       deleteAt(PLAN, [43, 43]),
+    ]);
+  });
+
+  test("a passage whose lines the edit removed keeps its lines and is marked removed", () => {
+    expect(shiftAnnotations([deleteAt(PLAN, [11, 11])], PLAN, ONE_REMOVED)).toEqual([
+      deleteAt(PLAN, [11, 11], true),
+    ]);
+  });
+
+  test("a passage that ends on a removed line is removed too, its lines kept", () => {
+    expect(shiftAnnotations([deleteAt(PLAN, [10, 11])], PLAN, ONE_REMOVED)).toEqual([
+      deleteAt(PLAN, [10, 11], true),
+    ]);
+  });
+
+  test("a passage already removed keeps its lines through a later edit", () => {
+    expect(shiftAnnotations([deleteAt(PLAN, [11, 11], true)], PLAN, TWO_ABOVE)).toEqual([
+      deleteAt(PLAN, [11, 11], true),
     ]);
   });
 
@@ -96,5 +132,29 @@ describe("shiftAnnotations", () => {
 
     const others = [deleteAt(ARTIFACT, [41, 41]), general];
     expect(shiftAnnotations(others, PLAN, TWO_ABOVE)).toEqual(others);
+  });
+});
+
+describe("unshiftAnnotations", () => {
+  test("the reverse of Done: a shifted passage comes back, a removed one is removed no more, its lines intact", () => {
+    const before = "a\nb\nc\nd\n";
+    const after = "new\na\nc\nd\n";
+
+    const shifted = shiftAnnotations(
+      [deleteAt(PLAN, [2, 2]), { ...deleteAt(PLAN, [4, 4]), id: "b" }],
+      PLAN,
+      lineDiff(before, after),
+    );
+
+    expect(shifted).toEqual([deleteAt(PLAN, [2, 2], true), { ...deleteAt(PLAN, [4, 4]), id: "b" }]);
+    expect(unshiftAnnotations(shifted, PLAN, lineDiff(after, before))).toEqual([
+      deleteAt(PLAN, [2, 2]),
+      { ...deleteAt(PLAN, [4, 4]), id: "b" },
+    ]);
+  });
+
+  test("another document's annotation comes back unchanged", () => {
+    const other = [deleteAt(ARTIFACT, [41, 41], true)];
+    expect(unshiftAnnotations(other, PLAN, TWO_ABOVE)).toEqual(other);
   });
 });

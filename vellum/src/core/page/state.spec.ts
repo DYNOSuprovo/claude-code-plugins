@@ -79,7 +79,7 @@ function comment(id: string, path: string): Annotation {
 }
 
 function onLine(id: string, path: string, line: number): Annotation {
-  const passage = { quote: "q", prefix: "", suffix: "", lines: [line, line] };
+  const passage = { quote: "q", prefix: "", suffix: "", lines: [line, line], removed: false };
 
   return { ...comment(id, path), anchor: { kind: "text", passages: [passage] } } as never;
 }
@@ -534,8 +534,10 @@ describe("the editor", () => {
     expect(editing.value).toBeNull();
   });
 
-  test("Done records the typed text with its version, closes, and moves the plan's comments down with their lines", async () => {
-    const { annotations, edited, editing, finishEdit, openEditor, review } = await freshStore();
+  test("Done records the typed text with its version, and moves the plan's comments down with their lines; closeEditor closes on a line", async () => {
+    const { annotations, closeEditor, edited, editing, finishEdit, openEditor, resume, review } =
+      await freshStore();
+
     review.value = versioned({ version: 2, text: "a\nb\n" });
     annotations.value = [
       onLine("c1", `${WIP}.review/v2.md`, 2),
@@ -543,9 +545,11 @@ describe("the editor", () => {
     ];
     openEditor(1);
     finishEdit({ version: 2, base: "a\nb\n", line: 1 } as never, "new\na\nb\n");
+    const recorded = editing.value !== null;
+    closeEditor(2);
 
     expect(edited.value).toEqual(edit(2, "new\na\nb\n"));
-    expect(editing.value).toBeNull();
+    expect([recorded, editing.value, resume.value]).toEqual([true, null, 2]);
     expect(annotations.value).toEqual([
       onLine("c1", `${WIP}.review/v2.md`, 3),
       onLine("c2", `${WIP}mockup.md`, 2),
@@ -562,13 +566,40 @@ describe("the editor", () => {
   });
 
   test("Done on the version's own text is no edit", async () => {
-    const { edited, editing, finishEdit, review } = await freshStore();
+    const { edited, finishEdit, review } = await freshStore();
     review.value = versioned({ version: 2, text: "a\n" });
     edited.value = edit(2, "mine\n");
     finishEdit({ version: 2, base: "mine\n", line: 1 } as never, "a\n");
 
     expect(edited.value).toBeNull();
-    expect(editing.value).toBeNull();
+  });
+
+  test("Discard edit is the reverse of Done: the version's text, the comments back on its lines, a removed one removed no more", async () => {
+    const { annotations, discardEdit, edited, finishEdit, review } = await freshStore();
+    review.value = versioned({ version: 2, text: "a\nb\nc\n" });
+    annotations.value = [
+      onLine("kept", `${WIP}.review/v2.md`, 3),
+      onLine("gone", `${WIP}.review/v2.md`, 2),
+    ];
+    finishEdit({ version: 2, base: "a\nb\nc\n", line: 1 } as never, "new\na\nc\n");
+
+    const shifted = annotations.value.map((a) => [
+      a.id,
+      a.anchor.kind === "text" ? a.anchor.passages[0].lines[0] : 0,
+      a.anchor.kind === "text" && a.anchor.passages[0].removed,
+    ]);
+
+    discardEdit();
+
+    expect(shifted).toEqual([
+      ["kept", 3, false],
+      ["gone", 2, true],
+    ]);
+    expect(edited.value).toBeNull();
+    expect(annotations.value).toEqual([
+      onLine("kept", `${WIP}.review/v2.md`, 3),
+      onLine("gone", `${WIP}.review/v2.md`, 2),
+    ]);
   });
 
   test("Done once another version arrived keeps the editor open, and the notices say why", async () => {

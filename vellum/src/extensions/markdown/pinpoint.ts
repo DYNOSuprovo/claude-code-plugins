@@ -163,7 +163,7 @@ export function diagramPassage(
 
   if (parsed === null || quote === undefined) return null;
 
-  return { quote, prefix: "", suffix: "", lines: parsed };
+  return { quote, prefix: "", suffix: "", lines: parsed, removed: false };
 }
 
 /** The text of `element` as a range; a list item stops before its first nested list. */

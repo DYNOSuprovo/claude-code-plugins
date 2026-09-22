@@ -163,7 +163,7 @@ test.describe("the stale editor", () => {
     await expect(done).toHaveAttribute("title", /v2/u);
 
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
-    await page.getByRole("button", { name: "Discard" }).click();
+    await page.getByRole("button", { name: "Discard", exact: true }).click();
     await expect(page.locator(".editor textarea")).toHaveCount(0);
     await expect(banner).toHaveCount(0);
     await openEditor(page);

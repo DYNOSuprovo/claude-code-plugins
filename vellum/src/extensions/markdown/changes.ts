@@ -11,12 +11,14 @@ import type { DiffRun, LineDiff } from "../../core/protocol.ts";
 export type RemovedRun = Extract<DiffRun, { readonly kind: "removed" }>;
 
 /**
- * A removed run is drawn before the block that follows it, with two exceptions a `details`
- * forces: no child of a table body, it goes before the whole table; no child of a list, it
- * goes inside the item, as its first child.
+ * A removed run is drawn before the block that follows it, with one exception a `details`
+ * forces: no child of a list, it goes inside the item, after its checkbox when it has one. Before
+ * a row it is drawn as a row of its own, which the renderer makes. A code block also says which
+ * of its lines were added, by their index in the block.
  */
 export type Changes = {
   readonly marked: ReadonlySet<Element>;
+  readonly addedLines: ReadonlyMap<Element, readonly number[]>;
   readonly removedBefore: ReadonlyMap<Element, readonly RemovedRun[]>;
   readonly removedInside: ReadonlyMap<Element, readonly RemovedRun[]>;
   readonly removedAtEnd: readonly RemovedRun[];
@@ -47,17 +49,15 @@ type Block = {
   readonly end: number;
   /** A loose item's only paragraph hands its mark to the item, so the item looks the same tight or loose. */
   readonly marks: Element;
-  readonly table: Element | null;
 };
 
 /** The blocks under `node` in document order, each with its own `data-lines`: an `li` stops before its nested list. */
-function blocksOf(node: Root | Element, parent: Block | null, table: Element | null): Block[] {
+function blocksOf(node: Root | Element, parent: Block | null): Block[] {
   return node.children.flatMap((child) => {
     if (child.type !== "element") return [];
     const lines = parseLines(String(child.properties.dataLines));
-    const within = child.tagName === "table" ? child : table;
 
-    if (lines === null || !BLOCK_TAGS.has(child.tagName)) return blocksOf(child, null, within);
+    if (lines === null || !BLOCK_TAGS.has(child.tagName)) return blocksOf(child, null);
     const [start, end] = lines;
 
     const item =
@@ -68,19 +68,20 @@ function blocksOf(node: Root | Element, parent: Block | null, table: Element | n
         ? parent.element
         : null;
 
-    const block = { element: child, start, end, marks: item ?? child, table: within };
+    const block = { element: child, start, end, marks: item ?? child };
 
-    return [block, ...blocksOf(child, block, within)];
+    return [block, ...blocksOf(child, block)];
   });
 }
 
-function add(to: Map<Element, RemovedRun[]>, anchor: Element, run: RemovedRun): void {
-  to.set(anchor, [...(to.get(anchor) ?? []), run]);
+function add<T>(to: Map<Element, T[]>, anchor: Element, item: T): void {
+  to.set(anchor, [...(to.get(anchor) ?? []), item]);
 }
 
 export function changesOf(tree: Root, diff: LineDiff): Changes {
-  const blocks = blocksOf(tree, null, null);
+  const blocks = blocksOf(tree, null);
   const marked = new Set<Element>();
+  const addedLines = new Map<Element, number[]>();
   const removedBefore = new Map<Element, RemovedRun[]>();
   const removedInside = new Map<Element, RemovedRun[]>();
   const removedAtEnd: RemovedRun[] = [];
@@ -90,7 +91,13 @@ export function changesOf(tree: Root, diff: LineDiff): Changes {
       for (let line = run.after; line < run.after + run.count; line += 1) {
         const innermost = blocks.findLast((block) => block.start <= line && line <= block.end);
 
-        if (innermost !== undefined) marked.add(innermost.marks);
+        if (innermost === undefined) continue;
+        marked.add(innermost.marks);
+
+        // A fenced block's first line is its fence: the code starts on the next one.
+        if (innermost.element.tagName === "pre" && line > innermost.start && line < innermost.end) {
+          add(addedLines, innermost.element, line - innermost.start - 1);
+        }
       }
     }
 
@@ -101,9 +108,9 @@ export function changesOf(tree: Root, diff: LineDiff): Changes {
 
       if (anchor === undefined) removedAtEnd.push(run);
       else if (anchor.element.tagName === "li") add(removedInside, anchor.element, run);
-      else add(removedBefore, anchor.table ?? anchor.element, run);
+      else add(removedBefore, anchor.element, run);
     }
   }
 
-  return { marked, removedBefore, removedInside, removedAtEnd };
+  return { marked, addedLines, removedBefore, removedInside, removedAtEnd };
 }

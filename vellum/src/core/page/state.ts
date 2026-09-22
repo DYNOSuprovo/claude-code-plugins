@@ -18,6 +18,7 @@ import {
   lineDiff,
   shiftAnnotations,
   takesComments,
+  unshiftAnnotations,
 } from "../protocol.ts";
 import type { ProjectPath, Version } from "../server/domain/paths.ts";
 import { fetchDraft, fetchReview, postDecision, putDraft, subscribe } from "./api.ts";
@@ -104,6 +105,12 @@ export type EditSession = {
 };
 
 export const editing = signal<EditSession | null>(null);
+
+/**
+ * The source line to come back to once the editor closes: the plan's renderer scrolls to its
+ * block and clears it, and Edit takes the focus; `null` the rest of the time.
+ */
+export const resume = signal<number | null>(null);
 
 /** "Changes since" is off at every load: the reviewer reads the plan itself first. */
 export const showChanges = signal(false);
@@ -276,8 +283,8 @@ export function openEditor(line: number): void {
 /**
  * Done, with the session the editor opened on and the text typed: the comments follow their lines
  * through the edit, and an edit back to the version's text is no edit. When another version
- * arrived meanwhile, or this one was decided elsewhere, the editor stays open, under the notice
- * `staleEditor` derives: the typing must stay reachable.
+ * arrived meanwhile, or this one was decided elsewhere, nothing is recorded, under the notice
+ * `staleEditor` derives: the typing must stay reachable. `closeEditor` is what closes.
  */
 export function finishEdit(session: EditSession, text: string): void {
   const { version, base } = session;
@@ -292,8 +299,32 @@ export function finishEdit(session: EditSession, text: string): void {
   batch(() => {
     annotations.value = shiftAnnotations(annotations.value, doc, lineDiff(base, text));
     edited.value = text === reviewed ? null : { version, text };
-    editing.value = null;
     succeed("edit");
+  });
+}
+
+/** Done and Cancel both end here: the editor closes, and the plan comes back at `atLine`. */
+export function closeEditor(atLine: number): void {
+  batch(() => {
+    editing.value = null;
+    resume.value = atLine;
+  });
+}
+
+/** Discard edit, the reverse of Done: the version's text again, the comments back on its lines. */
+export function discardEdit(): void {
+  const edit = edited.value;
+  const plan = review.value?.plan ?? null;
+
+  if (edit === null || plan === null) return;
+
+  batch(() => {
+    annotations.value = unshiftAnnotations(
+      annotations.value,
+      plan.doc,
+      lineDiff(edit.text, plan.text),
+    );
+    edited.value = null;
   });
 }
 

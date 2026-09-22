@@ -150,7 +150,14 @@ no build step, so what the page imports costs nothing at `cli start`.
 - One line diff, computed once: `planChanges` in `state.ts` compares the previous version with
   the text on screen, the bar prints its count, and the plan's renderer marks it while
   "Changes since" is on. On Done the same `lineDiff` shifts the plan's comments through
-  `shiftAnnotations`, so a feedback only ever names lines of the text it is sent with.
+  `shiftAnnotations`, so a feedback only ever names lines of the text it is sent with; a passage
+  whose lines the edit removed keeps them and is `removed`, and the card, the feedback and the
+  sheet say so, the sheet by marking nothing. Discard edit is `discardEdit`, the reverse through
+  `unshiftAnnotations` and the diff back to the version's text. The editor closes through
+  `closeEditor` alone, Done and Cancel alike, on the line under the caret: `resume` carries it,
+  the plan's renderer scrolls to its block once the diagrams are drawn and the images decoded,
+  and `Tools` gives the focus back to Edit. While the editor is open the comments panel stays
+  readable and scrolls: its actions are disabled, not the panel.
 - `EventSource` reconnects by itself, so the page polls nothing: `subscribe` reports `error`
   and `open`, `connection` keeps `up | down`, and the column draws the lost-connection notice
   while `down`, the three decisions and Grill greyed meanwhile. A server revived on the same
@@ -188,7 +195,9 @@ no build step, so what the page imports costs nothing at `cli start`.
   source are attributes, drawn by CSS `content: attr()`. So it takes no pick, and never enters
   the quote search of `anchoring.ts`. `markdown/changes.ts` chooses, purely,
   which block carries a mark and where a removed run goes: inside the `li` that follows it,
-  before the whole table for a `tr`, never directly under `ul`, `ol`, `tbody` or `tr`.
+  after its checkbox, before the `tr` for a row, where `page.tsx` draws it as a row of its own,
+  never directly under `ul`, `ol`, `tbody` or `tr`; for a `pre` it also names the added lines by
+  their index, which `page.tsx` draws as bands over the block.
 - An HTML file is served with a sandboxed CSP, so the page cannot reach into it: `html/frame.ts`
   runs inside the mockup and owns the selection there, the page only sends it whether the page
   comments, the Ctrl state, the selectors already commented and the theme, five tokens resolved

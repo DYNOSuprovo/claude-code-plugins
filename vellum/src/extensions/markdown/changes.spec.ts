@@ -93,9 +93,9 @@ describe("changesOf, the removed runs", () => {
     expect(placed("# T\n\n> first\n>\n> second\n", [removed(1, 5)])).toEqual(["1 before p 5-5"]);
   });
 
-  test("before the whole table when that block is a row", () => {
+  test("before the row when that block is one: the renderer makes it a row", () => {
     const text = "| a | b |\n| - | - |\n| 1 | 2 |\n";
-    expect(placed(text, [removed(1, 3)])).toEqual(["1 before table 1-3"]);
+    expect(placed(text, [removed(1, 3)])).toEqual(["1 before tr 3-3"]);
   });
 
   test("at the end when its line is past the last", () => {
@@ -111,8 +111,33 @@ describe("changesOf, the removed runs", () => {
   });
 
   test("two removed runs on one anchor come out in document order", () => {
-    const text = "| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |\n";
-    expect(placed(text, [removed(3, 3), removed(5, 4)])).toEqual(["3, 5 before table 1-4"]);
+    const text = "# T\n\nOne.\n";
+    expect(placed(text, [removed(3, 3), removed(5, 3)])).toEqual(["3, 5 before p 3-3"]);
+  });
+});
+
+describe("changesOf, the lines of a code block", () => {
+  function addedLines(text: string, diff: LineDiff): string[] {
+    return [...changesOf(toTree(text), diff).addedLines].map(
+      ([element, lines]) => `${named(element)}: ${lines.join(", ")}`,
+    );
+  }
+
+  test("an added line in a fenced block is named by its index in the block, the fence not counted", () => {
+    const text = "```ts\nconst a = 1;\nconst b = 2;\nconst c = 3;\n```\n";
+    const diff: LineDiff = [{ kind: "added", after: 3, count: 1 }];
+    expect(addedLines(text, diff)).toEqual(["pre 1-5: 1"]);
+  });
+
+  test("a run over several lines names each, and the fences never", () => {
+    const text = "```ts\na\nb\n```\n";
+    const diff: LineDiff = [{ kind: "added", after: 1, count: 4 }];
+    expect(addedLines(text, diff)).toEqual(["pre 1-4: 0, 1"]);
+  });
+
+  test("an added paragraph names no line", () => {
+    const diff: LineDiff = [{ kind: "added", after: 1, count: 1 }];
+    expect(addedLines("One.\n", diff)).toEqual([]);
   });
 });
 

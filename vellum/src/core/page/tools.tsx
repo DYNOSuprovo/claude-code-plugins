@@ -1,11 +1,16 @@
-import { Button, Switch } from "./kit.tsx";
+import { useEffect, useRef, useState } from "preact/hooks";
+
+import { Button, Popover, Switch } from "./kit.tsx";
 import {
   commentSwitch,
   currentDoc,
+  discardEdit,
+  edited,
   editing,
   flipCommentSwitch,
   locked,
   planDoc,
+  resume,
   review,
   showChanges,
   split,
@@ -27,10 +32,48 @@ export function switchShown(comments: boolean): boolean {
   );
 }
 
+/** Discard edit asks first: the edit is the reviewer's own text of the plan, and it goes whole. */
+function DiscardEdit(props: { readonly version: number }): preact.JSX.Element {
+  const [asking, setAsking] = useState(false);
+
+  return (
+    <>
+      <Button size="sm" onClick={() => setAsking(true)}>
+        Discard edit
+      </Button>
+      {asking && (
+        <Popover
+          label="Before discarding the edit"
+          class="pop-bar"
+          onClose={() => setAsking(false)}
+        >
+          <div class="warn-text">Your edit of v{props.version} is not sent.</div>
+          <div>Discarding it brings the version's text back, and the comments with it.</div>
+          <div class="row">
+            <Button size="sm" onClick={() => setAsking(false)}>
+              Keep it
+            </Button>
+            <Button
+              size="sm"
+              variant="send"
+              onClick={() => {
+                setAsking(false);
+                discardEdit();
+              }}
+            >
+              Discard
+            </Button>
+          </div>
+        </Popover>
+      )}
+    </>
+  );
+}
+
 /**
  * The controls over the document: the Comment switch while a pane takes comments, Beside the plan
- * while an artifact shows, Edit while the plan under review shows, Changes since while the plan
- * is drawn and has a version before it.
+ * while an artifact shows, Edit while the plan under review shows, Discard edit beside it while
+ * an edit is unsent, Changes since while the plan is drawn and has a version before it.
  */
 type ToolsProps = {
   readonly onEdit: () => void;
@@ -46,9 +89,19 @@ export function Tools(props: ToolsProps): preact.JSX.Element {
   const planDrawn = plan !== null && (!beside || split.value);
   const since = planDrawn ? (review.value?.plan?.previous?.version ?? null) : null;
   const shown = switchShown(props.comments);
+  const row = useRef<HTMLDivElement>(null);
+  const unsent = edited.value;
+
+  // The row comes back with the plan once the editor closes: the focus returns to Edit then.
+  useEffect(() => {
+    if (resume.peek() === null) return;
+    row.current
+      ?.querySelector<HTMLButtonElement>("button[name=edit]")
+      ?.focus({ preventScroll: true });
+  }, []);
 
   return (
-    <div class="tools">
+    <div class="tools" ref={row}>
       {shown && (
         <>
           <Switch checked={commentSwitch.value} onChange={flipCommentSwitch}>
@@ -71,9 +124,10 @@ export function Tools(props: ToolsProps): preact.JSX.Element {
       {editable && (
         <>
           <span class="sep" />
-          <Button size="sm" onClick={props.onEdit}>
+          <Button size="sm" name="edit" onClick={props.onEdit}>
             Edit
           </Button>
+          {unsent !== null && <DiscardEdit version={unsent.version} />}
         </>
       )}
       {since !== null && (

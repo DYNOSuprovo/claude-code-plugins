@@ -6,7 +6,10 @@ export type Passage = {
   readonly quote: string;
   readonly prefix: string;
   readonly suffix: string;
+  /** The lines of the text the passage lives in; for a `removed` one, the version's, never shifted. */
   readonly lines: readonly [number, number];
+  /** The quoted lines were removed by the reviewer's edit: the card says so, the feedback too. */
+  readonly removed: boolean;
 };
 
 /** One element of a rendered document: where it sits, what it shows, what to call it. */
@@ -82,21 +85,6 @@ function wordsOf(mark: Mark): string {
   return mark.kind === "delete" ? DELETE_SENTENCE : QUICK_LABELS[mark.label].sentence;
 }
 
-/** Where each anchored place is, one string each; a global anchor has none. */
-function placesOf(anchor: Anchor): readonly string[] {
-  if (anchor.kind === "global") return [];
-
-  if (anchor.kind === "text") {
-    return anchor.passages.map(
-      (passage) => `lines ${passage.lines[0]}–${passage.lines[1]}: "${passage.quote}"`,
-    );
-  }
-
-  return anchor.elements.map(
-    (element) => `element \`${element.selector}\` (${element.label}): "${element.text}"`,
-  );
-}
-
 /**
  * Which round the comments belong to: a version under review, or a batch sent while drafting.
  * `editedFrom` is the version the reviewer edited to make this one, `null` when it is Claude's.
@@ -104,6 +92,29 @@ function placesOf(anchor: Anchor): readonly string[] {
 export type FeedbackHeading =
   | { readonly kind: "review"; readonly version: Version; readonly editedFrom: Version | null }
   | { readonly kind: "draft"; readonly batch: number };
+
+/** A removed passage names the version its lines belong to: the one the reviewer edited. */
+function linesOf(passage: Passage, heading: FeedbackHeading): string {
+  const lines = `lines ${passage.lines[0]}–${passage.lines[1]}`;
+
+  if (!passage.removed) return lines;
+  const from = heading.kind === "review" && heading.editedFrom !== null ? heading.editedFrom : null;
+
+  return `${lines}${from === null ? "" : ` of v${from}`} (removed by the reviewer's edit)`;
+}
+
+/** Where each anchored place is, one string each; a global anchor has none. */
+function placesOf(anchor: Anchor, heading: FeedbackHeading): readonly string[] {
+  if (anchor.kind === "global") return [];
+
+  if (anchor.kind === "text") {
+    return anchor.passages.map((passage) => `${linesOf(passage, heading)}: "${passage.quote}"`);
+  }
+
+  return anchor.elements.map(
+    (element) => `element \`${element.selector}\` (${element.label}): "${element.text}"`,
+  );
+}
 
 /** The heading, then what Claude must know before the items: the plan on disk is the reviewer's own text. */
 function openingOf(heading: FeedbackHeading): readonly string[] {
@@ -147,7 +158,7 @@ export function formatFeedback(
 ): string {
   const items = annotations.map((annotation, index) => {
     const doc = `\`${annotation.doc}\``;
-    const [first, ...rest] = placesOf(annotation.anchor);
+    const [first, ...rest] = placesOf(annotation.anchor, heading);
 
     const where =
       first === undefined

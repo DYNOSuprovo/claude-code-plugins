@@ -48,6 +48,7 @@ export function passageFromRange(container: Element, range: Range): Passage | nu
     prefix: text.slice(Math.max(0, start - CONTEXT_CHARS), start),
     suffix: text.slice(start + quote.length, start + quote.length + CONTEXT_CHARS),
     lines: [startLines?.[0] ?? 0, endLines?.[1] ?? startLines?.[1] ?? 0],
+    removed: false,
   };
 }
 

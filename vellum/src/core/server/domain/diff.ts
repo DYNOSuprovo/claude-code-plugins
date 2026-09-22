@@ -93,23 +93,59 @@ export function shiftLines(
   return [shiftLine(diff, lines[0]), shiftLine(diff, lines[1])];
 }
 
-/** Shifts the text passages of `doc`'s annotations; every other annotation is returned as is. */
+/** Whether `line` of the text before is in a removed run: the quote that sat there is gone. */
+function removedAt(diff: LineDiff, line: number): boolean {
+  return diff.some(
+    (run) => run.kind === "removed" && run.before <= line && line < run.before + run.lines.length,
+  );
+}
+
+function mapPassages(
+  annotations: readonly Annotation[],
+  doc: ProjectPath,
+  map: (passage: Passage) => Passage,
+): readonly Annotation[] {
+  return annotations.map((annotation) => {
+    if (annotation.doc !== doc || annotation.anchor.kind !== "text") return annotation;
+    const [first, ...rest] = annotation.anchor.passages;
+    const passages = [map(first), ...rest.map((passage) => map(passage))] as const;
+
+    return { ...annotation, anchor: { kind: "text", passages } };
+  });
+}
+
+/**
+ * Done: the text passages of `doc`'s annotations follow their lines through the edit; one whose
+ * lines the edit removed keeps them and is marked `removed`, since the diff back could not find
+ * a line it had moved. Every other annotation is returned as is.
+ */
 export function shiftAnnotations(
   annotations: readonly Annotation[],
   doc: ProjectPath,
   diff: LineDiff,
 ): readonly Annotation[] {
-  return annotations.map((annotation) => {
-    if (annotation.doc !== doc || annotation.anchor.kind !== "text") return annotation;
-    const [first, ...rest] = annotation.anchor.passages;
+  return mapPassages(annotations, doc, (passage) => {
+    if (passage.removed) return passage;
+    const [start, end] = passage.lines;
 
-    const shifted = (passage: Passage): Passage => ({
-      ...passage,
-      lines: shiftLines(diff, passage.lines),
-    });
-
-    const passages = [shifted(first), ...rest.map((passage) => shifted(passage))] as const;
-
-    return { ...annotation, anchor: { kind: "text", passages } };
+    return removedAt(diff, start) || removedAt(diff, end)
+      ? { ...passage, removed: true }
+      : { ...passage, lines: shiftLines(diff, passage.lines) };
   });
+}
+
+/**
+ * Discard edit, the reverse: the passages not removed are shifted by the diff back to the
+ * version's text, and the removed ones are removed no more, their lines intact.
+ */
+export function unshiftAnnotations(
+  annotations: readonly Annotation[],
+  doc: ProjectPath,
+  diff: LineDiff,
+): readonly Annotation[] {
+  return mapPassages(annotations, doc, (passage) =>
+    passage.removed
+      ? { ...passage, removed: false }
+      : { ...passage, lines: shiftLines(diff, passage.lines) },
+  );
 }

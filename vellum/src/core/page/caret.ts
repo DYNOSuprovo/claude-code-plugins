@@ -16,6 +16,17 @@ export function offsetOfLine(text: string, line: number): number {
   return offset;
 }
 
+/** The 1-based line of `text` holding `offset`: what the editor comes back to. */
+export function lineOfOffset(text: string, offset: number): number {
+  let line = 1;
+
+  for (let at = text.indexOf("\n"); at !== -1 && at < offset; at = text.indexOf("\n", at + 1)) {
+    line += 1;
+  }
+
+  return line;
+}
+
 /**
  * The first source line of the first element of the plan whose top is inside `panes`; of the
  * last element when the pane is scrolled below every top.
