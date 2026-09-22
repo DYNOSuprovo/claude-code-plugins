@@ -3,24 +3,6 @@
 Supporting protocols for `SKILL.md`. Read this when you need the manual-intervention
 handoff format, the state-file schema, or the default escalation rules.
 
-<tool_usage>
-## Tool Usage Guide
-
-Use these tools for each operation type:
-
-| Operation | Tool | Parallelization |
-|-----------|------|-----------------|
-| Collect parameters | `AskUserQuestion` | Single call with all parameters |
-| Create GitHub repos | `Bash` | Parallel - no dependencies between repos |
-| Set secrets | `Bash` | Parallel - no dependencies between repos |
-| Deploy workflow files | `Write` | Parallel - independent files |
-| Run git commands | `Bash` | Sequential within phase, parallel across unrelated ops |
-| Validate setup | `Bash` | Sequential - each check depends on prior state |
-| Read/write state | `Read`/`Write` | As needed for checkpoint operations |
-
-**Parallel execution rule:** If two or more commands have no dependencies between them, execute them in a single message with multiple tool calls.
-</tool_usage>
-
 <manual_intervention>
 ## Manual Intervention Protocol
 

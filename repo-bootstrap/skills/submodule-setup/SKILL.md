@@ -29,7 +29,7 @@ rather than reading everything up front:
 | File | Read it when |
 |------|--------------|
 | `references/phases.md` | Running any phase — full bodies for Phases 0-10 and Finalization |
-| `references/protocols.md` | You need the tool-usage guide, manual-intervention handoff format, state-file schema, or default escalation rules |
+| `references/protocols.md` | You need the manual-intervention handoff format, state-file schema, or default escalation rules |
 | `references/troubleshooting.md` | A phase fails or a submodule misbehaves |
 | `references/decision-rationale.md` | The user asks why submodules over alternatives |
 
@@ -73,8 +73,8 @@ Phase 10: Validate  ←  Phase 9: Docs  ←  Phase 8: Hooks  ←  Phase 7: Scrip
 | 9 | Update documentation |
 | 10 | Validation |
 
-Run each phase from `references/phases.md`, which carries that phase's progress reporting,
-escalation conditions, checkpoint writes, and audit events.
+Run each phase from `references/phases.md`, which carries that phase's escalation
+conditions, checkpoint writes, and audit events.
 
 <decision_criteria id="phase4">
 **Phase 4 Decision:**
@@ -95,14 +95,9 @@ escalation conditions, checkpoint writes, and audit events.
 
 | Task | Command |
 |------|---------|
-| Clone with submodules | `git clone --recurse-submodules <url>` |
 | Init after clone | `./scripts/setup-dev.sh` |
-| Update submodules | `git submodule update --remote` |
-| Check submodule status | `git submodule status` |
 | Check for uncommitted | `./scripts/check-nested-repos.sh` |
 | Check for unpushed | `./scripts/check-nested-repos.sh --end-of-task` |
-| Checkout submodule branch | `cd <submodule> && git checkout <branch>` |
-| Force re-init | `git submodule update --init --recursive --force` |
 | Resume interrupted setup | Read `.submodule-setup-state.json` and continue from `current_phase` |
 
 ## Resources

@@ -1,16 +1,10 @@
 # Submodule setup — phase reference
 
-Full phase bodies for `SKILL.md`. Each phase carries its own `<progress>`,
-`<escalation>`, `<checkpoint>` and `<audit>` block; the orchestrator reads the phase it is
-about to run rather than the whole file.
+Full phase bodies for `SKILL.md`. Each phase carries its own `<escalation>`,
+`<checkpoint>` and `<audit>` block; the orchestrator reads the phase it is about to run
+rather than the whole file.
 
 <phase name="0" title="Backup Checkpoint">
-
-<progress>
-  <status_key>phase_0_backup</status_key>
-  <on_start>Creating backup checkpoint</on_start>
-  <on_complete>Backup created: {backup_branch}</on_complete>
-</progress>
 
 <escalation>
   <abort>
@@ -83,12 +77,6 @@ See `references/troubleshooting.md` for detailed rollback scenarios.
 
 <phase name="1" title="Parameter Collection">
 
-<progress>
-  <status_key>phase_1_params</status_key>
-  <on_start>Collecting configuration parameters</on_start>
-  <on_complete>Parameters collected for {submodule_count} submodules</on_complete>
-</progress>
-
 <escalation>
   <ask_user>
     <condition>required parameter missing or unclear</condition>
@@ -138,15 +126,6 @@ Use `AskUserQuestion` tool to collect all parameters in a single call:
 ---
 
 <phase name="2" title="Create Submodule Repos" parallelizable="true">
-
-<progress>
-  <status_key>phase_2_create_repos</status_key>
-  <on_start>Creating {submodule_count} repositories on GitHub</on_start>
-  <on_complete>All repositories created successfully</on_complete>
-  <trackable_items>
-    <item key="repos_created" type="counter" target="{SUBMODULE_COUNT}"/>
-  </trackable_items>
-</progress>
 
 <escalation>
   <ask_user>
@@ -217,19 +196,10 @@ Expected: Returns repo name without error. Do not proceed to Phase 3 until all r
 
 <phase name="3" title="PAT and Secrets Setup" parallelizable="true">
 
-<progress>
-  <status_key>phase_3_secrets</status_key>
-  <on_start>Configuring PAT and secrets for {repo_count} repositories</on_start>
-  <on_complete>Secrets configured for all repositories</on_complete>
-  <trackable_items>
-    <item key="secrets_set" type="counter" target="{TOTAL_REPOS}"/>
-  </trackable_items>
-</progress>
-
 <escalation>
   <abort>
     <condition>error contains "permission denied" or "not authorized"</condition>
-    <message>Cannot set secrets. Token needs admin access to repository settings. Check PAT permissions.</message>
+    <message>Cannot set secrets. The account gh is logged in as needs admin access to each repository's settings. Run `gh auth status`.</message>
   </abort>
   <ask_user>
     <condition>PAT not provided</condition>
@@ -341,15 +311,6 @@ Expected: `PARENT_REPO_PAT` appears in list for parent and all submodule repos.
 
 <phase name="4" title="Content Migration" conditional="SOURCE_BRANCHES not empty">
 
-<progress>
-  <status_key>phase_4_migration</status_key>
-  <on_start>Migrating content from {source_count} source branches</on_start>
-  <on_complete>Content migrated to all submodule repositories</on_complete>
-  <trackable_items>
-    <item key="submodules_migrated" type="counter" target="{SUBMODULE_COUNT}"/>
-  </trackable_items>
-</progress>
-
 <escalation>
   <ask_user>
     <condition>error contains "branch not found" or "pathspec"</condition>
@@ -392,15 +353,15 @@ For each submodule with source branch (execute sequentially per submodule):
 ```bash
 # Extract from branch
 cd /path/to/parent-repo
-rm -rf /tmp/extract && mkdir -p /tmp/extract
-git archive origin/<source-branch>:<source-path> | tar -x -C /tmp/extract/
+EXTRACT_DIR=$(mktemp -d)
+git archive origin/<source-branch>:<source-path> | tar -x -C "$EXTRACT_DIR"
 
 # Clone and populate new repo
-cd /tmp
+cd "$(mktemp -d)"
 git clone git@github.com:<org>/<submodule-repo>.git
 cd <submodule-repo>
 git checkout -b <default-branch>
-cp -r /tmp/extract/* .
+cp -r "$EXTRACT_DIR"/. .
 git add .
 git commit -m "feat: initial content from <source-branch>"
 git push -u origin <default-branch>
@@ -432,15 +393,6 @@ Expected: Lists files from extracted content.
 ---
 
 <phase name="5" title="Add Submodules to Parent">
-
-<progress>
-  <status_key>phase_5_add_submodules</status_key>
-  <on_start>Adding {submodule_count} submodules to parent repository</on_start>
-  <on_complete>All submodules added and committed</on_complete>
-  <trackable_items>
-    <item key="submodules_added" type="counter" target="{SUBMODULE_COUNT}"/>
-  </trackable_items>
-</progress>
 
 <escalation>
   <ask_user>
@@ -500,7 +452,7 @@ Expected: Each submodule listed with commit hash (no `-` prefix indicating unini
 
 <error_recovery>
 **If this fails:**
-- "already exists": Remove existing directory first, or use `--force`
+- "already exists": Ask the user, as the escalation above says: remove the directory, use `--force`, or abort
 - "not a git repository": Verify submodule repo URL is correct
 - Detached HEAD in submodule: Run `git submodule update --remote`
 </error_recovery>
@@ -509,15 +461,6 @@ Expected: Each submodule listed with commit hash (no `-` prefix indicating unini
 ---
 
 <phase name="6" title="Deploy GitHub Actions" parallelizable="true">
-
-<progress>
-  <status_key>phase_6_workflows</status_key>
-  <on_start>Deploying GitHub Actions workflows</on_start>
-  <on_complete>All workflow files deployed</on_complete>
-  <trackable_items>
-    <item key="workflows_deployed" type="counter" target="{SUBMODULE_COUNT + 1}"/>
-  </trackable_items>
-</progress>
 
 <decision_criteria id="phase6-sync-model">
 **Sync Model Selection:**
@@ -611,15 +554,6 @@ Expected: Files exist and contain correct branch names.
 
 <phase name="7" title="Deploy Local Scripts">
 
-<progress>
-  <status_key>phase_7_scripts</status_key>
-  <on_start>Creating local helper scripts</on_start>
-  <on_complete>Helper scripts deployed and made executable</on_complete>
-  <trackable_items>
-    <item key="scripts_created" type="counter" target="2"/>
-  </trackable_items>
-</progress>
-
 <escalation>
   <retry max="1">
     <condition>directory does not exist</condition>
@@ -660,14 +594,6 @@ Make executable:
 chmod +x scripts/setup-dev.sh scripts/check-nested-repos.sh
 ```
 
-<verification>
-**Verification:**
-```bash
-ls -la scripts/*.sh | grep -E 'setup-dev|check-nested'
-```
-Expected: Both files listed with execute permission (`-rwxr-xr-x`).
-</verification>
-
 <error_recovery>
 **If this fails:**
 - "No such file or directory": Create `scripts/` directory first
@@ -678,12 +604,6 @@ Expected: Both files listed with execute permission (`-rwxr-xr-x`).
 ---
 
 <phase name="8" title="Claude Code Hooks" optional="true">
-
-<progress>
-  <status_key>phase_8_hooks</status_key>
-  <on_start>Configuring Claude Code hooks</on_start>
-  <on_complete>Claude Code hooks configured</on_complete>
-</progress>
 
 <escalation>
   <ask_user>
@@ -715,7 +635,7 @@ Expected: Both files listed with execute permission (`-rwxr-xr-x`).
 Ask user if they want Claude Code hooks configured. If yes:
 
 Use `Read` tool to check if `.claude/settings.local.json` exists.
-- If exists: read and merge with new hooks
+- If exists: ask the user, as the escalation above says: merge, overwrite, or skip
 - If not: create new file
 
 Use `Write` tool to create or update `.claude/settings.local.json`:
@@ -755,30 +675,16 @@ Use `Write` tool to create or update `.claude/settings.local.json`:
 }
 ```
 
-<verification>
-**Verification:**
-```bash
-grep -c "check-nested-repos" .claude/settings.local.json
-```
-Expected: Returns 2 (appears twice in hooks config).
-</verification>
-
 <error_recovery>
 **If this fails:**
 - JSON syntax error: Validate JSON before writing
-- File exists with different content: Merge with existing settings, don't overwrite
+- File exists with different content: Ask the user, as the escalation above says
 </error_recovery>
 </phase>
 
 ---
 
 <phase name="9" title="Update Documentation">
-
-<progress>
-  <status_key>phase_9_docs</status_key>
-  <on_start>Updating project documentation</on_start>
-  <on_complete>Documentation updated with submodule instructions</on_complete>
-</progress>
 
 <escalation>
   <retry max="1">
@@ -814,14 +720,6 @@ Key sections to include:
 - Working with submodules workflow
 - CI/CD checkout note (`submodules: recursive`)
 
-<verification>
-**Verification:**
-```bash
-grep -c "submodule" README.md
-```
-Expected: Multiple matches indicating submodule documentation was added.
-</verification>
-
 <error_recovery>
 **If this fails:**
 - README.md doesn't exist: Create it with submodule section
@@ -832,15 +730,6 @@ Expected: Multiple matches indicating submodule documentation was added.
 ---
 
 <phase name="10" title="Validation">
-
-<progress>
-  <status_key>phase_10_validate</status_key>
-  <on_start>Running validation checklist (5 checks)</on_start>
-  <on_complete>Validation complete: {passed}/{total} checks passed</on_complete>
-  <trackable_items>
-    <item key="checks_passed" type="counter" target="5"/>
-  </trackable_items>
-</progress>
 
 <escalation>
   <continue_on_failure>true</continue_on_failure>
