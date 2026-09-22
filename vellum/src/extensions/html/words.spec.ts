@@ -29,6 +29,17 @@ describe("contextOf", () => {
     expect(suffix).toBe(` saved ${"y".repeat(25)}`);
   });
 
+  test("the indentation around an element's text is no context", () => {
+    const raw = "\n      Save your draft. Save often.\n    ";
+    const start = raw.indexOf("Save");
+
+    expect(contextOf(raw, start, start + 4)).toEqual({
+      prefix: "",
+      suffix: " your draft. Save often.",
+      repeated: true,
+    });
+  });
+
   test("a drag that starts or ends on whitespace quotes the words alone", () => {
     expect(contextOf(TEXT, 29, 34)).toEqual(contextOf(TEXT, 30, 33));
   });
@@ -55,6 +66,18 @@ describe("wordsIn", () => {
     const at = rewritten.lastIndexOf("are");
 
     expect(wordsIn(rewritten, "answers are", contextOf(TEXT, 22, 33))).toEqual([at - 10, at + 3]);
+  });
+
+  test("the dragged words gone, the same words elsewhere are not taken for them", () => {
+    expect(
+      wordsIn("You are offline. Your answers were kept.", "are", contextOf(TEXT, 30, 33)),
+    ).toBeNull();
+  });
+
+  test("the dragged words kept beside one word of their context are still found", () => {
+    const rewritten = "You are offline. Answers are kept here.";
+
+    expect(wordsIn(rewritten, "are", contextOf(TEXT, 30, 33))).toEqual([25, 28]);
   });
 
   test("words the element no longer holds are nowhere", () => {

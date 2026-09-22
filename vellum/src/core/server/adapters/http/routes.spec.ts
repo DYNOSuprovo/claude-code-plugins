@@ -33,7 +33,6 @@ const PRO = {
 
 const CARD = { kind: "element", elements: [PRO] };
 
-/** An element as a draft written before the context of its words had a field. */
 const PRO_WITHOUT_CONTEXT = { selector: PRO.selector, text: PRO.text, label: PRO.label };
 
 const ON_MOCKUP = { id: "a", doc: `${WIP}mockup.html`, anchor: CARD, mark: BIGGER };

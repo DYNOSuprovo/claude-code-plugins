@@ -60,6 +60,8 @@ export function bestOffset(
   text: string,
   passage: Pick<Passage, "quote" | "prefix" | "suffix">,
 ): number | null {
+  // `indexOf("")` finds the empty quote at every offset, so the loop below would never end.
+  if (passage.quote === "") return null;
   let best: { offset: number; score: number } | null = null;
 
   for (let at = text.indexOf(passage.quote); at !== -1; at = text.indexOf(passage.quote, at + 1)) {
@@ -73,7 +75,7 @@ export function bestOffset(
   return best?.offset ?? null;
 }
 
-function commonPrefix(a: string, b: string): number {
+export function commonPrefix(a: string, b: string): number {
   let n = 0;
 
   while (n < a.length && n < b.length && a[n] === b[n]) n += 1;
@@ -81,7 +83,7 @@ function commonPrefix(a: string, b: string): number {
   return n;
 }
 
-function commonSuffix(a: string, b: string): number {
+export function commonSuffix(a: string, b: string): number {
   let n = 0;
 
   while (n < a.length && n < b.length && a[a.length - 1 - n] === b[b.length - 1 - n]) n += 1;

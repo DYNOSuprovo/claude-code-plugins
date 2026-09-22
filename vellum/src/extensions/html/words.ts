@@ -1,4 +1,9 @@
-import { bestOffset, CONTEXT_CHARS } from "../../core/page/anchoring.ts";
+import {
+  bestOffset,
+  commonPrefix,
+  commonSuffix,
+  CONTEXT_CHARS,
+} from "../../core/page/anchoring.ts";
 import type { WordsContext } from "../../core/protocol.ts";
 
 /**
@@ -41,25 +46,46 @@ function collapsed(raw: string): Collapsed {
 export function contextOf(raw: string, start: number, end: number): WordsContext {
   const { text, from } = collapsed(raw);
   const quote = quoted(raw.slice(start, end));
-  const at = text.indexOf(quote, from.filter((offset) => offset < start).length);
+  const after = from.findIndex((offset) => offset >= start);
+  const at = text.indexOf(quote, after === -1 ? from.length : after);
 
   return {
-    prefix: text.slice(Math.max(0, at - CONTEXT_CHARS), at),
-    suffix: text.slice(at + quote.length, at + quote.length + CONTEXT_CHARS),
+    prefix: text.slice(Math.max(0, at - CONTEXT_CHARS), at).trimStart(),
+    suffix: text.slice(at + quote.length, at + quote.length + CONTEXT_CHARS).trimEnd(),
     repeated: text.indexOf(quote) !== at || text.includes(quote, at + 1),
   };
 }
 
-/** Where `words` sit in `raw`, the occurrence whose context fits best; `null` once they are gone. */
+/** A word or a number: what a context shares with an occurrence before it counts, a space or a stop being in every one. */
+const WORDY = /[\p{L}\p{N}]/u;
+
+/** Whether the occurrence of `words` at `at` in `text` shares a word of its context, on either side. */
+function sharesContext(text: string, at: number, words: string, context: WordsContext): boolean {
+  const before = text.slice(Math.max(0, at - CONTEXT_CHARS), at);
+  const after = text.slice(at + words.length, at + words.length + CONTEXT_CHARS);
+
+  const shared = [
+    before.slice(before.length - commonSuffix(before, context.prefix)),
+    after.slice(0, commonPrefix(after, context.suffix)),
+  ];
+
+  return shared.some((side) => WORDY.test(side));
+}
+
+/**
+ * Where `words` sit in `raw`, the occurrence whose context fits best; `null` once they are gone,
+ * and when the one that fits best shares no word of a context that was kept: the same words
+ * elsewhere in the element are not the ones dragged.
+ */
 export function wordsIn(
   raw: string,
   words: string,
   context: WordsContext,
 ): readonly [number, number] | null {
-  // A click on an element with no text quotes nothing, and nothing is found in every place at once.
-  if (words === "") return null;
   const { text, from } = collapsed(raw);
-  const at = bestOffset(text, { quote: words, prefix: context.prefix, suffix: context.suffix });
+  const found = bestOffset(text, { quote: words, prefix: context.prefix, suffix: context.suffix });
+  const kept = context.prefix !== "" || context.suffix !== "";
+  const at = found !== null && kept && !sharesContext(text, found, words, context) ? null : found;
   const first = at === null ? undefined : from[at];
   const last = at === null ? undefined : from[at + words.length - 1];
 

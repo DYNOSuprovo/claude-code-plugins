@@ -122,7 +122,9 @@ function linesOf(passage: Passage, heading: FeedbackHeading): string {
 function whichOf(context: WordsContext): string {
   if (!context.repeated) return "";
 
-  return context.prefix === "" ? ` (before "${context.suffix}")` : ` (after "${context.prefix}")`;
+  return context.prefix === ""
+    ? ` (before ${JSON.stringify(context.suffix)})`
+    : ` (after ${JSON.stringify(context.prefix)})`;
 }
 
 /** Where each anchored place is, one string each; a global anchor has none. */

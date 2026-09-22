@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { parseLines } from "./anchoring.ts";
+import { bestOffset, parseLines } from "./anchoring.ts";
 
 describe("parseLines", () => {
   test("a `data-lines` value is its first and its last line", () => {
@@ -21,4 +21,10 @@ describe("parseLines", () => {
       expect(parseLines(value)).toBeNull();
     },
   );
+});
+
+describe("bestOffset", () => {
+  test("an empty quote is nowhere, never found at every offset", () => {
+    expect(bestOffset("You are offline.", { quote: "", prefix: "", suffix: "" })).toBeNull();
+  });
 });

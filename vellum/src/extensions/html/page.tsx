@@ -54,13 +54,7 @@ function HtmlDoc(props: RendererProps): preact.JSX.Element {
   const night = dark.value;
 
   const places: readonly CommentedPlace[] = props.annotations.flatMap((annotation) =>
-    annotation.anchor.kind === "element"
-      ? annotation.anchor.elements.map(({ selector, text, context }) => ({
-          selector,
-          text,
-          context,
-        }))
-      : [],
+    annotation.anchor.kind === "element" ? annotation.anchor.elements : [],
   );
 
   const post = (message: PageToFrame): void =>

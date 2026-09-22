@@ -328,3 +328,11 @@ test("formatFeedback gives no context for a word the element holds once", () => 
 
   expect(formatFeedback([onHint(context)], V2)).toContain('(p.hint): "Save"\n');
 });
+
+test("formatFeedback writes the context as a string whose end a quote inside cannot hide", () => {
+  const context = { prefix: 'Click "Save" to keep it, then ', suffix: " again.", repeated: true };
+
+  expect(formatFeedback([onHint(context)], V2)).toContain(
+    '(p.hint): "Save" (after "Click \\"Save\\" to keep it, then ")\n',
+  );
+});
