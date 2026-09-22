@@ -2,22 +2,28 @@ import { describe, expect, test, tier } from "claude-code/testing";
 
 import {
   approved,
+  band,
   batch,
+  changesRequested,
   CWD,
+  DRAFTING,
   draftsPrompt,
   EXIT_WORKDIR_GONE,
   FINAL,
   HEARTBEAT_MS,
+  inReview,
   LOST_RETRY_MS,
+  NOTHING_PENDING,
   OTHER_ID,
   OTHER_WORKDIR,
   POLL_MS,
-  START_PROMPT,
+  polled,
   relayed,
   reply,
   SERVER,
   SESSION,
   SESSION_ID,
+  START_PROMPT,
   STARTED,
   STOP_PROMPT,
   storedSession,
@@ -30,6 +36,7 @@ import {
   WORKDIR,
   world,
 } from "./fixtures/index.ts";
+import type { PendingWire } from "./parse.ts";
 
 tier("user");
 
@@ -78,7 +85,7 @@ describe("skill.prompt", () => {
     expect(seen.store.get(`session:${SESSION_ID}`)).toEqual(
       storedSession()[`session:${SESSION_ID}`],
     );
-    expect(seen.statuses.at(-1)).toBe("planning");
+    expect(seen.statuses.at(-1)).toBeUndefined();
     expect(seen.paths).toContain("/api/open");
   });
 
@@ -291,7 +298,7 @@ describe("tool.call mcp__vellum__submit", () => {
       result: "Plan v1 under review. End your turn.",
     });
 
-    expect(seen.statuses.at(-1)).toBe("plan v1 under review");
+    expect(seen.statuses.at(-1)).toBeUndefined();
   });
 
   test("a gate that refuses is the deny the model reads", async ($, on) => {
@@ -342,7 +349,7 @@ describe("a review an open grill holds", () => {
     await $.turn.complete(TURN_ANSWERED);
 
     expect(seen.paths).toContain("/api/gate");
-    expect([seen.statuses.at(-1), seen.logs, seen.prompts]).toEqual(["planning", [], []]);
+    expect([seen.statuses.at(-1), seen.logs, seen.prompts]).toEqual([undefined, [], []]);
   });
 });
 
@@ -365,7 +372,7 @@ describe("turn.complete", () => {
 
     expect(await $.turn.complete(TURN_ANSWERED)).toEqual({ text: "done" });
     expect(bodies).toEqual([JSON.stringify({ unchanged: "keep" })]);
-    expect(seen.statuses.at(-1)).toBe("plan v1 under review");
+    expect(seen.statuses.at(-1)).toBeUndefined();
     expect(seen.logs).toEqual(["plan v1 is under review in the browser"]);
   });
 
@@ -378,7 +385,7 @@ describe("turn.complete", () => {
     await $.skill.prompt(START_PROMPT);
     await $.turn.complete(TURN_ANSWERED);
 
-    expect(seen.statuses.at(-1)).toBe("planning");
+    expect(seen.statuses.at(-1)).toBeUndefined();
     expect(seen.logs).toEqual([]);
   });
 
@@ -403,7 +410,7 @@ describe("turn.complete", () => {
     await $.turn.complete(TURN_ANSWERED);
 
     expect(seen.paths).toContain("/api/gate");
-    expect(seen.statuses.at(-1)).toBe("planning");
+    expect(seen.statuses.at(-1)).toBeUndefined();
     expect(seen.logs).toEqual([]);
   });
 
@@ -419,7 +426,7 @@ describe("turn.complete", () => {
 describe("a server that stops answering", () => {
   const REFUSED = { deny: "ENOENT bun" } as const;
 
-  const NONE = { kind: "none" };
+  const NONE = polled(NOTHING_PENDING);
 
   const REVIVAL = ["--port", String(SERVER.port), "--token", SERVER.token, "--existing"];
 
@@ -435,12 +442,16 @@ describe("a server that stops answering", () => {
     await tick(seen);
 
     expect(seen.runs[1]?.slice(-5)).toEqual(REVIVAL);
-    expect(seen.statuses.at(-1)).toBe("planning");
+    expect(seen.statuses.at(-1)).toBeUndefined();
   });
 
   test("a status outside the contract is a failure of the server, a dropped prompt is none", async ($, on) => {
     let status = 200;
-    const seen = world(on, { routes: { "/api/pending": () => reply(status, approved(1)) } });
+
+    const seen = world(on, {
+      routes: { "/api/pending": () => reply(status, polled(approved(1))) },
+    });
+
     seen.drop = "refused";
     await $.skill.prompt(START_PROMPT);
     await ticks(seen, 3);
@@ -473,7 +484,7 @@ describe("a server that stops answering", () => {
     await seen.clock.settle();
 
     expect(seen.runs[2]?.slice(-5)).toEqual(REVIVAL);
-    expect(seen.statuses.at(-1)).toBe("planning");
+    expect(seen.statuses.at(-1)).toBeUndefined();
   });
 
   test("a working directory that is gone says so, and the lock holds", async ($, on) => {
@@ -592,6 +603,74 @@ describe("skill.prompt vellum:stop", () => {
   });
 });
 
+describe("the band above the prompt", () => {
+  const LINK = `http://localhost:${SERVER.port}/t/${SERVER.token}/`;
+
+  test("the way in draws the name and the page's link on localhost, and pins no status", async ($, on) => {
+    const seen = world(on);
+    await $.skill.prompt(START_PROMPT);
+    const drawn = await band($);
+
+    expect(await drawn.text()).toBe("vellum │ Review page ↗");
+    expect(await drawn.href()).toBe(LINK);
+    expect(seen.statuses.filter((text) => text !== undefined)).toEqual([]);
+  });
+
+  test("each poll draws where the plan stands, as the server's workspace says", async ($, on) => {
+    let workspace = DRAFTING;
+    const poll = () => reply(200, polled(NOTHING_PENDING, workspace));
+    const seen = world(on, { routes: { "/api/pending": poll } });
+    await $.skill.prompt(START_PROMPT);
+    const drawn = await band($);
+    await tick(seen);
+
+    expect(await drawn.text()).toBe("vellum │ plan draft │ Review page ↗");
+    workspace = inReview(2);
+    await tick(seen);
+
+    expect(await drawn.text()).toBe("vellum │ plan v2 · in review │ Review page ↗");
+    workspace = changesRequested(2);
+    await tick(seen);
+
+    expect(await drawn.text()).toBe("vellum │ plan v2 · changes requested │ Review page ↗");
+  });
+
+  test("/vellum:stop takes the band away", async ($, on) => {
+    world(on);
+    await $.skill.prompt(START_PROMPT);
+    const drawn = await band($);
+    await $.skill.prompt(STOP_PROMPT);
+
+    expect([await drawn.text(), await drawn.href()]).toEqual(["", undefined]);
+  });
+
+  test("a survey holds the band: vellum draws nothing there", async ($, on) => {
+    world(on);
+    await $.skill.prompt(START_PROMPT);
+
+    expect(await (await band($, true)).text()).toBe("");
+  });
+
+  test("a lost server keeps its warning, and the band shrinks to the name and the link", async ($, on) => {
+    let down = false;
+    const poll = () => (down ? null : reply(200, polled(NOTHING_PENDING, inReview(1))));
+
+    const seen = world(on, {
+      routes: { "/api/pending": poll },
+      launch: (run) => (run === 2 ? { deny: "ENOENT bun" } : STARTED),
+    });
+
+    await $.skill.prompt(START_PROMPT);
+    const drawn = await band($);
+    await tick(seen);
+    down = true;
+    await ticks(seen, 3);
+
+    expect(seen.statuses.at(-1)).toBe("server lost, retrying");
+    expect(await drawn.text()).toBe("vellum │ Review page ↗");
+  });
+});
+
 describe("command.run", () => {
   test("/clear stops the mode's timers and keeps the session's record", async ($, on) => {
     const seen = world(on);
@@ -635,7 +714,7 @@ describe("command.run", () => {
     const from = seen.paths.length;
     await tick(seen);
 
-    expect(seen.statuses.at(-1)).toBe("planning");
+    expect(seen.statuses.at(-1)).toBeUndefined();
     expect(seen.paths.slice(from), "the poll still runs").toEqual(["/api/pending"]);
   });
 
@@ -653,10 +732,9 @@ describe("the decision comes back as a prompt", () => {
   const feedback = `${WORKDIR}.review/v1.feedback.md`;
 
   test("a feedback names the file once, and the mode stays live", async ($, on) => {
-    const NONE = { kind: "none" };
-    const CHANGES = { kind: "feedback", version: 1, path: feedback };
-    let pending: typeof NONE | typeof CHANGES = NONE;
-    const seen = world(on, { routes: { "/api/pending": () => reply(200, pending) } });
+    const CHANGES: PendingWire = { kind: "feedback", version: 1, path: feedback };
+    let pending = NOTHING_PENDING;
+    const seen = world(on, { routes: { "/api/pending": () => reply(200, polled(pending)) } });
     await $.skill.prompt(START_PROMPT);
     await tick(seen);
 
@@ -675,7 +753,7 @@ describe("the decision comes back as a prompt", () => {
 
   test("an approval names the final directory, then the mode is idle", async ($, on) => {
     const seen = world(on, {
-      routes: { "/api/pending": () => reply(200, approved(2)) },
+      routes: { "/api/pending": () => reply(200, polled(approved(2))) },
     });
 
     await $.skill.prompt(START_PROMPT);
@@ -692,7 +770,11 @@ describe("the decision comes back as a prompt", () => {
 
   test("an approval with notes says to read the notes file first", async ($, on) => {
     const notes = `${FINAL}.review/v2.notes.md`;
-    const seen = world(on, { routes: { "/api/pending": () => reply(200, approved(2, notes)) } });
+
+    const seen = world(on, {
+      routes: { "/api/pending": () => reply(200, polled(approved(2, notes))) },
+    });
+
     await $.skill.prompt(START_PROMPT);
     await tick(seen);
 
@@ -701,7 +783,7 @@ describe("the decision comes back as a prompt", () => {
 
   test("a drafting batch is named once, and the next batches in one prompt", async ($, on) => {
     let batches = [batch(1)];
-    const drafts = () => reply(200, { kind: "drafts", batches });
+    const drafts = () => reply(200, polled({ kind: "drafts", batches }));
     const seen = world(on, { routes: { "/api/pending": drafts } });
     await $.skill.prompt(START_PROMPT);
     await tick(seen);
@@ -717,7 +799,7 @@ describe("the decision comes back as a prompt", () => {
 
   test("a batch the store says was relayed is not named again after a reload", async ($, on) => {
     const seen = world(on, {
-      routes: { "/api/pending": () => reply(200, { kind: "drafts", batches: [batch(1)] }) },
+      routes: { "/api/pending": () => reply(200, polled({ kind: "drafts", batches: [batch(1)] })) },
       stored: { ...storedSession(), [`relayed:${SESSION_ID}`]: relayed(1) },
     });
 
@@ -730,7 +812,7 @@ describe("the decision comes back as a prompt", () => {
   test("a feedback the store says was relayed is not named again after a reload", async ($, on) => {
     const seen = world(on, {
       routes: {
-        "/api/pending": () => reply(200, { kind: "feedback", version: 1, path: feedback }),
+        "/api/pending": () => reply(200, polled({ kind: "feedback", version: 1, path: feedback })),
       },
       stored: { ...storedSession(), [`relayed:${SESSION_ID}`]: relayed(0, 1) },
     });
@@ -743,7 +825,7 @@ describe("the decision comes back as a prompt", () => {
 
   test("a record kept for another working directory counts for nothing", async ($, on) => {
     const seen = world(on, {
-      routes: { "/api/pending": () => reply(200, { kind: "drafts", batches: [batch(1)] }) },
+      routes: { "/api/pending": () => reply(200, polled({ kind: "drafts", batches: [batch(1)] })) },
       stored: {
         ...storedSession(),
         [`relayed:${SESSION_ID}`]: relayed(1, 0, "plans/2020-01-01/wip-x/"),
@@ -758,7 +840,7 @@ describe("the decision comes back as a prompt", () => {
 
   test("an approval drops the record, so the next plan's first batch is named", async ($, on) => {
     const seen = world(on, {
-      routes: { "/api/pending": () => reply(200, approved(1)) },
+      routes: { "/api/pending": () => reply(200, polled(approved(1))) },
       stored: { [`relayed:${SESSION_ID}`]: relayed(2) },
     });
 
@@ -770,7 +852,7 @@ describe("the decision comes back as a prompt", () => {
 
   test("a store that refuses the record does not name a batch twice", async ($, on) => {
     const seen = world(on, {
-      routes: { "/api/pending": () => reply(200, { kind: "drafts", batches: [batch(1)] }) },
+      routes: { "/api/pending": () => reply(200, polled({ kind: "drafts", batches: [batch(1)] })) },
     });
 
     await $.skill.prompt(START_PROMPT);
@@ -788,11 +870,11 @@ describe("the decision comes back as a prompt", () => {
     const seen = world(on, {
       routes: {
         "/api/pending": async () => {
-          if (answered) return reply(200, { kind: "none" });
+          if (answered) return reply(200, polled(NOTHING_PENDING));
           answered = true;
           await seen.clock.sleep(POLL_MS / 2);
 
-          return reply(200, approved(1));
+          return reply(200, polled(approved(1)));
         },
       },
     });
@@ -813,7 +895,7 @@ describe("the decision comes back as a prompt", () => {
 
   test("a dropped prompt keeps the poll alive; the next tick retries", async ($, on) => {
     const seen = world(on, {
-      routes: { "/api/pending": () => reply(200, approved(1)) },
+      routes: { "/api/pending": () => reply(200, polled(approved(1))) },
     });
 
     seen.drop = "refused";

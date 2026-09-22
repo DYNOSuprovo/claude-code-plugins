@@ -1,3 +1,5 @@
+export * from "./band.ts";
+
 export * from "./batch.ts";
 
 export * from "./cwd.ts";
@@ -27,6 +29,8 @@ export * from "./other-workdir.ts";
 export * from "./start-prompt.ts";
 
 export * from "./poll-ms.ts";
+
+export * from "./polled.ts";
 
 export * from "./prompts.ts";
 

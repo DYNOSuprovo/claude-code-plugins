@@ -7,9 +7,9 @@ import {
   type GateWire,
   parseGate,
   parseJson,
-  parsePending,
+  parsePoll,
   parseServerInfo,
-  type PendingWire,
+  type PollWire,
   type ProjectDir,
   type SessionId,
   type Workdir,
@@ -41,7 +41,7 @@ export type ReviewServer = {
   readonly url: string;
   alive: () => Promise<boolean>;
   gate: (unchanged: Unchanged) => Promise<GateWire>;
-  pending: () => Promise<PendingWire>;
+  poll: () => Promise<PollWire>;
   open: () => Promise<void>;
   heartbeat: () => Promise<void>;
   extension: (id: string) => ExtensionApi;
@@ -75,12 +75,12 @@ export function reach(host: Host, info: ServerInfo): ReviewServer {
       api(host, info, "/api/gate", { method: "POST", body: JSON.stringify({ unchanged }) }).then(
         parseGate,
       ),
-    pending: () =>
+    poll: () =>
       api(host, info, "/api/pending").then(
         (response) => {
           if (!response.ok) throw new ServerDown(`GET /api/pending answered ${response.status}`);
 
-          return parsePending(response.text);
+          return parsePoll(response.text);
         },
         (cause: unknown) => {
           throw new ServerDown(String(cause));

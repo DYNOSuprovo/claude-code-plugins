@@ -112,6 +112,28 @@
   shorter `Plan vN under review. End your turn.`, whose effect on the turn is
   not measured in a live session yet.
 
+## Drawing
+
+- A `Link` whose `href` is neither `https:` nor `http://localhost` refuses
+  the whole tree it is in: `$.ui.mount` in the kit rejects with
+  `<plugin>: ui.render (AbovePrompt) refused: Link href must be https: (or
+  http://localhost); the engine drew its own`, for `http://127.0.0.1:<port>/`
+  and `http://example.com/` alike, while `http://localhost:<port>/` and
+  `https://example.com/` draw. A page served on 127.0.0.1 is linked through
+  `localhost`: curl and a headless Chromium try `::1`, are refused, fall back
+  to 127.0.0.1 and load it, API calls included (measured on Linux, whose
+  `/etc/hosts` maps `localhost` to both). How a real terminal draws the link
+  is not measured here.
+
+- The kit draws `ui.render`: `$.ui.mount({ plugin, surface, component, props })`
+  holds the drawing, and `find` hands each element with `text`, every string
+  beneath it in order, a `Link`'s label included. A drawing mounted before a
+  change is drawn again when the plugin calls `$.ui.invalidate("ui.render")`,
+  from a timer the test's `mock.clock` fires too, and keeps its old tree
+  without the call. A hook that passes to `next(e)` finds nothing beneath in
+  the kit (`no implementation for ui.render`), so a test answers the site
+  with its own `on("ui.render", ...)` (`vellum/src/core/engine/fixtures/band.ts`).
+
 ## What the contract and the docs say
 
 Read from `vellum/types/claude-code.d.ts` (symbol names below) and from the

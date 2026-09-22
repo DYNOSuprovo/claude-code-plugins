@@ -1,6 +1,6 @@
 import type { Host } from "./host.ts";
 import type { Live } from "./mode.ts";
-import type { GateWire, PendingWire, SessionId, Workdir } from "./parse.ts";
+import type { GateWire, PendingWire, SessionId, StageWire, Workdir } from "./parse.ts";
 import type { Unchanged } from "./server.ts";
 
 /**
@@ -14,8 +14,12 @@ export type Relayed = {
   readonly version: number;
 };
 
-/** What one poll settled: what has been named now, and whether the plan was approved. */
-export type Ticked = { readonly relayed: Relayed; readonly approved: boolean };
+/** What one poll settled: what has been named now, whether the plan was approved, and where it stands. */
+export type Ticked = {
+  readonly relayed: Relayed;
+  readonly approved: boolean;
+  readonly stage: StageWire | null;
+};
 
 export function relayedKey(id: SessionId): string {
   return `relayed:${id}`;
@@ -38,15 +42,15 @@ function approvedPrompt(pending: Extract<PendingWire, { kind: "approved" }>): st
 }
 
 /**
- * Submits `plan.md` and says where it stands. A recorded version is announced under the prompt
- * and in the transcript; a kept one changes nothing; a refusal (no `plan.md` yet, the plan
- * approved) is the caller's to read; a server that does not answer is a rejection.
+ * Submits `plan.md` and says where it stands. A recorded version is announced in the
+ * transcript, and the band draws it from the next poll; a kept one changes nothing; a refusal
+ * (no `plan.md` yet, the plan approved) is the caller's to read; a server that does not answer
+ * is a rejection.
  */
 export async function submitPlan(host: Host, live: Live, unchanged: Unchanged): Promise<GateWire> {
   const gate = await live.server.gate(unchanged);
 
   if ("error" in gate || gate.kept) return gate;
-  host.status(`plan v${gate.version} under review`);
   host.log(`plan v${gate.version} is under review in the browser`);
 
   return gate;
@@ -87,9 +91,9 @@ async function remember(host: Host, id: SessionId, next: Relayed): Promise<Relay
  * record goes, since the next plan starts a directory of its own.
  */
 export async function tick(host: Host, live: Live, relayed: Relayed): Promise<Ticked> {
-  const pending = await live.server.pending();
+  const { pending, stage } = await live.server.poll();
   const { id } = live.session;
-  const kept: Ticked = { relayed, approved: false };
+  const kept: Ticked = { relayed, approved: false, stage };
 
   if (pending.kind === "drafts") {
     const fresh = pending.batches.filter((batch) => batch.batch > relayed.drafts);
@@ -97,10 +101,7 @@ export async function tick(host: Host, live: Live, relayed: Relayed): Promise<Ti
 
     if (last === undefined || !(await submitPrompt(host, draftsPrompt(fresh)))) return kept;
 
-    return {
-      relayed: await remember(host, id, { ...relayed, drafts: last.batch }),
-      approved: false,
-    };
+    return { ...kept, relayed: await remember(host, id, { ...relayed, drafts: last.batch }) };
   }
 
   if (pending.kind === "feedback") {
@@ -111,10 +112,7 @@ export async function tick(host: Host, live: Live, relayed: Relayed): Promise<Ti
       return kept;
     }
 
-    const next = await remember(host, id, { ...relayed, version: pending.version });
-    host.status("planning");
-
-    return { relayed: next, approved: false };
+    return { ...kept, relayed: await remember(host, id, { ...relayed, version: pending.version }) };
   }
 
   if (pending.kind === "approved" && (await submitPrompt(host, approvedPrompt(pending)))) {
@@ -122,7 +120,7 @@ export async function tick(host: Host, live: Live, relayed: Relayed): Promise<Ti
       host.log(`the relayed record was not dropped: ${String(cause)}`);
     });
 
-    return { relayed, approved: true };
+    return { ...kept, approved: true };
   }
 
   return kept;

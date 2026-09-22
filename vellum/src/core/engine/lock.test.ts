@@ -2,12 +2,17 @@ import { describe, expect, test, tier } from "claude-code/testing";
 
 import {
   approved,
+  changesRequested,
   CWD,
   DATE,
   DIR,
+  DRAFTING,
   FILE,
   FINAL,
+  inReview,
   link,
+  NOTHING_PENDING,
+  polled,
   refused,
   SERVER,
   START_PROMPT,
@@ -16,7 +21,7 @@ import {
   world,
 } from "./fixtures/index.ts";
 import { type Landed, lockVerdict } from "./lock.ts";
-import { editedPath, parsePending } from "./parse.ts";
+import { editedPath, parsePoll } from "./parse.ts";
 import { submitResult } from "./relay.ts";
 
 tier("user");
@@ -311,18 +316,38 @@ describe("submitResult", () => {
   });
 });
 
-describe("parsePending", () => {
+/** Where a poll whose workspace is `workspace`, as JSON, says the plan stands. */
+function stageOf(workspace: string) {
+  return parsePoll(`{"pending":${JSON.stringify(NOTHING_PENDING)},"workspace":${workspace}}`).stage;
+}
+
+describe("parsePoll", () => {
   test("an approval's notes are a path or null", () => {
     const notes = `${FINAL}.review/v3.notes.md`;
 
-    expect(parsePending(JSON.stringify(approved(3, notes)))).toEqual(approved(3, notes));
-    expect(parsePending(JSON.stringify(approved(3)))).toEqual(approved(3));
+    expect(parsePoll(JSON.stringify(polled(approved(3, notes)))).pending).toEqual(
+      approved(3, notes),
+    );
+    expect(parsePoll(JSON.stringify(polled(approved(3)))).pending).toEqual(approved(3));
   });
 
   test("an approval whose notes are missing or no string is nothing to relay", () => {
     const { notes: _, ...bare } = approved(3);
 
-    expect(parsePending(JSON.stringify(bare))).toEqual({ kind: "none" });
-    expect(parsePending(JSON.stringify({ ...bare, notes: 3 }))).toEqual({ kind: "none" });
+    expect(parsePoll(JSON.stringify({ pending: bare })).pending).toEqual({ kind: "none" });
+    expect(parsePoll(JSON.stringify({ pending: { ...bare, notes: 3 } })).pending).toEqual({
+      kind: "none",
+    });
+  });
+
+  test("the workspace is read as the band draws it: its kind, and the version once there is one", () => {
+    expect(stageOf(JSON.stringify(DRAFTING))).toEqual({ kind: "drafting" });
+    expect(stageOf(JSON.stringify(inReview(2)))).toEqual({ kind: "inReview", version: 2 });
+    expect(stageOf(JSON.stringify(changesRequested(2)))).toEqual({
+      kind: "changesRequested",
+      version: 2,
+    });
+    expect(stageOf('{"kind":"inReview"}'), "no version").toBeNull();
+    expect(stageOf('{"kind":"elsewhere","version":2}'), "a kind the band does not know").toBeNull();
   });
 });

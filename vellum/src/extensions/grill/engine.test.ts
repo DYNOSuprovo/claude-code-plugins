@@ -1,6 +1,8 @@
 import { describe, expect, test, tier } from "claude-code/testing";
 
 import {
+  band,
+  polled,
   reply,
   SESSION,
   SESSION_ID,
@@ -177,8 +179,8 @@ describe("a grill the reviewer ended from the page", () => {
   });
 });
 
-describe("the status under the prompt", () => {
-  test("says where to answer while a grill is open, once, and goes back to planning after it", async ($, on) => {
+describe("the band above the prompt", () => {
+  test("says a grill is open, after the plan, while one is, and nothing once it ended", async ($, on) => {
     let grill = openGrill();
 
     const seen = world(
@@ -187,14 +189,15 @@ describe("the status under the prompt", () => {
     );
 
     await $.skill.prompt(START_PROMPT);
-    await tick(seen);
+    const drawn = await band($);
     await tick(seen);
 
-    expect(seen.statuses).toEqual(["planning", "grill open, answer in the page"]);
+    expect(await drawn.text()).toBe("vellum │ plan draft │ grill · open │ Review page ↗");
     grill = endedGrill();
     await tick(seen);
 
-    expect(seen.statuses.at(-1)).toBe("planning");
+    expect(await drawn.text()).toBe("vellum │ plan draft │ Review page ↗");
+    expect(seen.statuses.filter((text) => text !== undefined)).toEqual([]);
   });
 });
 
@@ -450,7 +453,7 @@ describe("closing from the session", () => {
     const grill = grillRoutes(() => NO_GRILL);
 
     const seen = world(on, {
-      routes: { ...grill.routes, "/api/pending": () => reply(200, approved(1)) },
+      routes: { ...grill.routes, "/api/pending": () => reply(200, polled(approved(1))) },
     });
 
     await $.skill.prompt(START_PROMPT);

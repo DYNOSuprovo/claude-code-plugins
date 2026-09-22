@@ -12,8 +12,8 @@ bar), `server.ts` a `ServerExtension` (its `linkedDocs`, its routes, what `holds
 what it closes once `approved`). Both types live in
 `src/core/extension.ts`. `markdown`, `html`, `image` and `grill` are extensions like the next
 ones. A third half,
-`engine.ts`, declares an `EngineExtension` (`src/core/engine/extension.ts`): tools, refusals
-and the engine events the core hands it. `grill` is the one extension with all three.
+`engine.ts`, declares an `EngineExtension` (`src/core/engine/extension.ts`): tools, refusals,
+the engine events the core hands it, and its segment of the band above the prompt. `grill` is the one extension with all three.
 
 - Read the code before this text, smallest first: `image/page.tsx` is a whole extension,
   `markdown/server.ts` a server half, `html/pick.ts` with `pick.spec.ts` a helper and its

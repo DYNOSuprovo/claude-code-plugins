@@ -1,6 +1,6 @@
 import type { HttpResponse } from "claude-code";
 
-import type { GateAnswer, Pending } from "../protocol.ts";
+import type { GateAnswer, Pending, PlanWorkspace } from "../protocol.ts";
 import type { ServerInfo, Session } from "./mode.ts";
 import type { Relayed } from "./relay.ts";
 
@@ -38,6 +38,21 @@ export type Json<T> = T extends object
   : T;
 
 export type PendingWire = Json<Pending>;
+
+export type WorkspaceWire = Json<PlanWorkspace>;
+
+/** Distributes over the workspace's variants: each keeps its `kind`, and its `version` where it has one. */
+type StageOf<W> = W extends { readonly kind: infer K; readonly version: infer V }
+  ? { readonly kind: K; readonly version: V }
+  : W extends { readonly kind: infer K }
+    ? { readonly kind: K }
+    : never;
+
+/** Where the plan stands, as much of the workspace as the band draws. */
+export type StageWire = StageOf<WorkspaceWire>;
+
+/** What one poll reads: what to relay, and where the plan stands; `null` when the answer says nothing the band reads. */
+export type PollWire = { readonly pending: PendingWire; readonly stage: StageWire | null };
 
 /** What `POST /api/gate` answers: the version the browser shows, or why it shows none. */
 export type GateWire = Json<GateAnswer>;
@@ -126,9 +141,7 @@ export function parseRelayed(value: unknown, workdir: Workdir): Relayed {
     : { workdir, drafts: 0, version: 0 };
 }
 
-export function parsePending(text: string): PendingWire {
-  const value = parseJson(text);
-
+function parsePending(value: unknown): PendingWire {
   if (!isRecord(value)) return { kind: "none" };
 
   if (value.kind === "drafts" && Array.isArray(value.batches)) {
@@ -152,6 +165,31 @@ export function parsePending(text: string): PendingWire {
   }
 
   return { kind: "none" };
+}
+
+function parseStage(value: unknown): StageWire | null {
+  if (!isRecord(value)) return null;
+
+  if (value.kind === "drafting") return { kind: "drafting" };
+
+  if (typeof value.version !== "number") return null;
+
+  if (value.kind === "inReview") return { kind: "inReview", version: value.version };
+
+  if (value.kind === "changesRequested")
+    return { kind: "changesRequested", version: value.version };
+
+  if (value.kind === "approved") return { kind: "approved", version: value.version };
+
+  return null;
+}
+
+export function parsePoll(text: string): PollWire {
+  const value = parseJson(text);
+
+  return isRecord(value)
+    ? { pending: parsePending(value.pending), stage: parseStage(value.workspace) }
+    : { pending: { kind: "none" }, stage: null };
 }
 
 export function parseGate(response: HttpResponse): GateWire {

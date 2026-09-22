@@ -1,6 +1,7 @@
 import type { On } from "claude-code";
 import { mock, type MockClock } from "claude-code/testing";
 
+import { engineBand } from "./band.ts";
 import { CWD } from "./cwd.ts";
 import { disk, type Entries } from "./disk.ts";
 import { type Launcher, launcher } from "./launcher.ts";
@@ -63,6 +64,7 @@ export function world(on: On, options: WorldOptions = {}): World {
   };
 
   skillText(on);
+  engineBand(on);
   disk(on, options.disk);
 
   on("session.start", (_, e) => ({ cwd: e.cwd }));

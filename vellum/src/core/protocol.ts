@@ -1,5 +1,5 @@
 import type { ProjectPath, Version } from "./server/domain/paths.ts";
-import type { PlanWorkspace } from "./server/domain/workspace.ts";
+import type { Pending, PlanWorkspace } from "./server/domain/workspace.ts";
 
 /**
  * What crosses HTTP between the hooks module, the server and the page, and what crosses an
@@ -42,6 +42,9 @@ export {
 export type { Pending, PlanWorkspace } from "./server/domain/workspace.ts";
 
 export { takesComments } from "./server/domain/workspace.ts";
+
+/** What `GET /api/pending` answers: what the module relays, and the workspace the band above the prompt draws. */
+export type PollAnswer = { readonly pending: Pending; readonly workspace: PlanWorkspace };
 
 /** What `POST /api/gate` answers: the version the browser shows, or why it shows none. */
 export type GateAnswer =

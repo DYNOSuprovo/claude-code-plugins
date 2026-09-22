@@ -1,5 +1,6 @@
 import type { HttpResponse, On } from "claude-code";
 
+import { NOTHING_PENDING, polled } from "./polled.ts";
 import { reply } from "./reply.ts";
 import { SERVER } from "./server.ts";
 
@@ -13,7 +14,7 @@ const LIVE = {
   "/api/review": () => reply(200, { workspace: { kind: "drafting" } }),
   "/api/heartbeat": () => reply(204, null),
   "/api/gate": () => reply(200, { version: 1, kept: false }),
-  "/api/pending": () => reply(200, { kind: "none" }),
+  "/api/pending": () => reply(200, polled(NOTHING_PENDING)),
   "/api/open": () => reply(204, null),
 } satisfies Record<string, Route>;
 

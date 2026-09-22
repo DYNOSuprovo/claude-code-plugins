@@ -44,5 +44,8 @@ export type Host = {
 
   status: (text: string | undefined) => void;
 
+  /** `$.ui.invalidate("ui.render")`: the engine asks the band again. */
+  invalidate: () => void;
+
   log: (text: string) => void;
 };

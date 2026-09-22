@@ -100,9 +100,9 @@ sequenceDiagram
   end
   CC->>M: turn.complete (the main loop answered), or tool.call mcp__vellum__submit
   M->>S: POST /api/gate → reads plan.md, writes .review/vN.md, opens the browser once; an unchanged text is kept
-  M-->>CC: status "plan vN under review" (and the tool's result: "End your turn.")
+  M-->>CC: the tool's result: "End your turn."
   loop every second
-    M->>S: GET /api/pending
+    M->>S: GET /api/pending (what to relay, and the workspace the band draws)
   end
   B->>S: PUT /api/draft (the unsent comments and edit, at every change)
   B->>S: POST /api/decision (feedback | approve, with the reviewer's edit or none)
@@ -164,8 +164,8 @@ last prompt that entered and its origin, `turn.start`, which carries no origin i
 that note when its text holds the noted one, and `turn.complete` hands `own` to the transcript
 (`core/engine/turn.ts`, pure). A turn the terminal
 started writes nothing, whatever the file's last voice is; the turn that just asked a round
-closes it either way. While a grill is open the status line says `grill open, answer in the
-page`: the warning for a prompt typed in the terminal, outside the context. A prompt Vellum itself submits comes back through its own `prompt.submit` hook, since
+closes it either way. While a grill is open the band above the prompt says `grill · open`: a
+prompt typed in the terminal is outside the grill. A prompt Vellum itself submits comes back through its own `prompt.submit` hook, since
 `$.prompt.submit` skips the calling hook alone; its origin (`plugin`, `vellum`) keeps it out of
 the transcript, where the server already wrote what it carries.
 

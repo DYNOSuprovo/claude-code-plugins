@@ -1,5 +1,5 @@
 import type { ServerContext, ServerExtension } from "../../extension.ts";
-import type { DocGroup, DocRef, GroupedDoc, ReviewView } from "../../protocol.ts";
+import type { DocGroup, DocRef, GroupedDoc, PollAnswer, ReviewView } from "../../protocol.ts";
 import {
   finalize as renameWorkspace,
   listFiles,
@@ -17,7 +17,7 @@ import type { FinalDir, ProjectPath, Version, WipDir } from "../domain/paths.ts"
 import { parseVersion } from "../domain/paths.ts";
 import type { Decision, Draft } from "../domain/review.ts";
 import { decideOn, draftIsEmpty, gateVersion, slugFor } from "../domain/review.ts";
-import type { Memory, Pending, PlanWorkspace } from "../domain/workspace.ts";
+import type { Memory, PlanWorkspace } from "../domain/workspace.ts";
 import {
   DRAFT_FILE,
   PLAN_FILE,
@@ -118,8 +118,11 @@ export class Review {
     return workspaceOf(disk.value, this.memory);
   }
 
-  public async pending(): Promise<Pending> {
-    return pendingOf(await this.workspace());
+  /** One read of the workspace, so what is pending and what the band draws never disagree. */
+  public async poll(): Promise<PollAnswer> {
+    const workspace = await this.workspace();
+
+    return { pending: pendingOf(workspace), workspace };
   }
 
   private planDoc(version: Version, dir: WipDir | FinalDir = this.options.workdir): ProjectPath {

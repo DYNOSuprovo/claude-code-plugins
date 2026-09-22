@@ -23,17 +23,12 @@ const ASK_TOOL = "mcp__vellum__grill_ask";
 const SUGGEST_TOOL = "mcp__vellum__grill_suggest";
 
 /** What the person at the terminal must know, and the agent must not read: a prompt typed there is not the grill's. */
-const STATUS_OPEN = "grill open, answer in the page";
-
-const STATUS_PLANNING = "planning";
+const SEGMENT_OPEN = "grill · open";
 
 const NO_CURSOR: Cursor = { file: "", seq: -1, taught: false };
 
-/**
- * The modes whose status line says a grill is open. Keyed by the mode's own `Live`, so a reload
- * or a new way in, which both reset the line to `planning`, say it again.
- */
-const statusShown = new WeakSet<Live>();
+/** The modes whose last poll found a grill open, keyed by the mode's own `Live`: a new way in starts with none. */
+const grillOpen = new WeakSet<Live>();
 
 function cursorKey(sessionId: string): string {
   return `grill:${sessionId}`;
@@ -132,14 +127,6 @@ function promptOf(context: EngineContext, relay: Relay, taught: boolean): string
     : `${opened} Read ${context.host.pluginRoot}/src/extensions/grill/grilling.md, then ask with ${ASK_TOOL}.`;
 }
 
-function showStatus({ host, live }: EngineContext, open: boolean): void {
-  if (open === statusShown.has(live)) return;
-  host.status(open ? STATUS_OPEN : STATUS_PLANNING);
-
-  if (open) statusShown.add(live);
-  else statusShown.delete(live);
-}
-
 /**
  * Submits every entry past the cursor, one by one and in order, the cursor written after each:
  * a dropped prompt stops there and the next poll retries it. The entries are on the server's
@@ -153,7 +140,9 @@ async function tick(context: EngineContext): Promise<void> {
   const polled = parsePolled(parseJson((await api.get(`state?${query}`)).text));
 
   if (polled === null) return;
-  showStatus(context, polled.open);
+
+  if (polled.open) grillOpen.add(live);
+  else grillOpen.delete(live);
 
   // A closed grill this session relayed nothing of: after a `/clear`, an old transcript of the
   // directory means nothing to the new context.
@@ -199,6 +188,7 @@ export const grillEngine: EngineExtension = {
     await post(context, "answer", turn);
   },
   tick,
+  segment: ({ live }) => (grillOpen.has(live) ? SEGMENT_OPEN : null),
   closing: async (context) => {
     await post(context, "close", { reason: "stop" });
   },

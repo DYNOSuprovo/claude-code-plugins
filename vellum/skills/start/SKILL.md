@@ -42,7 +42,7 @@ A diagram or a mockup worth showing: `references/visual.md`
 
 Iterate on the plan with the reviewer until it is approved. A large change, or a plan no human will read, goes through the `plan-reviewer` agent first.
 
-The skill text ends with a `Working directory:` line and a `Review page:` line. Print both in your first message: the link is how the reviewer reaches the page, and nothing else shows it.
+The skill text ends with a `Working directory:` line and a `Review page:` line. Print both in your first message: the link is how the reviewer reaches the page, and the band above the prompt, which carries it too, is drawn in the terminal alone.
 
 With a working directory, the plan is `plan.md` at its root. Once the plan and its artifacts are ready, end your turn: the vellum plugin submits `plan.md` when a turn ends, opens it in the reviewer's browser, and the review comes back as a prompt. An unchanged `plan.md` submits nothing, so a turn that only asks a question opens no version. To submit before the turn ends, call `mcp__vellum__submit`. "Changes requested" names a feedback file: read it, revise `plan.md` and the files it names, end your turn. "Approved" names the final directory the plan now lives in.
 

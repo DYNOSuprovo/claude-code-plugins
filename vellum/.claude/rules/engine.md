@@ -19,6 +19,7 @@ lock.ts      the policy: lockVerdict, checkVerdict; pure
 place.ts     where a path lands: placed, landed; asks the host's `stat`
 turn.ts      whose turn runs: Turns, prompted / started / completed, ownOf; pure
 relay.ts     what the poll says and what it remembers: prompts, Relayed, tick
+band.ts      what the band above the prompt says: the plan's segment, then the extensions', then the link; pure
 server.ts    the review server's client: every route, the token header, the launcher
 parse.ts     the boundary: unknown to types, and the only place a brand is minted
 extension.ts `EngineExtension`, the contract an extension's `engine.ts` fills; types only
@@ -45,8 +46,8 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
 - A revival that fails is `lost`, never `idle`: the lock opens outside the mode, so a failure
   must not hand Claude the repository. `lost` keeps the session, the lock reads it through
   `sessionOf` as it does while `live`, the status says why (`server lost, retrying`, or
-  `working directory gone, run /vellum:stop`), a slow timer asks `revive` again, and
-  `/vellum:stop` is the way out.
+  `working directory gone, run /vellum:stop`), the band shrinks to the name and the link, a
+  slow timer asks `revive` again, and `/vellum:stop` is the way out.
 - `session.start` registers the tool `submit` (`mcp__vellum__submit`, the model's "the plan
   is written" signal), served by a `tool.call` hook that answers without `next`. Its matcher
   must be a string literal, or `claude plugin validate` prints the expression instead of the
@@ -87,7 +88,7 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
   relative path of theirs alone, so a failure there never denies a read. `claude plugin validate` lists the hook but not its handler, so nothing but
   this rule says the handler is there.
 - `/clear` and `/resume` suspend the mode, on `command.run` and after `next(e)`: timers stopped,
-  status cleared, `session:<id>` kept, so a later `/resume` of that session finds its directory.
+  status cleared, band gone, `session:<id>` kept, so a later `/resume` of that session finds its directory.
   `/clear` always mints a new session id; `/resume` suspends only when the id changed, since an
   Esc in the picker or the same session resumed leaves the conversation planning. It is the
   deterministic place, not a guess at what the session did. `/vellum:stop` stays the reviewer's
@@ -98,7 +99,7 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
 - The turn's end submits: a `turn.complete` hook, after `next(e)`, gates `plan.md` while
   `live` when the main loop answered (`reason === "answer"`, no `agentId`), with
   `{ unchanged: "keep" }` so a text the page already shows opens no version, after a feedback
-  included. A recorded version sets the status and one log line; a kept one, a refusal (no
+  included. A recorded version writes one log line, and the band draws it from the next poll; a kept one, a refusal (no
   `plan.md` yet, the plan approved) and a server that does not answer say nothing. The explicit
   tool stays the model's mid-turn signal and records a new version after a feedback.
 - Every transition is an engine event or an answer from the server, never a reflex of the
@@ -123,6 +124,21 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
   one; the module reads the path and never the file. Each of these prompts is the fact and its
   object, nothing else: the skill `start` already says what to do with a feedback, a drafting
   batch and an approval, so the prompt does not say it again.
+- The mode's one place in the terminal is the band above the prompt: the `ui.render` hook on
+  `AbovePrompt` draws `vellum │ <plan> │ <segments> │ Review page ↗` while the mode holds a
+  session, and passes to `next(e)` while `idle` or while a survey holds the band
+  (`hasSurvey`). `$.ui.status` is written for a failure alone, the two of `lost`, and entering
+  `live` clears it. No `SessionMode` label: the band is the one place.
+- Where the plan stands is the server's: the poll's answer carries the workspace, `parse.ts`
+  reads its kind and version, and `register.ts` keeps the last one per `Live`, so a new way in
+  draws none until its first poll. An extension adds its own segment through `segment`, asked
+  in registry order after the plan's. `redraw` compares the band with the one last asked for
+  and calls `$.ui.invalidate("ui.render")` only when it changed: after each transition of
+  `state` and after each poll's `tick`s.
+- The link is `http://localhost:<port>/t/<token>/` (`pageHref` in `band.ts`): a `Link` to
+  `http://127.0.0.1` refuses the whole tree, and `localhost` reaches the server, which listens
+  on 127.0.0.1 only ([Hook runtime](../../../docs/plugin-testing/hook-runtime.md) § Drawing).
+  `/vellum:start` still prints the 127.0.0.1 address `reach` builds.
 - An extension never calls `on(...)`: the engine takes one hooks module per plugin and one
   unmatched hook per event. `register.ts` keeps every event and hands it to the engine halves in
   registry order, each with an `EngineContext` (`Host`, `Live`, its own routes on the server),
@@ -152,7 +168,7 @@ loop. `/vellum:start` enters it, Approve in the page or `/vellum:stop` leaves it
   equality, because how the engine frames a plugin's prompt in `turn.start`'s text is not
   measured; an empty note matches nothing.
 - A text enters Claude's context only when Claude does something different because of it.
-  Anything else goes to `$.ui.status`, `$.ui.log` or the page. A prompt names its object and
+  Anything else goes to the band, `$.ui.log` or the page. A prompt names its object and
   repeats nothing Claude wrote or already read, and every relay keeps the plugin's origin.
 - An extension's store records are keyed `<id>:<session id>`.
 - Tests run under the engine's own `$` (`claude plugin test vellum`, the `*.test.ts` files beside the module):

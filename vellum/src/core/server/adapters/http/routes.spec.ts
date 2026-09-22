@@ -552,12 +552,15 @@ describe("routes", () => {
     const approve = await post("/api/decision", JSON.stringify(APPROVE));
     expect(approve.status).toBe(200);
 
-    const pending = await fetch(url("/api/pending"), { headers: headers() });
-    expect(await pending.json()).toEqual({
-      kind: "approved",
-      version: 1,
-      dir: "plans/2026-09-15/routed-plan/",
-      notes: null,
+    const polled = await fetch(url("/api/pending"), { headers: headers() });
+    expect(await polled.json()).toEqual({
+      pending: { kind: "approved", version: 1, dir: "plans/2026-09-15/routed-plan/", notes: null },
+      workspace: {
+        kind: "approved",
+        version: 1,
+        dir: "plans/2026-09-15/routed-plan/",
+        notes: false,
+      },
     });
   });
 });

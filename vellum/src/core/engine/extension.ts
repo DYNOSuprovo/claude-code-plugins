@@ -55,4 +55,10 @@ export type EngineExtension = {
   readonly tick?: (context: EngineContext) => Promise<void>;
   /** `/vellum:stop`, the one end the module causes: an approval is closed on the server. */
   readonly closing?: (context: EngineContext) => Promise<void>;
+  /**
+   * What the band above the prompt says for this extension while live, after the plan and
+   * before the link; `null` says nothing. Asked again after each poll: it answers from what its
+   * `tick` read, never from the server.
+   */
+  readonly segment?: (context: EngineContext) => string | null;
 };

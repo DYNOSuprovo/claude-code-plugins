@@ -8,6 +8,7 @@ import {
   type ProjectDir,
   sessionId,
   type SessionId,
+  type StageWire,
   type Token,
   type Workdir,
   workdirOf,
@@ -67,8 +68,11 @@ export type State =
  */
 export type Settle = (host: Host, from: State) => Promise<void>;
 
-/** The extensions' part of a poll, run after the core's relay; `register.ts` owns the registry. */
-export type Ticks = (host: Host, live: Live) => Promise<void>;
+/**
+ * What a poll that did not approve hands on, after the core's relay: where the plan stands, for
+ * the band, then the extensions' part. `register.ts` owns the band and the registry.
+ */
+export type Ticks = (host: Host, live: Live, stage: StageWire | null) => Promise<void>;
 
 /** A mode whose server stopped answering: `register.ts` swaps in the revived one, or `lost`. */
 export type Revive = (host: Host, from: State) => Promise<void>;
@@ -197,7 +201,7 @@ async function enter(host: Host, live: Live, wiring: Wiring): Promise<State> {
         serverFailures = 0;
 
         if (ticked.approved) await wiring.settle(host, entered);
-        else await wiring.ticks(host, live);
+        else await wiring.ticks(host, live, ticked.stage);
       })
       .catch((cause: unknown) => {
         host.log(`the review poll failed: ${String(cause)}`);
@@ -213,7 +217,8 @@ async function enter(host: Host, live: Live, wiring: Wiring): Promise<State> {
   });
 
   const entered: State = { kind: "live", live, poll };
-  host.status("planning");
+  // The band shows the mode; the status line is kept for what went wrong, and a revival ends it.
+  host.status(undefined);
 
   return entered;
 }

@@ -1,6 +1,7 @@
 import type { EngineInterface, Register } from "claude-code";
 
 import { engineExtensions } from "../../extensions/engine.ts";
+import { type Band, liveBand, lostBand } from "./band.ts";
 import type { EngineContext, EngineExtension } from "./extension.ts";
 import type { Host } from "./host.ts";
 import { checkVerdict, lockFailed, lockVerdict } from "./lock.ts";
@@ -18,7 +19,7 @@ import {
   type Ticks,
   type Wiring,
 } from "./mode.ts";
-import { editedPath, type GateWire, sessionId } from "./parse.ts";
+import { editedPath, type GateWire, sessionId, type StageWire } from "./parse.ts";
 import { landed } from "./place.ts";
 import { submitPlan, submitResult } from "./relay.ts";
 import { completed, NO_TURN, ownOf, prompted, started, type Turns } from "./turn.ts";
@@ -62,6 +63,7 @@ function hostOf($: EngineInterface): Host {
     every: (ms, fn) => $.clock.every(ms, fn),
     submitPrompt: (text) => $.prompt.submit({ text }),
     status: (text) => $.ui.status(text),
+    invalidate: () => $.ui.invalidate("ui.render"),
     log: (text) => $.ui.log(text),
   };
 }
@@ -89,16 +91,51 @@ async function handed(
   }
 }
 
-const ticks: Ticks = (host, live) =>
-  handed(host, live, "tick", (extension, context) => extension.tick?.(context));
+/** A segment that throws is logged and left out: no extension may take the band away. */
+function segmentOf(host: Host, live: Live, extension: EngineExtension): string | null {
+  try {
+    return extension.segment?.(contextOf(host, live, extension)) ?? null;
+  } catch (cause) {
+    host.log(`${extension.id} failed on segment: ${String(cause)}`);
+
+    return null;
+  }
+}
+
+const SEPARATOR = " │ ";
 
 export const register: Register = (on) => {
   let state: State = { kind: "idle" };
+
+  // Where each mode's last poll found the plan, keyed by the mode: a new way in starts with none.
+  const stages = new WeakMap<Live, StageWire>();
+
+  function bandOf(host: Host): Band | null {
+    if (state.kind === "idle") return null;
+
+    if (state.kind === "lost") return lostBand(state.session.server);
+    const { live } = state;
+    const segments = engineExtensions.map((extension) => segmentOf(host, live, extension));
+
+    return liveBand(live.session.server, stages.get(live) ?? null, segments);
+  }
+
+  // The band as last asked for, so a poll that changed nothing redraws nothing.
+  let shown = JSON.stringify(null);
+
+  function redraw(host: Host): void {
+    const band = JSON.stringify(bandOf(host));
+
+    if (band === shown) return;
+    shown = band;
+    host.invalidate();
+  }
 
   const settle: Settle = async (host, from) => {
     if (state !== from) return;
     turns = NO_TURN;
     state = await close(host, from);
+    redraw(host);
   };
 
   const revive: Revive = async (host, from) => {
@@ -108,6 +145,13 @@ export const register: Register = (on) => {
     if (next === null) return;
     turns = NO_TURN;
     state = next;
+    redraw(host);
+  };
+
+  const ticks: Ticks = async (host, live, stage) => {
+    if (stage !== null) stages.set(live, stage);
+    await handed(host, live, "tick", (extension, context) => extension.tick?.(context));
+    redraw(host);
   };
 
   const wiring: Wiring = { settle, ticks, revive };
@@ -126,13 +170,17 @@ export const register: Register = (on) => {
       });
     }
 
-    state = await restore(hostOf($), state, wiring);
+    const host = hostOf($);
+    state = await restore(host, state, wiring);
+    redraw(host);
 
     return next(e);
   });
 
   on("skill.prompt", { skill: START_SKILL }, async ($, e, next) => {
-    state = await connect(hostOf($), state, wiring);
+    const host = hostOf($);
+    state = await connect(host, state, wiring);
+    redraw(host);
     const result = await next(e);
 
     if (state.kind !== "live") return result;
@@ -166,6 +214,7 @@ export const register: Register = (on) => {
 
     turns = NO_TURN;
     state = await close(host, state);
+    redraw(host);
     const result = await next(e);
 
     return { text: `${result.text}\n\n${line}` };
@@ -185,8 +234,32 @@ export const register: Register = (on) => {
     if (!left) return result;
     turns = NO_TURN;
     state = suspend(host, state);
+    redraw(host);
 
     return result;
+  });
+
+  // The mode's one place in the terminal: the status line keeps a failure alone. A survey holds
+  // the band over any plugin, and the person may collapse it.
+  on("ui.render", { component: "AbovePrompt" }, ($, e, next) => {
+    const band = bandOf(hostOf($));
+
+    if (band === null || e.props.hasSurvey) return next(e);
+    const { Box, Text, Link } = $.ui.resolve(e);
+    const separator = () => Text({ dimColor: true, children: SEPARATOR });
+
+    return Box({
+      flexDirection: "row",
+      children: [
+        Text({ children: "vellum" }),
+        ...band.segments.flatMap((segment) => [
+          separator(),
+          Text({ dimColor: true, children: segment }),
+        ]),
+        separator(),
+        Link({ href: band.href, label: "Review page ↗" }),
+      ],
+    });
   });
 
   on("tool.check", async ($, e, next) => {

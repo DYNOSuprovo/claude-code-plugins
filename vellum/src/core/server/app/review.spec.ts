@@ -129,7 +129,7 @@ describe("Review", () => {
     const first = await review.decide(SAY_NO);
     expect(first).toMatchObject({ ok: true, workspace: { kind: "changesRequested" } });
     const path = `${WIP}.review/v1.feedback.md` as never;
-    expect(await review.pending()).toEqual({ kind: "feedback", version: V1, path });
+    expect((await review.poll()).pending).toEqual({ kind: "feedback", version: V1, path });
     expect(read(root, `${WIP}.review/v1.feedback.md`)).toContain("No.");
     expect((await review.decide(APPROVE)).ok).toBe(false);
   });
@@ -189,7 +189,7 @@ describe("Review", () => {
       `${NOTES_TITLE} (v1)\n\nStart from ${FINAL}mockup.html.\n`,
     );
     const [dir, notes] = [FINAL as never, `${FINAL}.review/v1.notes.md` as never];
-    expect(await review.pending()).toEqual({ kind: "approved", version: V1, dir, notes });
+    expect((await review.poll()).pending).toEqual({ kind: "approved", version: V1, dir, notes });
   });
 
   test("an approve retried after a failed rename carries no note, and still reports the first attempt's", async () => {
@@ -237,7 +237,12 @@ describe("Review", () => {
     });
     expect(read(root, `${FINAL}.review/v1.md`)).toContain(`${FINAL}mockup.html`);
     const dir = FINAL as never;
-    expect(await review.pending()).toEqual({ kind: "approved", version: V1, dir, notes: null });
+    expect((await review.poll()).pending).toEqual({
+      kind: "approved",
+      version: V1,
+      dir,
+      notes: null,
+    });
   });
 
   test("approve puts the approved text back in plan.md, over a revision not submitted", async () => {
@@ -257,7 +262,7 @@ describe("Review", () => {
       ok: false,
       workspace: { kind: "inReview", finalizeError: expect.any(String) },
     });
-    expect(await review.pending()).toEqual({ kind: "none" });
+    expect((await review.poll()).pending).toEqual({ kind: "none" });
   });
 
   test("view under review lists the files without the working copy of the plan", async () => {
@@ -382,7 +387,7 @@ describe("Review", () => {
     await review.decide(SAY_NO);
     writeFileSync(join(root, WIP, "plan.md"), PLAN);
     await review.gate();
-    expect(await review.pending()).toEqual({
+    expect((await review.poll()).pending).toEqual({
       kind: "drafts",
       batches: [{ batch: 1, path: `${WIP}.review/v0.feedback-1.md` as never }],
     });
@@ -394,7 +399,7 @@ describe("Review", () => {
     expect(first).toMatchObject({ ok: true, workspace: { kind: "drafting", batches: 1 } });
     expect(read(root, `${WIP}.review/v0.feedback-1.md`)).toStartWith("# Drafting feedback 1");
     await review.decide(SAY_NO);
-    expect(await review.pending()).toEqual({
+    expect((await review.poll()).pending).toEqual({
       kind: "drafts",
       batches: [
         { batch: 1, path: `${WIP}.review/v0.feedback-1.md` as never },
