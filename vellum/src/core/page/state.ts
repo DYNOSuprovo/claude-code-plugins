@@ -13,6 +13,7 @@ import type {
 } from "../protocol.ts";
 import {
   editOnLoad,
+  goneWithEdit,
   EMPTY_TYPED,
   landedAnnotations,
   lineDiff,
@@ -343,7 +344,20 @@ export function closeEditor(atLine: number): void {
   });
 }
 
-/** Discard edit, the reverse of Done: the version's text again, the comments back on its lines. */
+/** The comments Discard edit takes whole, as its confirmation counts them before the click. */
+export const goneOnDiscard = computed(() => {
+  const edit = edited.value;
+  const plan = review.value?.plan ?? null;
+
+  return edit === null || plan === null
+    ? 0
+    : goneWithEdit(annotations.value, plan.doc, lineDiff(edit.text, plan.text));
+});
+
+/**
+ * Discard edit, the reverse of Done: the version's text again, the comments back on its lines,
+ * but for those on a line only the edit held, which go with it.
+ */
 export function discardEdit(): void {
   const edit = edited.value;
   const plan = review.value?.plan ?? null;

@@ -169,9 +169,11 @@ no build step, so what the page imports costs nothing at `cli start`.
   feedback and the sheet say so, the sheet by marking nothing; a `removed` passage is judged
   against the version again at each Done, and comes back once its text does. Discard edit is
   `discardEdit`, the reverse through `unshiftAnnotations` and the diff back to the version's
-  text. The editor closes through
-  `closeEditor` alone, Done and Cancel alike, on the line under the caret: `resume` carries it,
-  the plan's renderer scrolls to its block once the diagrams are drawn and the images decoded,
+  text: a passage on a line only the edit holds goes with it, and a comment left with no
+  passage goes whole. Its confirmation counts those comments before the click
+  (`goneOnDiscard`), since Discard edit clears Delete's undo and no notice after it could bring
+  them back. The editor closes through `closeEditor` alone, Done and Cancel alike, on the line
+  under the caret: `resume` carries it, the plan's renderer scrolls to its block once the diagrams are drawn and the images decoded,
   and `Tools` gives the focus back to Edit. While the editor is open the comments panel stays
   readable and scrolls: its actions are disabled, not the panel.
 - `EventSource` reconnects by itself, so the page polls nothing: `subscribe` reports `error`

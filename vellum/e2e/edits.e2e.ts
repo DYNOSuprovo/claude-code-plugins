@@ -8,8 +8,9 @@ import { boxOf, commentOn, expect, openVellum, readFixture, reviewV1, test } fro
 
 /**
  * Edits and changes: a comment on a text the edit removed says so and moves nowhere, Discard
- * edit is the reverse of Done, the editor hands back the place and the focus, Ctrl+Enter is
- * Done, the comments stay readable meanwhile, and a code block says which lines changed.
+ * edit is the reverse of Done and says first which comments go with the edit, the editor hands
+ * back the place and the focus, Ctrl+Enter is Done, the comments stay readable meanwhile, and a
+ * code block says which lines changed.
  */
 
 async function openEditor(page: Page): Promise<void> {
@@ -55,6 +56,10 @@ function fillets(page: Page): Promise<string[]> {
   return page
     .locator(".plan .marked")
     .evaluateAll((blocks) => blocks.map((block) => block.dataset.lines ?? ""));
+}
+
+function discarding(page: Page): Locator {
+  return page.getByRole("dialog", { name: "Before discarding the edit" });
 }
 
 test.describe("a comment on a text the edit removes", () => {
@@ -110,10 +115,32 @@ test.describe("Discard edit", () => {
     expect(await fillets(page)).not.toEqual(before);
 
     await page.getByRole("button", { name: "Discard edit" }).click();
+    await expect(discarding(page)).not.toContainText("only your edit holds");
     await page.getByRole("button", { name: "Discard", exact: true }).click();
     await expect(page.locator(".doc-head .edited")).toHaveCount(0);
     await expect(page.locator(".bar .stat")).toHaveText("+12 −15");
     expect(await fillets(page)).toEqual(before);
+  });
+
+  test("says first that a comment on a line only the edit holds goes with it", async ({
+    page,
+    vellum,
+  }) => {
+    await reviewV1(page, vellum);
+    await editPlan(page, (text) =>
+      text.replace("## Decisions\n", "One line the reviewer wrote.\n\n## Decisions\n"),
+    );
+    await page.getByRole("button", { name: "Done" }).click();
+    await commentOn(page);
+    const added = page.locator("article.plan p", { hasText: "One line the reviewer wrote." });
+    await commentBlock(page, added, "Why here?");
+
+    await page.getByRole("button", { name: "Discard edit" }).click();
+    await expect(discarding(page)).toContainText(
+      "1 comment is on a line only your edit holds: it goes with the edit.",
+    );
+    await page.getByRole("button", { name: "Discard", exact: true }).click();
+    await expect(page.locator(".comments .card")).toHaveCount(0);
   });
 });
 

@@ -11,6 +11,7 @@ export type { DiffRun, LineDiff } from "./server/domain/diff.ts";
 
 export {
   countChanges,
+  goneWithEdit,
   lineDiff,
   shiftAnnotations,
   unshiftAnnotations,

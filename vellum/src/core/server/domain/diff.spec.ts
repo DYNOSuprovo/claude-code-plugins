@@ -4,12 +4,13 @@ import { describe, expect, test } from "bun:test";
 import type { LineDiff } from "./diff.ts";
 import {
   countChanges,
+  goneWithEdit,
   lineDiff,
   shiftAnnotations,
   shiftLines,
   unshiftAnnotations,
 } from "./diff.ts";
-import type { Annotation } from "./feedback.ts";
+import type { Annotation, Passage } from "./feedback.ts";
 
 describe("lineDiff", () => {
   test("two equal texts are one same run", () => {
@@ -79,21 +80,29 @@ const PLAN = "plans/2026-09-15/wip-4c2a9d93/.review/v2.md" as never;
 
 const ARTIFACT = "plans/2026-09-15/wip-4c2a9d93/notes.md" as never;
 
+function passageAt(lines: readonly [number, number], removed = false): Passage {
+  return { kind: "prose", quote: "fast enough", prefix: "", suffix: "", lines, removed };
+}
+
 function deleteAt(
   doc: Annotation["doc"],
   lines: readonly [number, number],
   removed = false,
 ): Annotation {
-  const passage = {
-    kind: "prose",
-    quote: "fast enough",
-    prefix: "",
-    suffix: "",
-    lines,
-    removed,
-  } as const;
+  const passages = [passageAt(lines, removed)] as const;
 
-  return { id: "a", doc, anchor: { kind: "text", passages: [passage] }, mark: { kind: "delete" } };
+  return { id: "a", doc, anchor: { kind: "text", passages }, mark: { kind: "delete" } };
+}
+
+/** A delete on two places of the plan, picked together with Ctrl. */
+function deleteAtBoth(
+  id: string,
+  first: readonly [number, number],
+  second: readonly [number, number],
+): Annotation {
+  const passages = [passageAt(first), passageAt(second)] as const;
+
+  return { ...deleteAt(PLAN, first), id, anchor: { kind: "text", passages } };
 }
 
 /** `l1` to `l<count>`, one per line. */
@@ -195,5 +204,25 @@ describe("unshiftAnnotations", () => {
   test("another document's annotation comes back unchanged", () => {
     const other = [deleteAt(ARTIFACT, [41, 41], true)];
     expect(unshiftAnnotations(other, PLAN, TWO_ABOVE)).toEqual(other);
+  });
+
+  test("a passage on a line only the edit holds goes with the edit, not onto the version's next line", () => {
+    const back = lineDiff("a\nNEW\nb\nc\n", "a\nb\nc\n");
+    expect(unshiftAnnotations([deleteAt(PLAN, [2, 2])], PLAN, back)).toEqual([]);
+  });
+
+  test("a comment with a passage on a line only the edit holds loses that passage alone", () => {
+    const back = lineDiff("a\nNEW\nb\nc\n", "a\nb\nc\n");
+    expect(unshiftAnnotations([deleteAtBoth("a", [2, 2], [4, 4])], PLAN, back)).toEqual([
+      deleteAt(PLAN, [3, 3]),
+    ]);
+  });
+});
+
+describe("goneWithEdit", () => {
+  test("counts the comments Discard edit takes whole, not one that keeps a passage", () => {
+    const back = lineDiff("a\nNEW\nb\nc\n", "a\nb\nc\n");
+    const comments = [deleteAt(PLAN, [2, 2]), deleteAtBoth("b", [2, 2], [4, 4])];
+    expect(goneWithEdit(comments, PLAN, back)).toBe(1);
   });
 });

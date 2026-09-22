@@ -8,6 +8,7 @@ import {
   edited,
   editing,
   flipCommentSwitch,
+  goneOnDiscard,
   locked,
   planDoc,
   resume,
@@ -32,9 +33,13 @@ export function switchShown(comments: boolean): boolean {
   );
 }
 
-/** Discard edit asks first: the edit is the reviewer's own text of the plan, and it goes whole. */
+/**
+ * Discard edit asks first: the edit is the reviewer's own text of the plan, and it goes whole,
+ * with the comments on a line only it holds.
+ */
 function DiscardEdit(props: { readonly version: number }): preact.JSX.Element {
   const [asking, setAsking] = useState(false);
+  const gone = goneOnDiscard.value;
 
   return (
     <>
@@ -49,6 +54,13 @@ function DiscardEdit(props: { readonly version: number }): preact.JSX.Element {
         >
           <div class="warn-text">Your edit of v{props.version} is not sent.</div>
           <div>Discarding it brings the version's text back, and the comments with it.</div>
+          {gone > 0 && (
+            <div class="warn-text">
+              {gone === 1
+                ? "1 comment is on a line only your edit holds: it goes with the edit."
+                : `${gone} comments are on lines only your edit holds: they go with the edit.`}
+            </div>
+          )}
           <div class="row">
             <Button size="sm" onClick={() => setAsking(false)}>
               Keep it

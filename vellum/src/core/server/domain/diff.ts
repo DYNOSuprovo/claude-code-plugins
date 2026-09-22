@@ -164,16 +164,37 @@ export function shiftAnnotations(
 
 /**
  * Discard edit, the reverse: the passages not removed are shifted by the diff back to the
- * version's text, and the removed ones are removed no more, their lines intact.
+ * version's text, and the removed ones are removed no more, their lines intact. A passage on a
+ * line only the edit holds, one `removedLines` finds in the diff back, goes with the edit, and
+ * a comment left with no passage goes whole.
  */
 export function unshiftAnnotations(
   annotations: readonly Annotation[],
   doc: ProjectPath,
   diff: LineDiff,
 ): readonly Annotation[] {
-  return mapPassages(annotations, doc, (passage) =>
-    passage.removed
-      ? { ...passage, removed: false }
-      : { ...passage, lines: shiftLines(diff, passage.lines) },
-  );
+  return annotations.flatMap((annotation) => {
+    if (annotation.doc !== doc || annotation.anchor.kind !== "text") return [annotation];
+
+    const [first, ...rest] = annotation.anchor.passages.flatMap((passage) => {
+      if (passage.removed) return [{ ...passage, removed: false }];
+
+      return removedLines(diff, passage.lines)
+        ? []
+        : [{ ...passage, lines: shiftLines(diff, passage.lines) }];
+    });
+
+    return first === undefined
+      ? []
+      : [{ ...annotation, anchor: { kind: "text", passages: [first, ...rest] } }];
+  });
+}
+
+/** How many comments Discard edit takes whole: those left with no passage by `unshiftAnnotations`. */
+export function goneWithEdit(
+  annotations: readonly Annotation[],
+  doc: ProjectPath,
+  diff: LineDiff,
+): number {
+  return annotations.length - unshiftAnnotations(annotations, doc, diff).length;
 }
