@@ -37,9 +37,10 @@ export type GrillState =
     };
 
 /**
- * What the page draws. A question crosses as data, never as rendered Markdown: the page draws a
- * card with its number, its topic, the recommendation, and its answer or its field. The `❓`
- * and `➡️` markers stay in the file, where they carry the parsing, and the page never prints them.
+ * What the page draws. A question crosses as a card's parts: its number, its topic, the question
+ * and the recommendation as HTML the server rendered from the file's Markdown with the same
+ * `toHtml` as the text between the cards, and its answer or its field. The `❓` and `➡️` markers
+ * stay in the file, where they carry the parsing, and the page never prints them.
  */
 export type Block =
   | { readonly kind: "html"; readonly html: string }
@@ -48,7 +49,9 @@ export type Block =
       /** `Q3`, the number that runs across the whole grill. */
       readonly id: string;
       readonly title: string;
+      /** Inline HTML, never raw Markdown: the page inserts it as it inserts an `html` block. */
       readonly ask: string;
+      /** As `ask`; `""` when Claude gave none. */
       readonly rec: string;
       /** The reviewer's answer, read beside its question; `null` while the card takes one. */
       readonly answer: string | null;

@@ -249,24 +249,33 @@ type CardProps = {
   readonly answer: string;
   /** `null` once the question is answered, or the grill closed: the card takes nothing. */
   readonly onAnswer: ((text: string) => void) | null;
+  /** Ctrl+Enter in the card's field, as in the foot's; `null` while nothing can be sent. */
+  readonly onSend: (() => void) | null;
 };
 
+/** Take it fills an empty field: over a typed answer it is greyed, so a click never replaces the typing. */
 function QuestionCard(props: CardProps): preact.JSX.Element {
   const { block } = props;
 
   return (
     <div class="grill-q">
-      <div class="head">
+      <h4 class="head">
         <span class="num">{block.id}</span>
         <span class="topic">{block.title}</span>
-      </div>
-      <p class="ask">{block.ask}</p>
+      </h4>
+      {/* oxlint-disable-next-line react/no-danger -- the question arrives rendered, by the same `toHtml` of grill/server.ts as the blocks between the cards. */}
+      <div class="ask" dangerouslySetInnerHTML={{ __html: block.ask }} />
       {block.rec !== "" && (
         <div class="rec">
           <span class="label">Recommended</span>
-          <span class="text">{block.rec}</span>
+          {/* oxlint-disable-next-line react/no-danger -- as the question above: rendered by `toHtml` in grill/server.ts. */}
+          <div class="text" dangerouslySetInnerHTML={{ __html: block.rec }} />
           {props.onAnswer !== null && (
-            <Button size="sm" onClick={() => props.onAnswer?.(TAKEN)}>
+            <Button
+              size="sm"
+              disabled={props.answer.trim() !== ""}
+              onClick={() => props.onAnswer?.(TAKEN)}
+            >
               Take it
             </Button>
           )}
@@ -284,6 +293,9 @@ function QuestionCard(props: CardProps): preact.JSX.Element {
           placeholder={`Answer ${block.id}, or leave empty to take the recommendation`}
           value={props.answer}
           onInput={(event) => props.onAnswer?.(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) props.onSend?.();
+          }}
         />
       )}
     </div>
@@ -380,6 +392,7 @@ function GrillDoc(props: RendererProps): preact.JSX.Element {
               onAnswer={
                 current !== null && block.answer === null ? (text) => answer(block.id, text) : null
               }
+              onSend={sendable ? () => void send() : null}
             />
           ),
         )}

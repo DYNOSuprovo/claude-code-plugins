@@ -368,6 +368,23 @@ describe("the blocks the page draws", () => {
     expect((await get("blocks?file=grill-9.md")).status).toBe(404);
   });
 
+  test("a card's question and recommendation come rendered too, backticks as code", async () => {
+    const { post, get } = await grilling();
+    await post("open", { subject: "auth" });
+    await post("ask", { q: [["Store", "Which store: `redis` or `pg`?", "`redis`, for the TTL."]] });
+
+    const blocks = await get(`blocks?file=${encodeURIComponent(`${WIP}grill-1.md`)}`);
+
+    expect(await blocks.json()).toContainEqual({
+      kind: "question",
+      id: "Q1",
+      title: "Store",
+      ask: "<p>Which store: <code>redis</code> or <code>pg</code>?</p>\n",
+      rec: "<p><code>redis</code>, for the TTL.</p>\n",
+      answer: null,
+    });
+  });
+
   test("raw HTML stays text and a link that would run code is cut", () => {
     const html = toHtml(
       "<script>x</script>\n\n[a](javascript:alert(1)) [b](https://x.dev) [c](./d.md)",

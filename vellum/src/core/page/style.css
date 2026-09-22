@@ -178,6 +178,8 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .image { padding: var(--s-6); }
 /* An image lies on paper whatever the theme: a transparent diagram in dark ink stays readable, a capture keeps its edge. */
 .image img { max-width: 100%; display: block; background: var(--paper); border: 1px solid var(--rule); }
+.image.fit img { cursor: zoom-in; }
+.image.real img { max-width: none; cursor: zoom-out; }
 .waiting { padding: var(--s-10); color: var(--graphite); }
 .editor { flex: 1; display: flex; }
 .editor textarea { flex: 1; max-width: 100ch; margin-inline: auto; border: 0; border-radius: 0; resize: none; padding: var(--s-4) var(--s-6); font: var(--t-14)/var(--lh-code) var(--mono); background: var(--field); }
@@ -193,6 +195,12 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .plan ul, .plan ol { padding-left: 1.2em; }
 .plan a { color: var(--ink); text-decoration-color: var(--redline); text-underline-offset: 3px; cursor: pointer; }
 .plan code { font-family: var(--mono); font-size: var(--mono-optical); font-variant-ligatures: none; background: var(--tint); padding: 0.1em 0.35em; border-radius: var(--r-sm); }
+/* An identifier or a URL in prose breaks anywhere rather than widen the pane; a table scrolls in its own box, drawn from the margin so a row's fillet and bar stay inside it. */
+.plan :not(pre) > code, .plan a { overflow-wrap: anywhere; }
+.plan img { max-width: 100%; height: auto; }
+.plan .scroll-x { overflow-x: auto; margin-left: calc(var(--s-6) * -1); padding-left: var(--s-6); }
+.plan .task-list-item { list-style: none; }
+.plan .task-list-item > input { margin: 0 0.35em 0 -1.2em; }
 .plan pre { position: relative; isolation: isolate; background: var(--tint); color: var(--ink); padding: var(--s-3); border-radius: var(--r-md); overflow: auto; font: var(--t-14)/var(--lh-code) var(--mono); font-variant-ligatures: none; }
 .plan pre code { background: none; padding: 0; font-size: inherit; }
 .plan pre .line-added { position: absolute; z-index: -1; left: 0; right: 0; top: calc(var(--s-3) + var(--line) * var(--lh-code) * var(--t-14)); height: calc(var(--lh-code) * var(--t-14)); background: var(--wash-ok); pointer-events: none; }
@@ -263,21 +271,25 @@ iframe { border: 0; width: 100%; height: 100%; display: block; background: var(-
 .grill-doc .plan h2 { font: 600 var(--t-16)/var(--lh-title) var(--serif); color: var(--graphite); border-top: 1px solid var(--rule); padding-top: var(--s-3); margin-top: var(--s-8); }
 .grill-doc .plan h3 { font: 650 var(--t-13)/1.4 var(--serif); color: var(--ask); margin: var(--s-3) 0 0; }
 .grill-q { font-family: var(--serif); border: 1px solid var(--rule); border-left: 3px solid var(--ask); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); margin: var(--s-4) 0; background: var(--field); max-width: var(--measure); }
-.grill-q .head { display: flex; align-items: baseline; gap: var(--s-2); margin-bottom: var(--s-2); }
+.grill-q .head { display: flex; align-items: baseline; gap: var(--s-2); margin: 0 0 var(--s-2); font: inherit; }
 .grill-q .num { font: 650 var(--t-12)/1.5 var(--mono); color: var(--sheet); background: var(--ask); border-radius: var(--r-pill); padding: 1px var(--s-2); }
 .grill-q .topic { font-weight: 600; }
-.grill-q .ask { margin: 0 0 var(--s-2); white-space: pre-wrap; }
-.grill-q .rec { display: flex; align-items: center; gap: var(--s-2); background: var(--tint); border: 1px solid var(--rule); border-radius: var(--r-md); padding: var(--s-2) var(--s-3); margin-bottom: var(--s-2); font-size: var(--t-14); }
+.grill-q .ask { margin: 0 0 var(--s-2); }
+.grill-q .ask p, .grill-q .rec .text p { margin: 0; }
+.grill-q .ask p + p, .grill-q .rec .text p + p { margin-top: var(--s-2); }
+/* Stacked: the label over the text at the card's full width, Take it under it, at the right. */
+.grill-q .rec { display: grid; grid-template-columns: 1fr auto; gap: var(--s-1) var(--s-2); background: var(--tint); border: 1px solid var(--rule); border-radius: var(--r-md); padding: var(--s-2) var(--s-3); margin-bottom: var(--s-2); font-size: var(--t-14); }
+.grill-q .rec .label, .grill-q .rec .text { grid-column: 1 / -1; }
+.grill-q .rec .btn { grid-column: 2; justify-self: end; }
 .grill-q .answer { display: flex; align-items: baseline; gap: var(--s-2); border-left: 3px solid var(--ok); padding: var(--s-1) var(--s-2); font-size: var(--t-14); }
 .grill-q .answer .label { font: 650 var(--t-12)/1.4 var(--serif); color: var(--ok); white-space: nowrap; }
 .grill-q .answer .text { white-space: pre-wrap; }
 .grill-q textarea { min-height: 64px; border-color: var(--ask); }
 .grill-q .rec .label { font: 650 var(--t-12)/1.4 var(--serif); color: var(--graphite); }
-.grill-q .rec .text { flex: 1; white-space: pre-wrap; }
-/* The foot's height is the token the pane pads its scroll with: a focused control never lands under it. */
+/* The foot's height is the token the pane pads its scroll with: a focused control never lands under it. Its field and its row keep the cards' measure. */
 .grill-foot { position: sticky; bottom: 0; height: var(--grill-foot); display: flex; flex-direction: column; background: var(--sheet); border-top: 1px solid var(--rule); padding: var(--s-2) var(--s-6); }
-.grill-foot textarea { flex: 1; min-height: 0; resize: none; }
-.grill-foot .row { flex: none; align-items: center; gap: var(--s-2); }
+.grill-foot textarea { flex: 1; min-height: 0; resize: none; max-width: var(--measure); }
+.grill-foot .row { flex: none; align-items: center; gap: var(--s-2); max-width: var(--measure); }
 .grill-foot .note { flex: 1; color: var(--graphite); font-size: var(--t-13); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .popover { position: absolute; width: 300px; background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r-md); box-shadow: var(--shadow); padding: var(--s-3); font: var(--t-13)/var(--lh-chrome) var(--serif); z-index: 2; }
 .popover .quote { color: var(--graphite); font-style: italic; margin-bottom: var(--s-2); }

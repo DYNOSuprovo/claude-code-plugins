@@ -1,14 +1,10 @@
-import type { Element as HastElement, RootContent } from "hast";
-import type { ComponentChild } from "preact";
-import { h } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import type { RendererProps, PageExtension } from "../../core/extension.ts";
 import { parseLines, passageFromRange, rangeFor } from "../../core/page/anchoring.ts";
-import { docUrl, fileUrl } from "../../core/page/api.ts";
+import { docUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { paint } from "../../core/page/highlights.ts";
-import { srgb } from "../../core/page/kit.tsx";
 import type { Rect } from "../../core/page/place.ts";
 import { windowOf } from "../../core/page/place.ts";
 import { dragRange, toggled } from "../../core/page/selection.ts";
@@ -25,161 +21,15 @@ import {
   succeed,
 } from "../../core/page/state.ts";
 import type { DocRef, Passage } from "../../core/protocol.ts";
-import { parseProjectPath } from "../../core/server/domain/paths.ts";
-import type { Changes, RemovedRun } from "./changes.ts";
-import { changesOf, removedLabel } from "./changes.ts";
+import { changesOf } from "./changes.ts";
 import { linkedDoc } from "./links.ts";
 import { markedIndices } from "./marked.ts";
+import { drawDiagrams } from "./mermaid.ts";
 import type { Target } from "./pinpoint.ts";
 import { boxOf, diagramPassage, targetAt, targetRange } from "./pinpoint.ts";
 import { waitingText } from "./sheet.ts";
 import { toTree } from "./tree.ts";
-
-function attributeName(property: string): string {
-  if (property === "className") return "class";
-
-  return property.replaceAll(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
-}
-
-const SAFE_SCHEMES = new Set(["http:", "https:", "mailto:"]);
-
-/**
- * A URL of the document, as the page may use it: a project-relative path becomes a files route
- * and keeps its path in `data-path`; an absolute URL with a safe scheme stays; anything else
- * (`javascript:`, `data:`) is dropped. Markdown is the model's text, not the reviewer's.
- */
-function urlAttributes(value: string): readonly (readonly [string, string])[] {
-  const scheme = /^([a-z][a-z0-9+.-]*:)/iu.exec(value)?.[1]?.toLowerCase();
-
-  if (scheme !== undefined) {
-    return SAFE_SCHEMES.has(scheme) ? [["href", value]] : [];
-  }
-
-  if (value.startsWith("#")) return [["href", value]];
-  const path = parseProjectPath(value.split(/[#?]/u)[0] ?? "");
-
-  return path.ok
-    ? [
-        ["href", fileUrl(path.value)],
-        ["data-path", path.value],
-      ]
-    : [];
-}
-
-/** The source of a mermaid block, when `node` is the `pre` holding one. */
-function mermaidSource(node: HastElement): string | null {
-  const code = node.tagName === "pre" ? node.children[0] : undefined;
-  const classes = code?.type === "element" ? code.properties.className : undefined;
-
-  if (!Array.isArray(classes) || !classes.includes("language-mermaid")) return null;
-  const text = code?.type === "element" ? code.children[0] : undefined;
-
-  return text?.type === "text" ? text.value : null;
-}
-
-/**
- * A removed run, folded. Its label and its old source are attributes CSS draws, as the Mermaid
- * figure keeps its source: with no text node it takes no selection and no quote search finds it.
- * Before a code block or a figure it takes the block's width.
- */
-function removedBlock(run: RemovedRun, wide = false): ComponentChild {
-  return h(
-    "details",
-    { key: `removed-${run.before}`, class: wide ? "removed wide" : "removed" },
-    h("summary", { "data-label": removedLabel(run.lines.length) }),
-    h("div", { "data-source": run.lines.join("\n") }),
-  );
-}
-
-/** What is drawn before `node`: its removed runs, as a row of their own before a row. */
-function removedBefore(node: HastElement, runs: readonly RemovedRun[]): ComponentChild[] {
-  if (runs.length === 0) return [];
-
-  if (node.tagName !== "tr") {
-    const wide = node.tagName === "pre" || mermaidSource(node) !== null;
-
-    return runs.map((run) => removedBlock(run, wide));
-  }
-
-  const cells = node.children.filter((child) => child.type === "element").length;
-
-  return [
-    h(
-      "tr",
-      { key: `removed-row-${runs[0]?.before ?? 0}`, class: "removed-row" },
-      h("td", { colSpan: cells }, ...runs.map((run) => removedBlock(run))),
-    ),
-  ];
-}
-
-function toVNodes(nodes: readonly RootContent[], changes: Changes | null): ComponentChild[] {
-  return nodes.flatMap((node, index) => [
-    ...(node.type === "element" ? removedBefore(node, changes?.removedBefore.get(node) ?? []) : []),
-    toVNode(node, index, changes),
-  ]);
-}
-
-/** The bands over a code block's added lines, placed by CSS from the line's index. */
-function addedLineBands(lines: readonly number[]): ComponentChild[] {
-  return lines.map((line) =>
-    h("span", { key: `line-${line}`, class: "line-added", style: `--line: ${line}` }),
-  );
-}
-
-/** hast to preact, by hand: the JSX runtime adapters type against a global JSX namespace this page does not own. */
-function toVNode(node: RootContent, key: number, changes: Changes | null): ComponentChild {
-  if (node.type === "text") return node.value;
-
-  if (node.type !== "element") return null;
-  const source = mermaidSource(node);
-  const added = changes?.marked.has(node) === true;
-
-  if (source !== null) {
-    return h("figure", {
-      key,
-      class: added ? "mermaid added" : "mermaid",
-      "data-lines": String(node.properties.dataLines),
-      "data-source": source,
-    });
-  }
-
-  const attributes: readonly (readonly [string, string])[] = Object.entries(
-    node.properties,
-  ).flatMap(([name, value]) => {
-    if (value === undefined || value === null || value === false) return [];
-    const text = Array.isArray(value) ? value.join(" ") : value === true ? "" : String(value);
-
-    if (name === "href" || name === "src") {
-      return urlAttributes(text).map(([attribute, url]) => [
-        attribute === "href" ? name : attribute,
-        url,
-      ]);
-    }
-
-    return [[attributeName(name), text]];
-  });
-
-  const extra = node.tagName === "a" ? { target: "_blank", rel: "noopener" } : {};
-  const given = Object.fromEntries(attributes);
-  const mark = added ? { class: `${given.class ?? ""} added`.trimStart() } : {};
-
-  const inside = (changes?.removedInside.get(node) ?? []).map((run) => removedBlock(run));
-  const children = toVNodes(node.children, changes);
-  const bands = addedLineBands(changes?.addedLines.get(node) ?? []);
-
-  // A task item's removed run follows its checkbox, so the box stays on the bullet's line.
-  const first = node.children[0];
-  const checkbox = first?.type === "element" && first.tagName === "input" ? 1 : 0;
-
-  return h(
-    node.tagName,
-    { key, ...extra, ...given, ...mark },
-    ...children.slice(0, checkbox),
-    ...inside,
-    ...children.slice(checkbox),
-    ...bands,
-  );
-}
+import { removedBlock, toVNodes } from "./vnode.ts";
 
 type Chosen = { readonly range: Range; readonly passage: Passage };
 
@@ -230,74 +80,6 @@ function focusPassage(root: HTMLElement, passage: Passage): void {
   if (block === undefined || block === null) return;
   block.tabIndex = -1;
   block.focus({ preventScroll: true });
-}
-
-/** Mermaid removes any element carrying the id it renders under: one counter for the whole page, not one per pane. */
-let diagrams = 0;
-
-/** Mermaid draws in the page after the mount; its bundle loads on the first diagram only. */
-async function drawDiagrams(root: HTMLElement, night: boolean): Promise<void> {
-  const figures = [...root.querySelectorAll<HTMLElement>("figure.mermaid")];
-  const [first] = figures;
-
-  if (first === undefined) return;
-  const { default: mermaid } = await import("mermaid");
-  const { fontFamily, fontSize } = getComputedStyle(first);
-  const sheet = srgb("--sheet");
-  const tint = srgb("--tint");
-  const ink = srgb("--ink");
-  const graphite = srgb("--graphite");
-
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: "strict",
-    // A failed render throws before it cleans up: the figure shows the error, and body stays clean.
-    suppressErrorRendering: true,
-    theme: "base",
-    themeVariables: {
-      // The base theme derives what is not given here (an ER row, a colour scale) toward light unless told.
-      darkMode: night,
-      background: sheet,
-      mainBkg: tint,
-      primaryColor: tint,
-      primaryTextColor: ink,
-      primaryBorderColor: graphite,
-      secondaryColor: sheet,
-      tertiaryColor: sheet,
-      nodeBorder: graphite,
-      lineColor: graphite,
-      textColor: ink,
-      clusterBkg: sheet,
-      clusterBorder: srgb("--rule"),
-      edgeLabelBackground: sheet,
-      noteBkgColor: tint,
-      noteTextColor: ink,
-      noteBorderColor: srgb("--rule"),
-      titleColor: ink,
-      // The base theme's shadow is a grey literal: a halo on the dark sheet.
-      dropShadow: "none",
-      fontFamily,
-      fontSize,
-    },
-  });
-
-  for (const figure of figures) {
-    const source = figure.dataset.source ?? "";
-    diagrams += 1;
-
-    try {
-      const { svg } = await mermaid.render(`vellum-diagram-${diagrams}`, source);
-
-      if (figure.dataset.source === source) figure.innerHTML = svg;
-    } catch (cause) {
-      const text = document.createElement("pre");
-      const failure = document.createElement("p");
-      text.textContent = source;
-      failure.className = "diagram-error";
-      failure.textContent = String(cause);
-      figure.replaceChildren(text, failure);
-    }
-  }
 }
 
 function linesAt(block: HTMLElement): readonly [number, number] {
@@ -372,16 +154,19 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   const swallow = useRef(false);
 
   const shown = props.source ?? text;
+  const listed = docs.value;
+  const plan = review.value?.plan ?? null;
 
   const content = useMemo(() => {
     if (shown === null) return null;
     const tree = toTree(shown);
     const changes = props.changes === null ? null : changesOf(tree, props.changes);
+    const sheet = { changes, docs: listed, plan };
 
     const atEnd = (changes?.removedAtEnd ?? []).map((run) => removedBlock(run));
 
-    return [...toVNodes(tree.children, changes), ...atEnd];
-  }, [shown, props.changes]);
+    return [...toVNodes(tree.children, sheet), ...atEnd];
+  }, [shown, props.changes, listed, plan]);
 
   useEffect(() => {
     void sourceOf(props.doc).then((source) => {

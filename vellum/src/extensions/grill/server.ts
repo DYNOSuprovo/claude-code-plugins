@@ -62,9 +62,12 @@ export function toHtml(markdown: string): string {
     );
 }
 
+/** Every text the page draws is rendered here: the Markdown between the cards, and a card's question and recommendation. */
 export function blocksOf(doc: string): Block[] {
   return segmentsOf(doc).map((segment) =>
-    segment.kind === "markdown" ? { kind: "html", html: toHtml(segment.text) } : segment,
+    segment.kind === "markdown"
+      ? { kind: "html", html: toHtml(segment.text) }
+      : { ...segment, ask: toHtml(segment.ask), rec: toHtml(segment.rec) },
   );
 }
 

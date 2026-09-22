@@ -48,7 +48,7 @@ no build step, so what the page imports costs nothing at `cli start`.
 - `strict` lets through an `any` that a library's overload returns, and oxlint reads no types:
   `response.json()`, `JSON.parse`, and `Object.fromEntries` over pairs that lost their tuple type,
   which an array literal returned from a callback does. The constant that receives one carries
-  its type: `attributes` in `markdown/page.tsx` is annotated as pairs, or `given` is `any` and
+  its type: `attributes` in `markdown/vnode.ts` is annotated as pairs, or `given` is `any` and
   spreads into the props of every node. To check a doubt, `const probe: number = <value>` must
   fail `bun x tsgo --noEmit`.
 - `app.tsx` is the one file that reads the registry: it picks the renderer and hands the
