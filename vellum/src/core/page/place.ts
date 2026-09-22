@@ -6,7 +6,7 @@ export type Rect = {
   readonly height: number;
 };
 
-export type Placement = { readonly top: number; readonly left: number; readonly above: boolean };
+export type Placement = { readonly top: number; readonly left: number };
 
 /** A pane's window in its own scrolled content: the space `placeNear` keeps a popover inside. */
 export function windowOf(pane: HTMLElement): Rect {
@@ -37,6 +37,5 @@ export function placeNear(
   return {
     top: above ? over : under,
     left: Math.max(pane.left + GAP, Math.min(target.left, rightmost)),
-    above,
   };
 }
