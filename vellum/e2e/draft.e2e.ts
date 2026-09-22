@@ -122,6 +122,20 @@ test.describe("the grill's answers", () => {
     await expect(page.locator(".grill-foot textarea")).toHaveValue("Explain the issue first.");
   });
 
+  test("go with a grill Claude closed: the approval asks about nothing", async ({
+    page,
+    vellum,
+  }) => {
+    await roundOne(page, vellum);
+    await page.locator(".grill-q").nth(1).locator("textarea").fill("The inspector.");
+    await vellum.grill.close("stop");
+    await expect(page.locator(".grill-foot")).toHaveCount(0);
+    await page.getByRole("button", { name: "Approve", exact: true }).click();
+
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.locator(".bar .status")).toHaveText("Approved");
+  });
+
   test("End grill sends the two answers typed, then ends", async ({ page, vellum }) => {
     await roundOne(page, vellum);
     await page.locator(".grill-q").nth(1).locator("textarea").fill("The inspector.");
@@ -208,5 +222,25 @@ test.describe("a card", () => {
     await expect(card.locator("textarea")).toHaveCount(0);
     await expect(card).toContainText("Say which forms. Typo fixed.");
     await expect(card).not.toContainText("Tpyo");
+  });
+
+  test("Edit cleared keeps the last words in the draft, and Done waits for some", async ({
+    page,
+    vellum,
+  }) => {
+    await reviewV1(page, vellum);
+    await commentOn(page);
+    await addComment(page, "Say which forms.");
+    const card = page.locator(".comments .card").first();
+    await card.getByRole("button", { name: "Edit" }).click();
+    await card.locator("textarea").fill("");
+
+    await expect(card.getByRole("button", { name: "Done" })).toBeDisabled();
+    await expect
+      .poll(async () => JSON.stringify((await vellum.api("draft")).json))
+      .toContain('"body":"Say which forms."');
+    await card.locator("textarea").fill("Name the forms.");
+    await card.getByRole("button", { name: "Done" }).click();
+    await expect(card).toContainText("Name the forms.");
   });
 });

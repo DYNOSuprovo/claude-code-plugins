@@ -260,6 +260,15 @@ test.describe("Changes since, in a code block", () => {
 });
 
 test.describe("Changes since, a removed run", () => {
+  test("a table carries no removed row where nothing was removed", async ({ page, vellum }) => {
+    await reviewV2(page, vellum);
+    await expect(page.locator(".plan table tr").first()).toBeVisible();
+    await expect(page.locator(".plan tr.removed-row")).toHaveCount(0);
+
+    await page.locator(".tools [role=switch]", { hasText: "Changes since" }).click();
+    await expect(page.locator(".plan tr.removed-row")).toHaveCount(1);
+  });
+
   test("follows the checkbox of a task item, and sits in the table as a row", async ({
     page,
     vellum,

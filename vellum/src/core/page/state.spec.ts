@@ -730,6 +730,20 @@ describe("start", () => {
     expect(store.annotations.value).toEqual(kept);
   });
 
+  test("a restored editor typing of a version no longer under review is dropped: its field is gone", async () => {
+    const store = await freshStore();
+
+    serve({
+      draft: { annotations: [], edit: null, typed: { ...EMPTY_TYPED, editor: edit(1, "mine\n") } },
+      review: versioned({ version: 3 }),
+    });
+
+    await store.start();
+
+    expect(store.typed.value.editor).toBeNull();
+    expect(store.unsentTyped.value).toEqual([]);
+  });
+
   test("a restored edit of the version loaded stays pending", async () => {
     const store = await freshStore();
     serve({

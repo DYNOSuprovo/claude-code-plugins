@@ -121,6 +121,32 @@ test.describe("the decisions", () => {
 
     await expect(page.locator(".popover .btn.send")).toContainText("Approve");
   });
+
+  test("a second press on the notes' Approve while the first is in flight sends nothing", async ({
+    page,
+    vellum,
+  }) => {
+    await reviewV1(page, vellum);
+    let sent = 0;
+
+    await page.route("**/api/decision", async (route) => {
+      sent += 1;
+      await new Promise((done) => {
+        setTimeout(done, 600);
+      });
+      await route.continue();
+    });
+
+    await page.getByRole("button", { name: "Approve with notes…" }).click();
+    const approve = page.locator(".popover .btn.send");
+    await approve.click();
+    await expect(approve).toBeDisabled();
+    await page.keyboard.press("Control+Enter");
+    await expect(page.locator(".bar .status")).toHaveText("Approved");
+
+    expect(sent).toBe(1);
+    await expect(page.locator(".banner.err")).toHaveCount(0);
+  });
 });
 
 test.describe("the pill", () => {
@@ -188,28 +214,85 @@ test.describe("a deleted card", () => {
 test.describe("the grill", () => {
   test.use({ fixture: "grill-real" });
 
-  test("its suggestion is a banner in the flow that takes the focus, and Escape closes it", async ({
+  test("its suggestion is a banner in the flow that leaves the focus where it is, and Escape closes it", async ({
     page,
     vellum,
   }) => {
     await vellum.gate();
-    await vellum.grill.suggest("The coverage of the page", "three choices change the interface");
     await openVellum(page, vellum);
+    await page.locator("#global").fill("Overall: ");
+    await vellum.grill.suggest("The coverage of the page", "three choices change the interface");
 
     const banner = page.locator(".banner", { hasText: "Claude suggests a grill" });
     await expect(banner).toBeVisible();
     const field = banner.getByRole("textbox");
-    await expect(field).toBeFocused();
     await expect(field).toHaveValue("The coverage of the page");
+    await page.keyboard.type("no.");
+    await expect(page.locator("#global")).toHaveValue("Overall: no.");
     const [bannerBox, head] = [await boxOf(banner), await boxOf(page.locator(".doc-head"))];
     expect(head.y).toBeGreaterThanOrEqual(bannerBox.y + bannerBox.height);
     const fieldBox = await boxOf(field);
     expect(fieldBox.width).toBeGreaterThan(bannerBox.width * 0.6);
 
+    await field.click();
     await page.keyboard.press("Escape");
     await expect(banner).toHaveCount(0);
     await page.getByRole("button", { name: "Grill", exact: true }).click();
     await expect(banner.getByRole("textbox")).toBeFocused();
+  });
+
+  test("Start grilling is greyed with the Grill button's reason, and Enter opens nothing", async ({
+    page,
+    vellum,
+  }) => {
+    await vellum.gate();
+    await vellum.grill.suggest("The coverage of the page", "three choices");
+    await openVellum(page, vellum);
+    await openEditor(page);
+
+    const start = page.getByRole("button", { name: "Start grilling" });
+    await expect(start).toBeDisabled();
+    await expect(start).toHaveAttribute("title", /Done/u);
+    await page.locator(".banner").getByRole("textbox").press("Enter");
+    await expect(page.locator(".bar .status")).toHaveText("In review");
+    expect(JSON.stringify((await vellum.grill.state()).json)).toContain('"kind":"none"');
+  });
+
+  test("a grill the server cannot be reached for is a banner, and no error escapes", async ({
+    page,
+    vellum,
+  }) => {
+    await vellum.gate();
+    await vellum.grill.suggest("The coverage of the page", "three choices");
+    await openVellum(page, vellum);
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/x/grill/open", (route) => route.abort());
+    await page.getByRole("button", { name: "Start grilling" }).click();
+
+    await expect(page.locator(".banner.err")).toContainText("did not reach the server");
+    await expect(page.locator(".bar .status")).toHaveText("In review");
+    expect(errors).toEqual([]);
+  });
+
+  test("a refused reply stays in the banner while the transcript loads again", async ({
+    page,
+    vellum,
+  }) => {
+    await vellum.gate();
+    await vellum.grill.open("Where do drafts live?");
+    await vellum.grill.ask(ROUND_1);
+    await openVellum(page, vellum);
+    await page.locator("#rail button", { hasText: "grill-2.md" }).click();
+    await page.route("**/api/x/grill/reply", (route) => route.fulfill({ status: 409, body: "" }));
+    await page.locator(".grill-q").nth(0).locator("textarea").fill("IndexedDB.");
+    await page.getByRole("button", { name: "Send answers" }).click();
+    const banner = page.locator(".banner.err", { hasText: "refused" });
+    await expect(banner).toBeVisible();
+
+    await claudeSays(vellum, "Still asking.");
+    await expect(page.locator(".grill-doc .plan")).toContainText("Still asking.");
+    await expect(banner).toBeVisible();
   });
 
   test("the sheet says Claude is working, and a round lands in view", async ({ page, vellum }) => {
