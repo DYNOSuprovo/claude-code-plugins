@@ -307,11 +307,19 @@ document.addEventListener("keyup", onKey);
 // The keyup never arrives once the focus left: the page must hear the release from here.
 window.addEventListener("blur", () => hold(false));
 
-// The page places its composer from the box of a pick: a scroll or a reflow moves the box, so it is sent again.
+let resend = 0;
+
+// The page places its composer from the box of a pick: a scroll or a reflow moves the box, so it
+// is sent again, once per frame, since a wheel gesture fires many scroll events a frame.
 function moved(): void {
   draw();
 
-  if (chosen.length > 0) sendPick();
+  if (chosen.length === 0 || resend !== 0) return;
+
+  resend = requestAnimationFrame(() => {
+    resend = 0;
+    sendPick();
+  });
 }
 
 window.addEventListener("scroll", moved, true);
