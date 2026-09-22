@@ -253,7 +253,19 @@ async function loadReview(): Promise<void> {
     succeed("review");
     review.value = fetched.value;
     settleEdit(fetched.value);
+    settleEditorTyping(fetched.value);
   });
+}
+
+/** The editor's typing goes with the version it was typed on: no Edit opens on another one. */
+function settleEditorTyping(view: ReviewView): void {
+  const { editor } = typed.peek();
+  const { workspace } = view;
+
+  if (editor === null) return;
+
+  if (workspace.kind === "inReview" && workspace.version === editor.version) return;
+  setTyped({ editor: null });
 }
 
 /** `true` once the server took the decision; a refusal or a server that did not answer is a failure the notices show. */
