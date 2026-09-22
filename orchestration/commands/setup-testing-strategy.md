@@ -44,15 +44,7 @@ The layer-testing skill reads this file to understand how to test your project.
 
 ### Step 1: Check for Existing Strategy
 
-Check if `.claude/testing-strategy.md` already exists:
-
-```bash
-if [ -f .claude/testing-strategy.md ]; then
-  echo "Strategy file exists"
-fi
-```
-
-If it exists:
+Check if `.claude/testing-strategy.md` already exists. If it exists:
 ```
 ⚠️  Testing strategy already exists: .claude/testing-strategy.md
 
@@ -172,25 +164,7 @@ For custom architecture:
 
 ### Step 6: Write Strategy File
 
-Create `.claude/testing-strategy.md`:
-
-```bash
-# Ensure .claude directory exists
-mkdir -p .claude
-
-# Write strategy file
-cat > .claude/testing-strategy.md << 'EOF'
-[Customized template content]
-EOF
-```
-
-Verify file was created:
-```bash
-if [ -f .claude/testing-strategy.md ]; then
-  echo "✅ Created .claude/testing-strategy.md"
-  wc -l .claude/testing-strategy.md
-fi
-```
+Write the customized template to `.claude/testing-strategy.md` with the Write tool.
 
 ### Step 7: Present Summary
 
@@ -295,81 +269,6 @@ If no: Done
 **Template**: `skills/layer-testing/templates/testing-strategy-template.md`
 
 User defines their own layers, coverage targets, and patterns.
-
----
-
-## Examples
-
-### Example 1: Hexagonal Architecture
-
-```
-User: /setup-testing-strategy hexagonal
-
-✅ Testing Strategy Created
-
-Location: .claude/testing-strategy.md
-Architecture: Hexagonal (Ports & Adapters)
-Test Framework: Vitest
-Database Testing: PGlite
-
-Content Summary:
-  - 4 layers defined (core, application, infrastructure, boundary)
-  - Result<T,E> type guard patterns
-  - Contract testing for ports
-  - Quality gates specified
-
-Next Steps: Review .claude/testing-strategy.md and customize for your project
-```
-
-### Example 2: Interactive Mode
-
-```
-User: /setup-testing-strategy
-
-What architecture pattern does your project use?
-> Hexagonal (Ports & Adapters)
-
-What testing framework do you use?
-> Vitest
-
-What do you use for database testing?
-> PGlite (in-memory PostgreSQL)
-
-✅ Creating testing strategy...
-✅ Testing Strategy Created
-
-Location: .claude/testing-strategy.md
-...
-```
-
-### Example 3: Custom Architecture
-
-```
-User: /setup-testing-strategy
-
-What architecture pattern does your project use?
-> Custom
-
-What are your layer names? (comma-separated)
-> api,services,repositories
-
-What testing framework do you use?
-> Jest
-
-...
-
-✅ Testing Strategy Created
-
-You've created a custom strategy with:
-  - api layer
-  - services layer
-  - repositories layer
-
-Please edit .claude/testing-strategy.md to:
-  - Define coverage targets for each layer
-  - Specify what to test vs skip
-  - Add testing patterns
-```
 
 ---
 

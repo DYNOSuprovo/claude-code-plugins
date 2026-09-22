@@ -16,13 +16,7 @@ allowed-tools:
 $ARGUMENTS
 </task>
 
-<tools>
-- **Agent**: Spawn explore/worker agents
-- **Glob/Grep/Read**: Codebase exploration
-- **AskUserQuestion**: Get approval before execution
-- **Bash**: Run verification commands, git operations
-- **Edit/Write**: Only via worker agents, not directly
-</tools>
+Leave code changes to the worker agents: this command plans, sets up, dispatches and verifies.
 
 <workflow>
 
@@ -55,7 +49,7 @@ Collect reports, identify what to change vs preserve, estimate impact.
 
 ## Phase 2: Safety Setup
 
-1. Create rollback point: `git checkout -b backup/parallel-task-$(date +%s)`
+1. Create rollback point, staying on the current branch: `git branch backup/parallel-task-$(date +%s)`
 2. Add temporary files to .gitignore if needed
 3. Confirm all safety nets in place
 
@@ -73,7 +67,7 @@ Agent 2: subagent_type="general-purpose", model="opus", prompt="[Detailed instru
 
 Each agent prompt includes:
 - Explicit folder assignment (modify ONLY files in this scope)
-- Step-by-step commands (not goals)
+- The change to make, stated as its outcome, with exact commands only where a single sequence is safe
 - Verification requirements (run lint/type-check before committing)
 - Error handling: if blocked, return error report instead of partial work
 - Commit changes with descriptive message including scope name
@@ -86,7 +80,7 @@ Run project's verification commands detected in Phase 0.
 
 Also verify:
 - No cross-scope contamination: `git diff --stat`
-- All git hooks pass: run `git hook run pre-commit` or stage + unstage to trigger
+- All git hooks pass: `git hook run pre-commit`
 - No regressions in functionality
 
 ## Phase 5: Final Report
@@ -98,10 +92,3 @@ Present:
 - Review commands: `git log --oneline -N`, `git diff HEAD~N`
 
 </workflow>
-
-<context_management>
-For long orchestrations approaching context limits:
-1. Complete current phase before any checkpointing
-2. Save progress to a state file in the project (e.g., `.claude/orchestration-state.yaml`)
-3. Inform user: "Context limit approaching. State saved to [path]."
-</context_management>

@@ -53,7 +53,9 @@ Ask user for module, layer, playbook path (optional), coverage target (optional)
 Read(${PLAYBOOK_PATH})
 ```
 
-**If no playbook:** Ask user to choose:
+**If no playbook but `.claude/testing-strategy.md` exists** (written by `/setup-testing-strategy`): use it as the playbook.
+
+**Otherwise:** Ask user to choose:
 
 <strategy_options>
 1. Hexagonal Architecture - Domain/Application 100%, skip infra schemas
@@ -161,6 +163,8 @@ Wait for user response.
 
 6. **Create Worktree**
 
+Note the current branch (`git branch --show-current`) as ${BASE_BRANCH}, then:
+
 ```bash
 git worktree add ../worktree-test/${MODULE}-${LAYER}-coverage -b test/${MODULE}-${LAYER}-coverage
 ```
@@ -180,7 +184,6 @@ Target: ${COVERAGE_TARGET}%
 Working directory: ${WORKTREE_PATH}
 
 Follow strategy principles.
-Write comprehensive tests.
 Never modify production code.
 Create single commit when done.
 
@@ -197,7 +200,7 @@ Wait for agent completion.
 8. **Verify Results**
 
 <verification>
-Run quality gates before completing:
+Run quality gates in ${WORKTREE_PATH}, where the agent committed, before completing:
 
 ```bash
 # 1. Tests pass
@@ -207,8 +210,8 @@ pnpm test ${FILES}
 pnpm test ${FILES} --coverage
 # Parse and verify >= target
 
-# 3. No production code changes
-git diff --name-only | grep -v test | wc -l  # Should be 0
+# 3. No production code changes since the worktree branched
+git diff --name-only ${BASE_BRANCH}...HEAD | grep -v test | wc -l  # Should be 0
 
 # 4. Type check passes
 pnpm typecheck

@@ -39,7 +39,7 @@ Extract from `$ARGUMENTS`:
 **Step 2: Invoke Skill**
 
 ```
-Skill(skill: "orchestration:layer-testing")
+Skill(skill: "claude-orchestration:layer-testing")
 ```
 
 **Step 3: Provide Context**

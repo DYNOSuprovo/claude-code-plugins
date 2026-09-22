@@ -23,42 +23,13 @@ argument-hint: <complex-task>
 
 Initial request: $ARGUMENTS
 
-### Step 1: Create Task List
+### Step 1: Track the Phases
 
-Before anything else, create tasks to track all 3 phases:
-
-```
-TaskCreate(
-  subject: "Phase 1: Understand & Plan",
-  description: "Explore codebase, get architect consensus, obtain approval",
-  activeForm: "Planning",
-  metadata: {"phase": 1}
-)
-TaskCreate(
-  subject: "Phase 2: Execute",
-  description: "Create worktrees, spawn implementation agents, merge results",
-  activeForm: "Executing",
-  metadata: {"phase": 2}
-)
-TaskCreate(
-  subject: "Phase 3: Review & Ship",
-  description: "Quality review, create PR, present summary",
-  activeForm: "Shipping",
-  metadata: {"phase": 3}
-)
-
-# Mark Phase 1 as in_progress (always read state before updating)
-TaskGet(taskId: "phase-1-id")
-TaskUpdate(taskId: "phase-1-id", status: "in_progress")
-```
+Track the three phases as tasks (TaskCreate, TaskUpdate) so the user can follow progress.
 
 ### Step 2: Inline Exploration
 
-Explore the codebase directly using Glob and Grep. Batch file reads when possible - read multiple files in a single tool call for faster context building.
-
-1. Find relevant files (Glob for patterns, Grep for keywords)
-2. Read key files to understand patterns, conventions, integration points
-3. Summarize: relevant code, patterns to follow, files to change
+Explore the codebase directly until you can summarize the relevant code, the patterns and conventions to follow, the integration points, and the files to change.
 
 ### Step 3: Clarify If Needed
 
@@ -89,12 +60,11 @@ Write(file_path: ".claude/orc-state/architect-pragmatic.md", content: "")
 #### Dispatch: Spawn all architects in parallel (single message)
 
 Issue all three `Agent` calls in ONE message — that is what makes them run concurrently.
-Tool restrictions and the model come from `agents/architect.md`; do not restate them here.
 
 ```
 Agent(
   description: "Architect: Minimal changes",
-  subagent_type: "orchestration:architect",
+  subagent_type: "claude-orchestration:architect",
   prompt: """
     You are the MINIMAL architect. Focus: smallest diff, maximum code reuse, least disruption.
 
@@ -108,7 +78,7 @@ Agent(
 
 Agent(
   description: "Architect: Clean architecture",
-  subagent_type: "orchestration:architect",
+  subagent_type: "claude-orchestration:architect",
   prompt: """
     You are the CLEAN architect. Focus: maintainability, clear abstractions, long-term health.
 
@@ -122,7 +92,7 @@ Agent(
 
 Agent(
   description: "Architect: Pragmatic balance",
-  subagent_type: "orchestration:architect",
+  subagent_type: "claude-orchestration:architect",
   prompt: """
     You are the PRAGMATIC architect. Focus: practical trade-offs, ship-ready approach.
 
@@ -174,12 +144,6 @@ Present: architecture approach, chunk breakdown, base branch.
 
 **CHECKPOINT: "Approve execution? (yes/no)"** → Yes: Phase 2 | No: Revise or abort
 
-```
-# Mark Phase 1 complete
-TaskGet(taskId: "phase-1-id")
-TaskUpdate(taskId: "phase-1-id", status: "completed")
-```
-
 </phase_1>
 
 ---
@@ -187,12 +151,6 @@ TaskUpdate(taskId: "phase-1-id", status: "completed")
 <phase_2 title="Execute">
 
 **Goal**: Implement in parallel using git worktrees
-
-```
-# Mark Phase 2 as in_progress
-TaskGet(taskId: "phase-2-id")
-TaskUpdate(taskId: "phase-2-id", status: "in_progress")
-```
 
 Delegate to subagents - orchestrate, don't implement.
 
@@ -207,7 +165,7 @@ Write(file_path: ".claude/orc-state/planning-output.yaml", content: "")
 ```
 Agent(
   description: "Create worktree stack and execution plan",
-  subagent_type: "orchestration:planning-coordinator",
+  subagent_type: "claude-orchestration:planning-coordinator",
   prompt: """
     You are the planning coordinator. Create a worktree stack and execution plan.
 
@@ -292,7 +250,7 @@ Write(file_path: ".claude/orc-state/merge-summary.md", content: "")
 ```
 Agent(
   description: "Merge implementations to root branch",
-  subagent_type: "orchestration:merge-coordinator",
+  subagent_type: "claude-orchestration:merge-coordinator",
   prompt: """
     You are the merge coordinator.
 
@@ -318,12 +276,6 @@ Read(file_path: ".claude/orc-state/merge-summary.md")
 
 Merge coordinator: merges children to root sequentially, resolves conflicts, cleans up worktrees (keeps root branch for PR).
 
-```
-# Mark Phase 2 complete
-TaskGet(taskId: "phase-2-id")
-TaskUpdate(taskId: "phase-2-id", status: "completed")
-```
-
 </phase_2>
 
 ---
@@ -331,12 +283,6 @@ TaskUpdate(taskId: "phase-2-id", status: "completed")
 <phase_3 title="Review & Ship">
 
 **Goal**: Quality validation and PR creation
-
-```
-# Mark Phase 3 as in_progress
-TaskGet(taskId: "phase-3-id")
-TaskUpdate(taskId: "phase-3-id", status: "in_progress")
-```
 
 ### Step 1: Quality Review
 
@@ -401,12 +347,6 @@ gh pr create --head <root-branch> --base <base-branch> \
 
 ### Step 4: Summary
 
-```
-# Mark Phase 3 complete
-TaskGet(taskId: "phase-3-id")
-TaskUpdate(taskId: "phase-3-id", status: "completed")
-```
-
 Present: what was built, key decisions, stack ID, chunks, files modified, PR URL, next steps.
 
 </phase_3>
@@ -422,7 +362,7 @@ Uses `git-wt --stack`: creates stack, returns JSON with paths/branches. Children
 Pre-commit/pre-push hooks handle linting, type checking, tests automatically.
 
 ### Subagent Communication
-Subagents are stateless: separate context, no follow-up messages, communicate only via output files. Use pre-truncate → dispatch → verify pattern. Spawn with `Agent`; issue concurrent calls in a single message. Per-call tool restriction is not available — restrictions live in the agent definitions under `agents/`, which is why the coordinators are spawned by `subagent_type` rather than inline.
+Subagents start without this conversation: their prompt carries everything they need, and their output file is the result this command reads. Use pre-truncate → dispatch → verify pattern. Spawn with `Agent`; issue concurrent calls in a single message. Tool restrictions and models live in the agent definitions under `agents/`.
 
 ### State Directory
 All subagent output goes to `.claude/orc-state/`. Pre-truncate files before dispatch, verify after return.
@@ -436,15 +376,6 @@ Stop and inform user if: `git-wt` unavailable, blocking agent errors, unresolvab
 ### Error Handling
 If a subagent fails after 2 attempts, escalate with `AskUserQuestion` using structured
 options (retry, skip, abort). A failed `Agent` call returns without producing its output
-file — detect it in the verify step, not by polling.
-
-### Context Management
-
-For long orchestrations approaching context limits:
-1. Save progress to `.claude/orc-checkpoint.yaml` (phase, step, state)
-2. Summarize completed work for potential continuation
-3. Inform user: "Context limit approaching. State saved to .claude/orc-checkpoint.yaml" (TODO: /orc:resume coming soon)
-
-Monitor context usage throughout. Prioritize completing current phase before checkpointing.
+file; the verify step detects it.
 
 </important_notes>
