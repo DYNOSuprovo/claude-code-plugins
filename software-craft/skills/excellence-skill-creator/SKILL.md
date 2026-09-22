@@ -32,15 +32,7 @@ This skill orchestrates a 3-pass workflow for maximum skill quality.
 
 ### Step 0: Choose Workflow
 
-Ask the user which workflow fits their situation:
-
-| Option | When to Use |
-|--------|-------------|
-| **Full workflow** (default) | Creating a new skill from scratch |
-| **Craft + Audit** | SKILL.md structure exists, need content |
-| **Craft only** | Quick iteration, skip validation |
-
-Default: Full workflow. If SKILL.md already exists, start with Craft.
+Run the full workflow for a new skill. When SKILL.md already exists, start at Craft. Skip Audit only when the user asks for a quick iteration.
 
 ### Pass 1: Scaffold
 
@@ -51,26 +43,17 @@ Invoke skill-creator init with the domain name. If unavailable, create manually:
 ```yaml
 ---
 name: [domain]-design
-description: [What it creates]. NOT for: [exclusions]. USE for: [use cases]. Triggers: [5-7 specific phrases].
+description: [What it creates]. Use when [the user intents it serves, named as categories]. NOT for: [exclusions].
 ---
 ```
 
-The description format matters: state what it does, what it's NOT for (disambiguation), what it IS for, and specific trigger phrases.
+The description format matters: state what it does, the user intents that should load it, and what it's NOT for (disambiguation).
 
 ### Pass 2: Craft
 
 **When to run**: Always.
 
-Execute these steps in order:
-
-1. Identify the domain and its anti-slop angle
-2. Draft 4-5 design thinking questions that force real decisions
-3. Write 3-5 guidelines with good/bad example pairs
-4. Name 5-10 specific anti-patterns Claude tends toward in this domain
-5. Define 4-6 measurable success criteria
-6. Add complexity matching guidance (what simple cases need vs complex)
-7. Write a closing principle—one memorable sentence
-8. Use the templates in `<excellence_structure>` as scaffolding
+Start from the domain's anti-slop angle, then fill the seven sections of `<excellence_structure>`: design thinking questions that force real decisions, guidelines carried by good/bad example pairs, the specific anti-patterns Claude tends toward in this domain, measurable success criteria, what simple cases need versus complex ones, and a one-sentence closing principle.
 
 This is the core pass. It transforms structure into opinionated content.
 
@@ -99,7 +82,7 @@ After all passes, present:
 
 Every design-excellence skill contains seven sections:
 
-**Frontmatter format**: `description: [What]. NOT for: [exclusions]. USE for: [use cases]. Triggers: [phrases].`
+**Frontmatter format**: `description: [What]. Use when [user intents, as categories]. NOT for: [exclusions].`
 
 1. **Opening Context** - What user provides, what skill produces
 2. **Design Thinking** - Questions that force intentionality before implementation
@@ -153,12 +136,12 @@ The table below shows the contrast for common domains:
 <excellence_worked_example>
 ## Worked Example: Error Messages Skill
 
-A condensed example showing the pattern in action (~60 lines, real skills should be 150-250):
+A condensed example showing the pattern in action:
 
 ```markdown
 ---
 name: error-messages
-description: Create helpful, actionable error messages that guide users to recovery. Use when building error handling, validation feedback, or failure responses. Triggers: "error message", "error handling", "user-friendly errors", "validation messages".
+description: Create helpful, actionable error messages that guide users to recovery. Use when building error handling, validation feedback, or failure responses.
 ---
 
 This skill guides creation of error messages that help users recover, not just inform them something broke.
@@ -250,7 +233,7 @@ This example demonstrates all seven sections: frontmatter with triggers, design 
 <excellence_writing_tips>
 ## Writing Tips
 
-**Length**: 150-250 lines. Long enough to encode taste, short enough to stay in context.
+**Length**: Long enough to encode taste, short enough to stay in context. Every section earns its place by changing the output compared with no skill; no section is padded to reach a size.
 
 **Semantic tags**: Use XML-style tags (`<domain_guidelines>`) for each major section. Helps Claude's attention and makes sections navigable.
 
@@ -295,7 +278,7 @@ Symptoms and fixes:
 | Symptom | Diagnosis | Fix |
 |---------|-----------|-----|
 | Output looks the same with/without skill | Anti-patterns too vague | Name specific behaviors, not categories. "Avoid bad error messages" → "Avoid 'An error occurred' without context, cause, or recovery path" |
-| Claude ignores sections | Triggers not matching | Add more trigger phrases to description; check if skill is actually loading |
+| Claude ignores sections | Triggers not matching | Name the missed user intent, as a category, in the description's "Use when" clause; check if skill is actually loading |
 | Claude over-applies guidance | Complexity matching missing | Add explicit "don't do X for simple cases" guidance |
 | Output feels mechanical | Design thinking questions too generic | Questions should force real decisions, not checkboxes |
 | Anti-patterns aren't avoided | Too many anti-patterns | Prioritize 5-7 specific ones over 15 vague ones |

@@ -205,7 +205,7 @@ Select the appropriate template based on artifact type. Human can customize duri
 | Structure | Well-organized? Proper semantic tags? Logical flow? |
 | Composability | Integrates with other skills/commands? Handles dependencies? |
 | Completeness | Everything needed to execute? No gaps? |
-| Best Practices | Claude 4 positive framing? Explicit instructions? Good examples? |
+| Best Practices | Positive framing? Explicit instructions? Good examples? |
 
 ### Commands
 
@@ -216,7 +216,7 @@ Select the appropriate template based on artifact type. Human can customize duri
 | Error Handling | Failure cases addressed? Graceful degradation? |
 | Tool Usage | Correct tools specified? Appropriate permissions? |
 | Output Quality | Results actionable? Format appropriate for context? |
-| Best Practices | Claude 4 conventions? Positive framing? |
+| Best Practices | Positive framing? Explicit instructions? |
 
 ### Prompts
 
@@ -237,7 +237,7 @@ Select the appropriate template based on artifact type. Human can customize duri
 | Constraints | What NOT to do explicit? Guardrails clear? |
 | Return Format | Output structure specified? All required fields documented? |
 | Tool Usage | Correct tools? Appropriate permissions? |
-| Best Practices | Claude 4 patterns? Context efficiency? |
+| Best Practices | Context efficiency? Explicit instructions? |
 
 ### Documentation
 
