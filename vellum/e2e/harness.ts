@@ -54,6 +54,7 @@ export type Vellum = {
   stop(): Promise<void>;
 };
 
+/** The first line of `stream` matching `pattern`; the reader closes on it and the rest drains unread. */
 function firstLine(stream: Readable, pattern: RegExp): Promise<string> {
   return new Promise((found, reject) => {
     const lines = createInterface({ input: stream });
@@ -64,10 +65,11 @@ function firstLine(stream: Readable, pattern: RegExp): Promise<string> {
     );
 
     lines.on("line", (line) => {
-      if (pattern.test(line)) {
-        clearTimeout(timer);
-        found(line.trim());
-      }
+      if (!pattern.test(line)) return;
+      clearTimeout(timer);
+      lines.close();
+      stream.resume();
+      found(line.trim());
     });
   });
 }
@@ -95,7 +97,11 @@ export async function startVellum(
   );
 
   // A test that throws never reaches stop(): the server and its scratch copy go with the runner.
-  process.on("exit", () => child.kill("SIGTERM"));
+  const onExit = (): void => {
+    child.kill("SIGTERM");
+  };
+
+  process.on("exit", onExit);
 
   const url = await firstLine(child.stdout, /^http/u);
   const copied = await firstLine(child.stderr, /copied to /u);
@@ -141,6 +147,7 @@ export async function startVellum(
     },
     stop: () =>
       new Promise((exited) => {
+        process.off("exit", onExit);
         child.once("exit", () => exited());
         child.kill("SIGTERM");
       }),
