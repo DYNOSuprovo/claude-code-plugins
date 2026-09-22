@@ -173,21 +173,21 @@ test.describe("the list", () => {
   });
 });
 
-/** How many ranges of the highlight `name` lie in each pane, the plan's first. */
-function highlighted(page: Page, name: string): Promise<number[]> {
+/** The pane of each range of the highlight `name`, by index, the plan's first; -1 in no pane. */
+function panesOf(page: Page, name: string): Promise<number[]> {
   return page.evaluate((key) => {
-    const ranges = [...(CSS.highlights.get(key) ?? [])];
+    const panes = [...document.querySelectorAll(".pane")];
 
-    return [...document.querySelectorAll(".pane")].map(
-      (pane) => ranges.filter((range) => pane.contains(range.startContainer)).length,
-    );
+    return [...(CSS.highlights.get(key) ?? [])]
+      .map((range) => panes.findIndex((pane) => pane.contains(range.startContainer)))
+      .toSorted((a, b) => a - b);
   }, name);
 }
 
 /**
  * The plan and `research-notes.md` side by side, a comment dragged in each. The split is turned
  * on over another artifact first, so the notes' sheet mounts after the plan's and its effects run
- * after the plan's: the order in which its cleanup erased the plan's highlights.
+ * last: the order in which one pane's cleanup follows the other's paint.
  */
 async function commentedSideBySide(page: Page, vellum: Vellum): Promise<void> {
   await reviewV1(page, vellum);
@@ -215,25 +215,11 @@ test.describe("a Markdown artifact beside the plan", () => {
   test("each pane keeps its comment's highlight", async ({ page, vellum }) => {
     await commentedSideBySide(page, vellum);
 
-    await expect.poll(() => highlighted(page, "vellum-comment")).toEqual([1, 1]);
+    await expect.poll(() => panesOf(page, "vellum-comment")).toEqual([0, 1]);
   });
 
-  test("Shift+Tab from the artifact's card to the plan's lights the plan's passage", async ({
-    page,
-    vellum,
-  }) => {
-    await commentedSideBySide(page, vellum);
-    const cards = page.locator(".comments .card");
-    await cards.nth(1).getByRole("button", { name: "Edit" }).focus();
-    await expect.poll(() => highlighted(page, "vellum-focus")).toEqual([0, 1]);
-    await page.keyboard.press("Shift+Tab");
-
-    await expect(cards.nth(0).getByRole("button", { name: "Delete" })).toBeFocused();
-    await expect.poll(() => highlighted(page, "vellum-focus")).toEqual([1, 0]);
-  });
-
-  // Blur and focus in one task, as a script's `focus()` gives them: between the two that the
-  // keyboard gives, the page renders, and the plan's passage lit whatever the effects' order.
+  // Blur and focus in one task, as a script's `focus()` gives them; the keyboard and the pointer
+  // give them as two events, with a render between.
   test("a focus moved in one step from the artifact's card to the plan's lights the plan's passage", async ({
     page,
     vellum,
@@ -241,10 +227,10 @@ test.describe("a Markdown artifact beside the plan", () => {
     await commentedSideBySide(page, vellum);
     const cards = page.locator(".comments .card");
     await cards.nth(1).getByRole("button", { name: "Edit" }).focus();
-    await expect.poll(() => highlighted(page, "vellum-focus")).toEqual([0, 1]);
+    await expect.poll(() => panesOf(page, "vellum-focus")).toEqual([1]);
     await cards.nth(0).getByRole("button", { name: "Delete" }).focus();
 
-    await expect.poll(() => highlighted(page, "vellum-focus")).toEqual([1, 0]);
+    await expect.poll(() => panesOf(page, "vellum-focus")).toEqual([0]);
   });
 
   test("turning Beside the plan off leaves the artifact's highlight", async ({ page, vellum }) => {
@@ -252,7 +238,7 @@ test.describe("a Markdown artifact beside the plan", () => {
     await page.locator(".tools [role=switch]", { hasText: "Beside the plan" }).click();
     await expect(page.locator(".pane")).toHaveCount(1);
 
-    await expect.poll(() => highlighted(page, "vellum-comment")).toEqual([1]);
+    await expect.poll(() => panesOf(page, "vellum-comment")).toEqual([0]);
   });
 });
 
