@@ -94,6 +94,7 @@ body { margin: 0; background: var(--desk); color: var(--ink); font: var(--t-14)/
 button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px solid var(--redline); outline-offset: 2px; }
 .skip { position: absolute; top: -100px; left: var(--s-3); z-index: 4; padding: var(--s-1) var(--s-2); background: var(--sheet); border: 1px solid var(--edge); border-radius: var(--r-sm); color: var(--ink); font: 650 var(--t-13)/1.2 var(--serif); text-decoration: none; }
 .skip:focus { top: var(--s-2); }
+main:focus { outline: none; }
 
 .app { background: var(--sheet); height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 .bar { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--rule); flex-wrap: nowrap; position: relative; font-size: var(--t-13); }

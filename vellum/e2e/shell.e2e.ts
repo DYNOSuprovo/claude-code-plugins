@@ -249,8 +249,9 @@ test.describe("the landmarks", () => {
     await expect(skip).toBeFocused();
     await expect(skip).toBeVisible();
     await page.keyboard.press("Enter");
-    await page.keyboard.press("Tab");
 
+    await expect(page.locator("main#doc")).toBeFocused();
+    await page.keyboard.press("Tab");
     expect(await page.evaluate(() => document.activeElement?.closest("main") !== null)).toBe(true);
     await expect(page.locator("main#doc")).toHaveCount(1);
     await expect(page.locator("header.bar")).toHaveCount(1);

@@ -80,7 +80,7 @@ function Panes(): preact.JSX.Element {
   // Before the empty state: an open editor keeps its Cancel whatever the document list became.
   if (session !== null) {
     return (
-      <main id="doc" class="docs">
+      <main id="doc" class="docs" tabIndex={-1}>
         {head}
         <Editor session={session} />
       </main>
@@ -89,7 +89,7 @@ function Panes(): preact.JSX.Element {
 
   if (doc === null) {
     return (
-      <main id="doc" class="docs">
+      <main id="doc" class="docs" tabIndex={-1}>
         <div class="waiting">Nothing to show yet. The working directory's files appear here.</div>
       </main>
     );
@@ -98,7 +98,7 @@ function Panes(): preact.JSX.Element {
   const startEdit = (): void => openEditor(panes.current === null ? 1 : lineAtTop(panes.current));
 
   return (
-    <main id="doc" class="docs">
+    <main id="doc" class="docs" tabIndex={-1}>
       {head}
       <Tools onEdit={startEdit} comments={takesComments()} />
       <div class="panes" ref={panes}>
