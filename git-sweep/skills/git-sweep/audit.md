@@ -28,8 +28,8 @@ which pull requests carry each still-unproven branch tip. Read-only, no writes.
 Without `gh`, off GitHub, or without `--include-remote`, it makes no GitHub call
 and the verdicts are the purely local ones.
 
-Execute the audit script, capturing exit code, stdout, and stderr. Do NOT
-discard stderr — the failure reason must stay visible:
+Execute the audit script, capturing exit code, stdout, and stderr. Keep
+stderr, since the failure reason must stay visible:
 
 ```
 run `"<plugin>/scripts/git-clean-audit.ts" --include-remote`
@@ -165,8 +165,8 @@ for each branch in backup:
 Show: | Branch | Ahead | Subject | Verdict + one-line reason |
 ```
 
-Then show what was NOT touched, with the reason per line — a flat list of
-names is what made the previous version unreadable:
+Then show what was not touched, with the reason on each line, since a name
+without its reason does not tell the user why the branch stayed:
 
 ```
 kept (local)   | Branch | Reason |

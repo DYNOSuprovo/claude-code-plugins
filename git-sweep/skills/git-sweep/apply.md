@@ -97,7 +97,7 @@ loop:
 
 Run the apply backend against the saved manifest file. It re-validates the
 manifest shape, executes one operation at a time, and consumes (deletes) the
-file on full success. (`--manifest '{json}'` still works for direct invocation.)
+file on full success.
 
 ```
 result = run `"<plugin>/scripts/git-clean-apply.ts" --manifest-file "{manifest_file}"`
