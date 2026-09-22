@@ -297,7 +297,7 @@ export function finishEdit(session: EditSession, text: string): void {
   const { doc, text: reviewed } = view.plan;
 
   batch(() => {
-    annotations.value = shiftAnnotations(annotations.value, doc, lineDiff(base, text));
+    annotations.value = shiftAnnotations(annotations.value, doc, { version: reviewed, base, text });
     edited.value = text === reviewed ? null : { version, text };
     succeed("edit");
   });

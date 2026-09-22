@@ -565,6 +565,23 @@ describe("the editor", () => {
     expect(annotations.value).toEqual([onLine("c1", `${WIP}.review/v2.md`, 3)]);
   });
 
+  test("Done on a second edit that removes a commented line gives the comment the version's lines", async () => {
+    const { annotations, finishEdit, review } = await freshStore();
+    review.value = versioned({ version: 2, text: "a\nb\nc\n" });
+    annotations.value = [onLine("c1", `${WIP}.review/v2.md`, 3)];
+    finishEdit({ version: 2, base: "new\na\nb\nc\n", line: 1 } as never, "new\na\nc\n");
+
+    expect(annotations.value).toEqual([
+      {
+        ...onLine("c1", `${WIP}.review/v2.md`, 2),
+        anchor: {
+          kind: "text",
+          passages: [{ quote: "q", prefix: "", suffix: "", lines: [2, 2], removed: true }],
+        },
+      },
+    ]);
+  });
+
   test("Done on the version's own text is no edit", async () => {
     const { edited, finishEdit, review } = await freshStore();
     review.value = versioned({ version: 2, text: "a\n" });

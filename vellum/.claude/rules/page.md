@@ -149,11 +149,15 @@ no build step, so what the page imports costs nothing at `cli start`.
   derives, the editor open so the typing can be copied.
 - One line diff, computed once: `planChanges` in `state.ts` compares the previous version with
   the text on screen, the bar prints its count, and the plan's renderer marks it while
-  "Changes since" is on. On Done the same `lineDiff` shifts the plan's comments through
-  `shiftAnnotations`, so a feedback only ever names lines of the text it is sent with; a passage
-  whose lines the edit removed keeps them and is `removed`, and the card, the feedback and the
-  sheet say so, the sheet by marking nothing. Discard edit is `discardEdit`, the reverse through
-  `unshiftAnnotations` and the diff back to the version's text. The editor closes through
+  "Changes since" is on. On Done `shiftAnnotations` moves the plan's comments through the edit,
+  from the three texts of the session (the version's, the one the editor opened on, the one
+  typed), so a feedback only ever names lines of the text it is sent with. A passage on a line
+  the edit replaced follows the replacement; one whose lines the edit removed outright is
+  `removed` and takes the version's lines, whatever edit it was made on, and the card, the
+  feedback and the sheet say so, the sheet by marking nothing; a `removed` passage is judged
+  against the version again at each Done, and comes back once its text does. Discard edit is
+  `discardEdit`, the reverse through `unshiftAnnotations` and the diff back to the version's
+  text. The editor closes through
   `closeEditor` alone, Done and Cancel alike, on the line under the caret: `resume` carries it,
   the plan's renderer scrolls to its block once the diagrams are drawn and the images decoded,
   and `Tools` gives the focus back to Edit. While the editor is open the comments panel stays

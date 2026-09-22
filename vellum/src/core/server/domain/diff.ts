@@ -93,11 +93,23 @@ export function shiftLines(
   return [shiftLine(diff, lines[0]), shiftLine(diff, lines[1])];
 }
 
-/** Whether `line` of the text before is in a removed run: the quote that sat there is gone. */
+/**
+ * Whether `line` of the text before is in a removed run no added run follows: the quote that
+ * sat there is gone. A removed run an added run follows is a replacement, which `shiftLine`
+ * maps to the lines that took its place.
+ */
 function removedAt(diff: LineDiff, line: number): boolean {
   return diff.some(
-    (run) => run.kind === "removed" && run.before <= line && line < run.before + run.lines.length,
+    (run, index) =>
+      run.kind === "removed" &&
+      run.before <= line &&
+      line < run.before + run.lines.length &&
+      diff[index + 1]?.kind !== "added",
   );
+}
+
+function removedLines(diff: LineDiff, lines: readonly [number, number]): boolean {
+  return removedAt(diff, lines[0]) || removedAt(diff, lines[1]);
 }
 
 function mapPassages(
@@ -114,23 +126,39 @@ function mapPassages(
   });
 }
 
+/** The three texts of a Done: the version's, the one the editor opened on, the one typed. */
+export type EditTexts = {
+  readonly version: string;
+  readonly base: string;
+  readonly text: string;
+};
+
 /**
- * Done: the text passages of `doc`'s annotations follow their lines through the edit; one whose
- * lines the edit removed keeps them and is marked `removed`, since the diff back could not find
- * a line it had moved. Every other annotation is returned as is.
+ * Done: the text passages of `doc`'s annotations follow their lines through the edit. One whose
+ * lines the edit removed is marked `removed` and takes the version's lines, whatever edit it was
+ * made on, so the feedback and Discard edit read them as the version's; one already removed is
+ * judged against the version again, and comes back on its new line once its text does. Every
+ * other annotation is returned as is.
  */
 export function shiftAnnotations(
   annotations: readonly Annotation[],
   doc: ProjectPath,
-  diff: LineDiff,
+  texts: EditTexts,
 ): readonly Annotation[] {
-  return mapPassages(annotations, doc, (passage) => {
-    if (passage.removed) return passage;
-    const [start, end] = passage.lines;
+  const edit = lineDiff(texts.base, texts.text);
+  const toVersion = lineDiff(texts.base, texts.version);
+  const fromVersion = lineDiff(texts.version, texts.text);
 
-    return removedAt(diff, start) || removedAt(diff, end)
-      ? { ...passage, removed: true }
-      : { ...passage, lines: shiftLines(diff, passage.lines) };
+  return mapPassages(annotations, doc, (passage) => {
+    if (passage.removed) {
+      return removedLines(fromVersion, passage.lines)
+        ? passage
+        : { ...passage, removed: false, lines: shiftLines(fromVersion, passage.lines) };
+    }
+
+    return removedLines(edit, passage.lines)
+      ? { ...passage, removed: true, lines: shiftLines(toVersion, passage.lines) }
+      : { ...passage, lines: shiftLines(edit, passage.lines) };
   });
 }
 

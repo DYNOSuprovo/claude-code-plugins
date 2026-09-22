@@ -89,36 +89,68 @@ function deleteAt(
   return { id: "a", doc, anchor: { kind: "text", passages: [passage] }, mark: { kind: "delete" } };
 }
 
-/** Line 11 of the text before is gone, and two lines were added above. */
-const ONE_REMOVED: LineDiff = [
-  ...TWO_ABOVE.slice(0, 1),
-  { kind: "same", before: 1, after: 3, count: 10 },
-  { kind: "removed", before: 11, at: 13, lines: ["gone"] },
-  { kind: "same", before: 12, after: 13, count: 5 },
-];
+/** `l1` to `l<count>`, one per line. */
+function text(count: number): string {
+  return Array.from({ length: count }, (_, index) => `l${index + 1}\n`).join("");
+}
+
+const VERSION = text(60);
+
+/** A first Done: the editor opened on the version itself. */
+function firstEdit(edited: string): Parameters<typeof shiftAnnotations>[2] {
+  return { version: VERSION, base: VERSION, text: edited };
+}
 
 describe("shiftAnnotations", () => {
   test("the document's passages move, and the mark rides along", () => {
-    expect(shiftAnnotations([deleteAt(PLAN, [41, 41])], PLAN, TWO_ABOVE)).toEqual([
+    const edit = firstEdit(`n1\nn2\n${VERSION}`);
+    expect(shiftAnnotations([deleteAt(PLAN, [41, 41])], PLAN, edit)).toEqual([
       deleteAt(PLAN, [43, 43]),
     ]);
   });
 
   test("a passage whose lines the edit removed keeps its lines and is marked removed", () => {
-    expect(shiftAnnotations([deleteAt(PLAN, [11, 11])], PLAN, ONE_REMOVED)).toEqual([
+    const edit = firstEdit(`n1\nn2\n${VERSION.replace("l11\n", "")}`);
+    expect(shiftAnnotations([deleteAt(PLAN, [11, 11])], PLAN, edit)).toEqual([
       deleteAt(PLAN, [11, 11], true),
     ]);
   });
 
   test("a passage that ends on a removed line is removed too, its lines kept", () => {
-    expect(shiftAnnotations([deleteAt(PLAN, [10, 11])], PLAN, ONE_REMOVED)).toEqual([
+    const edit = firstEdit(`n1\nn2\n${VERSION.replace("l11\n", "")}`);
+    expect(shiftAnnotations([deleteAt(PLAN, [10, 11])], PLAN, edit)).toEqual([
       deleteAt(PLAN, [10, 11], true),
     ]);
   });
 
-  test("a passage already removed keeps its lines through a later edit", () => {
-    expect(shiftAnnotations([deleteAt(PLAN, [11, 11], true)], PLAN, TWO_ABOVE)).toEqual([
+  test("a passage on a line the edit replaced follows the replacement", () => {
+    const edit = firstEdit(VERSION.replace("l11\n", "L11\n"));
+    expect(shiftAnnotations([deleteAt(PLAN, [11, 11])], PLAN, edit)).toEqual([
+      deleteAt(PLAN, [11, 11]),
+    ]);
+  });
+
+  test("a passage removed on a second edit takes the version's lines, not the first edit's", () => {
+    const base = `n1\nn2\nn3\n${VERSION}`;
+    const edit = { version: VERSION, base, text: base.replace("l11\n", "") };
+    expect(shiftAnnotations([deleteAt(PLAN, [14, 14])], PLAN, edit)).toEqual([
       deleteAt(PLAN, [11, 11], true),
+    ]);
+  });
+
+  test("a passage already removed keeps its lines while its text stays out", () => {
+    const base = VERSION.replace("l11\n", "");
+    const edit = { version: VERSION, base, text: `n1\nn2\n${base}` };
+    expect(shiftAnnotations([deleteAt(PLAN, [11, 11], true)], PLAN, edit)).toEqual([
+      deleteAt(PLAN, [11, 11], true),
+    ]);
+  });
+
+  test("a passage already removed is removed no more once an edit puts its text back, on its new line", () => {
+    const base = VERSION.replace("l11\n", "");
+    const edit = { version: VERSION, base, text: `n1\nn2\n${VERSION}` };
+    expect(shiftAnnotations([deleteAt(PLAN, [11, 11], true)], PLAN, edit)).toEqual([
+      deleteAt(PLAN, [13, 13]),
     ]);
   });
 
@@ -131,7 +163,7 @@ describe("shiftAnnotations", () => {
     };
 
     const others = [deleteAt(ARTIFACT, [41, 41]), general];
-    expect(shiftAnnotations(others, PLAN, TWO_ABOVE)).toEqual(others);
+    expect(shiftAnnotations(others, PLAN, firstEdit(`n1\nn2\n${VERSION}`))).toEqual(others);
   });
 });
 
@@ -143,7 +175,7 @@ describe("unshiftAnnotations", () => {
     const shifted = shiftAnnotations(
       [deleteAt(PLAN, [2, 2]), { ...deleteAt(PLAN, [4, 4]), id: "b" }],
       PLAN,
-      lineDiff(before, after),
+      { version: before, base: before, text: after },
     );
 
     expect(shifted).toEqual([deleteAt(PLAN, [2, 2], true), { ...deleteAt(PLAN, [4, 4]), id: "b" }]);
