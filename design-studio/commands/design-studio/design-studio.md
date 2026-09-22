@@ -208,7 +208,7 @@ Agent(
 )
 ```
 
-This is a BLOCKING call. Wait for designer to complete.
+Wait for the designer's report before Step 3.3. The agent may run in the background; its report then arrives as a notification.
 
 ### Step 3.3: Parse Report
 

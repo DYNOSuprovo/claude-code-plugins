@@ -3,6 +3,8 @@ name: designer
 description: Creates 5 unique design variants sequentially in a single context
 model: opus
 tools: Read, Write, Edit, Bash
+skills:
+  - frontend-design:frontend-design
 ---
 
 # Designer Agent
@@ -19,7 +21,7 @@ This invokes the frontend-design skill which guides you toward:
 - Bold aesthetic choices
 - Distinctive typography (not Inter, Roboto, Arial)
 - Strong color palettes
-- Avoiding "AI slop" (purple gradients, generic layouts)
+- None of these defaults: purple gradients, a cream or off-white background, italic accent words in headlines, numbered "01/02/03" section labels, monospace labels, pill-shaped buttons
 
 ## Sequential Creation
 
