@@ -366,14 +366,15 @@ test.describe("a comment in a mockup", () => {
     await commentWords(page, frame, 34, 54);
     const mockup = readFixture("rich", "mockup.html");
     vellum.writeFile("mockup.html", mockup.replace("saved on this tablet", "kept here"));
-    const paragraph = await boxOf(frame.locator("p.offline"));
 
+    // The paragraph is measured with the marks, in the rewritten document: its width moves with the frame's scrollbar.
     await expect
-      .poll(async () =>
-        (await overlay(frame))
-          .filter((b) => b.kind.includes("comment"))
-          .map((b) => Math.round(b.rect.width)),
-      )
-      .toEqual([Math.round(paragraph.width)]);
+      .poll(async () => {
+        const marks = (await overlay(frame)).filter((b) => b.kind.includes("comment"));
+        const paragraph = await boxOf(frame.locator("p.offline"));
+
+        return marks.map((mark) => Math.round(mark.rect.width - paragraph.width));
+      })
+      .toEqual([0]);
   });
 });
