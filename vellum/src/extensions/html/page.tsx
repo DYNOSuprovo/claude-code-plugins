@@ -5,6 +5,7 @@ import { docUrl } from "../../core/page/api.ts";
 import { Composer } from "../../core/page/composer.tsx";
 import { srgb } from "../../core/page/kit.tsx";
 import type { Rect } from "../../core/page/place.ts";
+import { windowOf } from "../../core/page/place.ts";
 import { commenting, dark, flipCommentSwitch, holding } from "../../core/page/state.ts";
 import type { ElementRef } from "../../core/protocol.ts";
 import type { FrameTheme, PageToFrame, PickBox } from "./messages.ts";
@@ -30,12 +31,7 @@ function placeOf(frame: HTMLIFrameElement, box: PickBox): { target: Rect; pane: 
       width: box.width,
       height: box.height,
     },
-    pane: {
-      top: pane.scrollTop,
-      left: pane.scrollLeft,
-      width: pane.clientWidth,
-      height: pane.clientHeight,
-    },
+    pane: windowOf(pane),
   };
 }
 

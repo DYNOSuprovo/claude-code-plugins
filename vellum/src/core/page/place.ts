@@ -8,6 +8,16 @@ export type Rect = {
 
 export type Placement = { readonly top: number; readonly left: number; readonly above: boolean };
 
+/** A pane's window in its own scrolled content: the space `placeNear` keeps a popover inside. */
+export function windowOf(pane: HTMLElement): Rect {
+  return {
+    top: pane.scrollTop,
+    left: pane.scrollLeft,
+    width: pane.clientWidth,
+    height: pane.clientHeight,
+  };
+}
+
 const GAP = 8;
 
 /**

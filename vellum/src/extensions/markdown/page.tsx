@@ -10,6 +10,7 @@ import { Composer } from "../../core/page/composer.tsx";
 import { paint } from "../../core/page/highlights.ts";
 import { srgb } from "../../core/page/kit.tsx";
 import type { Rect } from "../../core/page/place.ts";
+import { windowOf } from "../../core/page/place.ts";
 import { dragRange, toggled } from "../../core/page/selection.ts";
 import { commenting, dark, docs, error, holding, review, select } from "../../core/page/state.ts";
 import type { DocRef, Passage } from "../../core/protocol.ts";
@@ -157,20 +158,6 @@ function inPane(root: HTMLElement, rect: DOMRect): Rect | null {
     width: rect.width,
     height: rect.height,
   };
-}
-
-/** The pane's window, in its own scrolled content: what the composer must stay inside. */
-function paneWindow(root: HTMLElement): Rect | null {
-  const pane = root.parentElement;
-
-  return pane === null
-    ? null
-    : {
-        top: pane.scrollTop,
-        left: pane.scrollLeft,
-        width: pane.clientWidth,
-        height: pane.clientHeight,
-      };
 }
 
 function draftOf(
@@ -510,7 +497,8 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
 
   if (waiting !== null) return <div class="waiting">{waiting}</div>;
   const adding = holding.value && draft !== null;
-  const pane = container.current === null ? null : paneWindow(container.current);
+  const holder = container.current?.parentElement ?? null;
+  const pane = holder === null ? null : windowOf(holder);
 
   const leave = (): void => {
     const root = container.current;
