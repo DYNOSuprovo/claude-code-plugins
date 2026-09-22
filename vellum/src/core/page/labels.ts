@@ -70,19 +70,36 @@ function folderOf(doc: GroupedDoc, planDir: string): string {
 }
 
 /**
+ * The rail's lines for a whole group of documents: `dirLabels` is run once over the group's
+ * folders rather than once per document.
+ */
+export function groupLabels(
+  docs: readonly GroupedDoc[],
+  view: Labelled,
+): ReadonlyMap<string, DocLabel> {
+  const planDir = planDirOf(view);
+  const labels = dirLabels(docs.map((doc) => folderOf(doc, planDir)));
+
+  return new Map(
+    docs.map((doc) => [
+      doc.path,
+      doc.group === "plan"
+        ? { name: `Plan ${planLabel(view.workspace)}`, dir: null }
+        : { name: basename(doc.path), dir: labels.get(folderOf(doc, planDir)) ?? null },
+    ]),
+  );
+}
+
+/**
  * The rail's line for `doc`: `Plan` and its version; an artifact by its name and, in a
  * subfolder of the plan's, that folder; a cited file by its name and the folders that tell it
  * from the other cited files.
  */
 export function docLabel(doc: GroupedDoc, view: Labelled): DocLabel {
   if (doc.group === "plan") return { name: `Plan ${planLabel(view.workspace)}`, dir: null };
-  const planDir = planDirOf(view);
+  const groupDocs = view.docs.filter((other) => other.group === doc.group);
 
-  const labels = dirLabels(
-    view.docs.filter((other) => other.group === doc.group).map((other) => folderOf(other, planDir)),
-  );
-
-  return { name: basename(doc.path), dir: labels.get(folderOf(doc, planDir)) ?? null };
+  return groupLabels(groupDocs, view).get(doc.path) ?? { name: basename(doc.path), dir: null };
 }
 
 /** What the document's head and a card call `doc`: `Plan v2`, an artifact's path beside the plan, a cited file's path. */

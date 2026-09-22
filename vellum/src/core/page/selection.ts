@@ -99,6 +99,9 @@ export function isSwitchKey(press: KeyPress): boolean {
   );
 }
 
+/** The marker a renderer sets on its sheet root, so the page knows where a gesture came from. */
+export const SHEET_SELECTOR = "[data-sheet]";
+
 /**
  * Field by field: a spread copies none of a KeyboardEvent's fields, which are getters. `from` is
  * read off the path: through the sheet's `article`, or up to the window of a framed document.
@@ -108,7 +111,7 @@ export function keyPressOf(event: KeyboardEvent): KeyPress {
   // to its host.
   const path = event.composedPath();
   const [origin] = path;
-  const inSheet = path.some((node) => node instanceof Element && node.matches("article.plan"));
+  const inSheet = path.some((node) => node instanceof Element && node.matches(SHEET_SELECTOR));
 
   return {
     key: event.key,

@@ -6,6 +6,7 @@ import type { Labelled } from "./labels.ts";
 import {
   dirLabels,
   docLabel,
+  groupLabels,
   nameParts,
   pathLabel,
   planLabel,
@@ -78,6 +79,28 @@ describe("dirLabels", () => {
 
   test("the root is no folder", () => {
     expect(dirLabels(["", "docs"]).size).toBe(1);
+  });
+});
+
+describe("groupLabels", () => {
+  test("labels all documents of an artifact group in a single pass", () => {
+    const first = doc(`${WIP}mockup.html`);
+    const second = doc(`${WIP}screens/dialog.html`);
+    const docs = [first, second];
+    const labels = groupLabels(docs, reviewing(docs));
+
+    expect(labels.get(first.path)).toEqual({ name: "mockup.html", dir: null });
+    expect(labels.get(second.path)).toEqual({ name: "dialog.html", dir: "screens" });
+  });
+
+  test("labels cited files distinguishing their directories", () => {
+    const first = doc("vellum/docs/architecture.md", "cited");
+    const second = doc("docs/testing.md", "cited");
+    const docs = [first, second];
+    const labels = groupLabels(docs, reviewing(docs));
+
+    expect(labels.get(first.path)).toEqual({ name: "architecture.md", dir: "vellum/docs" });
+    expect(labels.get(second.path)).toEqual({ name: "testing.md", dir: "docs" });
   });
 });
 

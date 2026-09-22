@@ -544,6 +544,7 @@ function MarkdownDoc(props: RendererProps): preact.JSX.Element {
   return (
     <>
       <article
+        data-sheet
         class={adding ? "plan adding" : "plan"}
         ref={container}
         tabIndex={-1}

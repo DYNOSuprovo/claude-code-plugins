@@ -71,7 +71,7 @@ export async function drawDiagrams(root: HTMLElement, night: boolean): Promise<v
       if (figure.dataset.source !== source) continue;
       figure.innerHTML = svg;
       const drawn = figure.querySelector("svg");
-      const width = drawn?.viewBox.baseVal.width ?? 0;
+      const width = drawn?.viewBox.baseVal?.width ?? 0;
 
       if (drawn !== null && width > 0)
         drawn.style.minWidth = `${Math.round(width * SCALE_FLOOR)}px`;

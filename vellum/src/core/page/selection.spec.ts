@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { KeyPress } from "./selection.ts";
-import { isSwitchKey, nextSelection, relationOf } from "./selection.ts";
+import { isSwitchKey, nextSelection, relationOf, SHEET_SELECTOR } from "./selection.ts";
 
 describe("nextSelection", () => {
   test("a Ctrl+click on a chosen target removes it", () => {
@@ -107,5 +107,11 @@ describe("isSwitchKey", () => {
 
   test("typing in a field flips nothing", () => {
     expect(isSwitchKey({ ...c, typing: true })).toBe(false);
+  });
+});
+
+describe("SHEET_SELECTOR", () => {
+  test("matches data-sheet attribute", () => {
+    expect(SHEET_SELECTOR).toBe("[data-sheet]");
   });
 });
